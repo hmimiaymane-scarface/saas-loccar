@@ -4,21 +4,9 @@ import { useEffect, useState } from "react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Search } from "lucide-react"
 
-import type { DocumentCategory } from "@/types/rental"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
-
-const CATEGORY_OPTIONS: { value: DocumentCategory; label: string }[] = [
-  { value: "rental_contract", label: "Rental contract" },
-  { value: "identity_document", label: "Identity document" },
-  { value: "driving_licence", label: "Driving licence" },
-  { value: "proof_of_address", label: "Proof of address" },
-  { value: "insurance_document", label: "Insurance document" },
-  { value: "vehicle_registration", label: "Vehicle registration" },
-  { value: "technical_inspection", label: "Technical inspection" },
-  { value: "payment_receipt", label: "Payment receipt" },
-  { value: "other", label: "Other" },
-]
+import { CATEGORY_OPTIONS } from "@/lib/documents"
 
 function DocumentFilters() {
   const router = useRouter()
@@ -80,4 +68,4 @@ function DocumentFilters() {
   )
 }
 
-export { DocumentFilters, CATEGORY_OPTIONS }
+export { DocumentFilters }

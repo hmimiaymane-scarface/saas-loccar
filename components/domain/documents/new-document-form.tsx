@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { CATEGORY_OPTIONS } from "@/components/domain/documents/document-filters"
+import { CATEGORY_OPTIONS } from "@/lib/documents"
 
 type LinkType = "customer" | "vehicle"
 

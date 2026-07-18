@@ -3,7 +3,7 @@ import { FileText, User, Car, ClipboardList } from "lucide-react"
 
 import type { RentalDocument } from "@/types/rental"
 import { formatDateTime, formatFileSize } from "@/lib/format"
-import { CATEGORY_OPTIONS } from "@/components/domain/documents/document-filters"
+import { CATEGORY_OPTIONS } from "@/lib/documents"
 import { DocumentDeleteButton } from "@/components/domain/documents/document-delete-button"
 
 function DocumentListItem({ document: doc, canDelete }: { document: RentalDocument; canDelete: boolean }) {
