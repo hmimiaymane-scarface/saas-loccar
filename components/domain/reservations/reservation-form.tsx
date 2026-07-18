@@ -53,8 +53,6 @@ export interface ReservationFormInitial {
   returnLocation: string
   dailyRateMad: number
   discountMad: number
-  depositMad: number | null
-  amountPaidMad: number
   notes: string | null
 }
 
@@ -180,10 +178,6 @@ function ReservationForm({
   // Pricing ----------------------------------------------------------------
   const [dailyRate, setDailyRate] = useState<number>(initial?.dailyRateMad ?? defaultDailyRate ?? 0)
   const [discountMad, setDiscountMad] = useState<number>(initial?.discountMad ?? 0)
-  const [depositMad, setDepositMad] = useState<string>(
-    initial?.depositMad != null ? String(initial.depositMad) : ""
-  )
-  const [amountPaidMad, setAmountPaidMad] = useState<number>(initial?.amountPaidMad ?? 0)
 
   function onSelectVehicle(v: Vehicle) {
     setVehicleId(v.id)
@@ -191,10 +185,13 @@ function ReservationForm({
     setDailyRate(v.dailyRateMad)
   }
 
+  // Payments and deposits are recorded separately (reservation detail page
+  // and the pickup/return workflow), never edited directly here — this
+  // preview is base/discount/total only, not "paid so far".
   const pricing = useMemo(() => {
     if (!pickupIso || !returnIso) return null
-    return calculatePricing({ dailyRateMad: dailyRate, pickupAt: pickupIso, returnAt: returnIso, discountMad, amountPaidMad })
-  }, [pickupIso, returnIso, dailyRate, discountMad, amountPaidMad])
+    return calculatePricing({ dailyRateMad: dailyRate, pickupAt: pickupIso, returnAt: returnIso, discountMad })
+  }, [pickupIso, returnIso, dailyRate, discountMad])
 
   // Details ----------------------------------------------------------------
   const [source, setSource] = useState<ReservationSource>("walk_in")
@@ -516,28 +513,6 @@ function ReservationForm({
                 onChange={(e) => setDiscountMad(Number(e.target.value) || 0)}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="depositMad">Deposit (MAD)</Label>
-              <Input
-                id="depositMad"
-                name="depositMad"
-                type="number"
-                step="0.01"
-                value={depositMad}
-                onChange={(e) => setDepositMad(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="amountPaidMad">Amount already paid (MAD)</Label>
-              <Input
-                id="amountPaidMad"
-                name="amountPaidMad"
-                type="number"
-                step="0.01"
-                value={amountPaidMad}
-                onChange={(e) => setAmountPaidMad(Number(e.target.value) || 0)}
-              />
-            </div>
           </div>
 
           {pricing && (
@@ -559,16 +534,11 @@ function ReservationForm({
                 <span>Total</span>
                 <span>{formatMad(pricing.totalMad)}</span>
               </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>Paid</span>
-                <span>{formatMad(pricing.amountPaidMad)}</span>
-              </div>
-              <div className="flex justify-between font-medium text-foreground">
-                <span>Remaining</span>
-                <span>{formatMad(pricing.remainingMad)}</span>
-              </div>
             </div>
           )}
+          <p className="text-xs text-muted-foreground">
+            Payments and the deposit are recorded from the reservation page after it&apos;s created.
+          </p>
         </CardContent>
       </Card>
 

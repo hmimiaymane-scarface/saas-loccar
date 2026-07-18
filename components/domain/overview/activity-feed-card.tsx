@@ -9,6 +9,13 @@ import {
   RefreshCcw,
   UserPlus,
   UserRoundPlus,
+  ClipboardCheck,
+  ClipboardEdit,
+  ShieldAlert,
+  ShieldCheck,
+  Banknote,
+  Undo2,
+  Lock,
   type LucideIcon,
 } from "lucide-react"
 
@@ -29,6 +36,15 @@ const activityIcon: Record<ActivityType, LucideIcon> = {
   customer_created: UserPlus,
   document_uploaded: FileText,
   member_invited: UserRoundPlus,
+  pickup_started: ClipboardEdit,
+  return_started: ClipboardEdit,
+  inspection_completed: ClipboardCheck,
+  inspection_corrected: Lock,
+  damage_recorded: ShieldAlert,
+  damage_resolved: ShieldCheck,
+  deposit_collected: Banknote,
+  deposit_returned: Undo2,
+  deposit_retained: Lock,
 }
 
 function ActivityFeedCard({ items }: { items: ActivityItem[] }) {

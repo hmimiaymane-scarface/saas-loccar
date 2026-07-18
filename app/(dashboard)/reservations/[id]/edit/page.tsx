@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation"
 
 import { getSessionContext } from "@/lib/auth/session"
 import { getReservationDetail, getBranches } from "@/lib/data"
-import { isTerminalStatus } from "@/lib/reservations/status"
+import { isEditableStatus } from "@/lib/reservations/status"
 import { SectionHeader } from "@/components/domain/section-header"
 import { ReservationForm } from "@/components/domain/reservations/reservation-form"
 import { updateReservation } from "@/app/(dashboard)/reservations/actions"
@@ -22,7 +22,7 @@ export default async function EditReservationPage({
     getBranches(session.company.id),
   ])
   if (!reservation) notFound()
-  if (isTerminalStatus(reservation.status)) redirect(`/reservations/${id}`)
+  if (!isEditableStatus(reservation.status)) redirect(`/reservations/${id}`)
 
   return (
     <>
@@ -44,8 +44,6 @@ export default async function EditReservationPage({
           returnLocation: reservation.returnLocation,
           dailyRateMad: reservation.dailyRateMad,
           discountMad: reservation.discountMad,
-          depositMad: reservation.depositMad,
-          amountPaidMad: reservation.payment.amountPaidMad,
           notes: reservation.notes,
         }}
       />

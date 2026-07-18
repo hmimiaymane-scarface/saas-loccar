@@ -1,11 +1,11 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
-import { Pencil, Plus, Gauge, MapPin } from "lucide-react"
+import { Pencil, Plus, Gauge, MapPin, AlertTriangle } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
 import { getVehicleDetail } from "@/lib/data"
-import { formatMad, formatDate } from "@/lib/format"
-import { vehicleStatusConfig } from "@/lib/status"
+import { formatMad, formatDate, formatDateTime } from "@/lib/format"
+import { vehicleStatusConfig, damageStatusConfig } from "@/lib/status"
 import { StatusBadge } from "@/components/domain/status-badge"
 import { SectionHeader } from "@/components/domain/section-header"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { ReservationRow } from "@/components/domain/reservations/reservation-row"
 import { VehicleStatusActions } from "@/components/domain/fleet/vehicle-status-actions"
+import { DocumentListItem } from "@/components/domain/documents/document-list-item"
 
 function daysUntil(date: string, nowMs: number): number {
   return Math.floor((new Date(date).getTime() - nowMs) / 86400000)
@@ -74,6 +75,12 @@ export default async function VehicleDetailPage({
               <Link href={`/reservations/new?vehicleId=${vehicle.id}&rate=${vehicle.dailyRateMad}`}>
                 <Plus />
                 New reservation
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href={`/damages/new?vehicle=${vehicle.id}`}>
+                <AlertTriangle />
+                Record damage
               </Link>
             </Button>
             {canManage && (
@@ -155,6 +162,45 @@ export default async function VehicleDetailPage({
               )}
             </CardContent>
           </Card>
+
+          {vehicle.recentInspections.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent inspections</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col divide-y divide-border">
+                {vehicle.recentInspections.map((inspection) => (
+                  <Link
+                    key={inspection.id}
+                    href={`/inspections/${inspection.id}`}
+                    className="flex items-center justify-between py-2.5 text-sm hover:underline"
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium text-foreground capitalize">{inspection.type} inspection</span>
+                      <span className="text-xs text-muted-foreground">
+                        {inspection.odometerKm != null ? `${inspection.odometerKm.toLocaleString()} km` : "No odometer"}
+                        {inspection.completedAt ? ` · ${formatDateTime(inspection.completedAt)}` : ""}
+                      </span>
+                    </div>
+                    <span className="text-xs text-muted-foreground capitalize">{inspection.status}</span>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {vehicle.documents.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Files</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                {vehicle.documents.map((doc) => (
+                  <DocumentListItem key={doc.id} document={doc} canDelete={canManage} />
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="flex flex-col gap-4">
@@ -169,9 +215,52 @@ export default async function VehicleDetailPage({
             </Card>
           )}
 
+          {vehicle.openDamages.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Open damage</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col divide-y divide-border">
+                {vehicle.openDamages.map((damage) => (
+                  <Link
+                    key={damage.id}
+                    href={`/damages/${damage.id}`}
+                    className="flex items-center justify-between py-2.5 text-sm hover:underline"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-foreground">{damage.vehicleArea}</span>
+                      <span className="text-xs text-muted-foreground">{damage.description}</span>
+                    </div>
+                    <StatusBadge visual={damageStatusConfig[damage.status]} />
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {vehicle.previousDamages.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Damage history</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col divide-y divide-border">
+                {vehicle.previousDamages.map((damage) => (
+                  <Link
+                    key={damage.id}
+                    href={`/damages/${damage.id}`}
+                    className="flex items-center justify-between py-2.5 text-sm hover:underline"
+                  >
+                    <span className="text-foreground">{damage.vehicleArea}</span>
+                    <StatusBadge visual={damageStatusConfig[damage.status]} />
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
-              <CardTitle>Documents</CardTitle>
+              <CardTitle>Compliance</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-2.5">
               <DocumentRow label="Insurance" date={vehicle.insuranceExpiresOn} nowMs={nowMs} />

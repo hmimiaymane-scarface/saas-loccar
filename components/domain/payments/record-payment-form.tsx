@@ -1,0 +1,114 @@
+"use client"
+
+import { useActionState, useState } from "react"
+import { Loader2 } from "lucide-react"
+
+import { recordPayment, type PaymentActionState } from "@/app/(dashboard)/payments/actions"
+import type { Booking, Customer } from "@/types/rental"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { NativeSelect } from "@/components/ui/native-select"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+
+const initialState: PaymentActionState = {}
+
+function RecordPaymentForm({ bookings, customers }: { bookings: Booking[]; customers: Customer[] }) {
+  const [state, formAction, isPending] = useActionState(recordPayment, initialState)
+  const [reservationId, setReservationId] = useState("")
+  const selectedBooking = bookings.find((b) => b.id === reservationId)
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Record a transaction</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form action={formAction} className="flex flex-col gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <Label htmlFor="reservationId">Reservation (optional)</Label>
+              <NativeSelect
+                id="reservationId"
+                name="reservationId"
+                value={reservationId}
+                onChange={(e) => setReservationId(e.target.value)}
+              >
+                <option value="">No reservation</option>
+                {bookings.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.reference} · {b.customer.fullName}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+
+            {selectedBooking ? (
+              <input type="hidden" name="customerId" value={selectedBooking.customer.id} />
+            ) : (
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <Label htmlFor="customerId">Customer</Label>
+                <NativeSelect id="customerId" name="customerId" defaultValue="" required>
+                  <option value="" disabled>
+                    Select a customer
+                  </option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.fullName}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="transactionType">Type</Label>
+              <NativeSelect id="transactionType" name="transactionType" defaultValue="rental_payment" required>
+                <option value="rental_payment">Rental payment</option>
+                <option value="damage_charge">Damage charge</option>
+                <option value="additional_charge">Additional charge</option>
+                <option value="refund">Refund</option>
+              </NativeSelect>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="method">Method</Label>
+              <NativeSelect id="method" name="method" defaultValue="cash" required>
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="transfer">Transfer</option>
+                <option value="other">Other</option>
+              </NativeSelect>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="amount">Amount (MAD)</Label>
+              <Input id="amount" name="amount" type="number" step="0.01" min="0.01" required />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="reference">Reference (optional)</Label>
+              <Input id="reference" name="reference" />
+            </div>
+
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <Label htmlFor="notes">Notes (optional)</Label>
+              <Input id="notes" name="notes" />
+            </div>
+          </div>
+
+          {state.error && <p className="text-sm text-destructive">{state.error}</p>}
+
+          <div className="flex justify-end">
+            <Button type="submit" disabled={isPending}>
+              {isPending && <Loader2 className="animate-spin" />}
+              Record transaction
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+export { RecordPaymentForm }

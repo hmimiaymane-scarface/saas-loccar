@@ -79,6 +79,15 @@ export type ActivityType =
   | "customer_created"
   | "document_uploaded"
   | "member_invited"
+  | "pickup_started"
+  | "return_started"
+  | "inspection_completed"
+  | "inspection_corrected"
+  | "damage_recorded"
+  | "damage_resolved"
+  | "deposit_collected"
+  | "deposit_returned"
+  | "deposit_retained"
 
 export type EmployeeRole = "owner" | "manager" | "agent" | "accountant" | "driver"
 
@@ -139,6 +148,10 @@ export interface VehicleDetail extends Vehicle {
   currentReservation: Booking | null
   upcomingReservations: Booking[]
   recentReservations: Booking[]
+  openDamages: Damage[]
+  previousDamages: Damage[]
+  recentInspections: Inspection[]
+  documents: RentalDocument[]
 }
 
 export interface Customer {
@@ -209,10 +222,15 @@ export interface ReservationDetail extends Booking {
   dailyRateMad: number
   numDays: number
   discountMad: number
-  depositMad: number | null
   notes: string | null
   createdByName: string | null
   activity: ActivityItem[]
+  deposit: Deposit | null
+  pickupInspection: Inspection | null
+  returnInspection: Inspection | null
+  documents: RentalDocument[]
+  damages: Damage[]
+  payments: PaymentTransaction[]
 }
 
 export interface MaintenanceAlert {
@@ -245,4 +263,218 @@ export interface OverviewMetrics {
   occupancyRate: number
   todayPickupsCount: number
   todayReturnsCount: number
+}
+
+// ---------------------------------------------------------------------
+// Documents
+// ---------------------------------------------------------------------
+
+export type DocumentCategory =
+  | "rental_contract"
+  | "identity_document"
+  | "driving_licence"
+  | "proof_of_address"
+  | "insurance_document"
+  | "vehicle_registration"
+  | "technical_inspection"
+  | "payment_receipt"
+  | "other"
+
+export interface RentalDocument {
+  id: string
+  category: DocumentCategory
+  originalFilename: string
+  mimeType: string
+  fileSizeBytes: number
+  contractReference: string | null
+  notes: string | null
+  status: "active" | "replaced" | "deleted"
+  uploadedByName: string | null
+  createdAt: string
+  reservationId: string | null
+  customerId: string | null
+  vehicleId: string | null
+  /** Time-limited signed URL, resolved server-side at read time — never a
+   * raw storage path (see phase brief: "Do not expose raw storage paths"). */
+  url: string | null
+}
+
+// ---------------------------------------------------------------------
+// Inspections
+// ---------------------------------------------------------------------
+
+export type InspectionType = "pickup" | "return"
+export type InspectionStatus = "draft" | "completed"
+export type FuelLevel = "empty" | "quarter" | "half" | "three_quarter" | "full"
+export type Cleanliness = "clean" | "average" | "dirty"
+export type OverallCondition = "excellent" | "good" | "fair" | "poor"
+export type ChecklistCategory = "condition" | "documents_and_items"
+export type ChecklistResponseValue = "good" | "damaged" | "missing" | "not_applicable"
+
+export interface ChecklistTemplateItem {
+  id: string
+  key: string
+  label: string
+  category: ChecklistCategory
+  sortOrder: number
+}
+
+export interface ChecklistItemResponse {
+  id: string
+  itemKey: string
+  itemLabel: string
+  category: ChecklistCategory
+  response: ChecklistResponseValue
+  notes: string | null
+}
+
+export interface Inspection {
+  id: string
+  reservationId: string
+  vehicleId: string
+  customerId: string
+  type: InspectionType
+  status: InspectionStatus
+  performedByName: string | null
+  odometerKm: number | null
+  fuelLevel: FuelLevel | null
+  cleanliness: Cleanliness | null
+  overallCondition: OverallCondition | null
+  notes: string | null
+  customerAcknowledged: boolean
+  completedAt: string | null
+  correctionReason: string | null
+  correctedAt: string | null
+  createdAt: string
+  checklist: ChecklistItemResponse[]
+  media: MediaFile[]
+}
+
+// ---------------------------------------------------------------------
+// Damages
+// ---------------------------------------------------------------------
+
+export type DamageStatus =
+  | "existing"
+  | "newly_discovered"
+  | "under_review"
+  | "customer_responsible"
+  | "agency_responsible"
+  | "repair_planned"
+  | "repaired"
+  | "closed"
+
+export type DamageCategory =
+  | "bodywork"
+  | "glass"
+  | "interior"
+  | "mechanical"
+  | "tyre"
+  | "electrical"
+  | "other"
+
+export type DamageSeverity = "minor" | "moderate" | "severe"
+
+export interface Damage {
+  id: string
+  vehicleId: string
+  vehicleLabel: string
+  reservationId: string | null
+  reservationReference: string | null
+  discoveredInInspectionId: string | null
+  status: DamageStatus
+  category: DamageCategory
+  vehicleArea: string
+  severity: DamageSeverity
+  description: string
+  preExisting: boolean
+  estimatedCostMad: number | null
+  actualCostMad: number | null
+  createdByName: string | null
+  createdAt: string
+  media: MediaFile[]
+}
+
+export interface MediaFile {
+  id: string
+  entityType: "inspection" | "damage"
+  entityId: string
+  originalFilename: string
+  mimeType: string
+  caption: string | null
+  url: string | null
+  createdAt: string
+}
+
+// ---------------------------------------------------------------------
+// Deposits and the payment ledger
+// ---------------------------------------------------------------------
+
+export type DepositStatus =
+  | "not_required"
+  | "expected"
+  | "collected"
+  | "partially_collected"
+  | "held"
+  | "partially_returned"
+  | "returned"
+  | "retained"
+  | "disputed"
+
+export type PaymentMethod = "cash" | "card" | "transfer" | "other"
+
+export interface Deposit {
+  id: string
+  reservationId: string
+  status: DepositStatus
+  expectedMad: number
+  collectedMad: number
+  returnedMad: number
+  retainedMad: number
+  method: PaymentMethod | null
+  collectedAt: string | null
+  returnedAt: string | null
+  notes: string | null
+}
+
+export type PaymentTransactionType =
+  | "rental_payment"
+  | "deposit_collection"
+  | "deposit_return"
+  | "refund"
+  | "damage_charge"
+  | "additional_charge"
+
+export type PaymentDirection = "in" | "out"
+
+export interface PaymentTransaction {
+  id: string
+  reservationId: string | null
+  reservationReference: string | null
+  customerId: string
+  customerName: string
+  transactionType: PaymentTransactionType
+  direction: PaymentDirection
+  amountMad: number
+  method: PaymentMethod
+  paidAt: string
+  reference: string | null
+  notes: string | null
+  recordedByName: string | null
+}
+
+// ---------------------------------------------------------------------
+// Customer detail
+// ---------------------------------------------------------------------
+
+export interface CustomerDetail extends Customer {
+  nationality: string | null
+  idDocumentNumber: string | null
+  address: string | null
+  notes: string | null
+  status: "active" | "flagged" | "blocked"
+  reservations: Booking[]
+  activeRental: Booking | null
+  documents: RentalDocument[]
+  outstandingBalanceMad: number
 }

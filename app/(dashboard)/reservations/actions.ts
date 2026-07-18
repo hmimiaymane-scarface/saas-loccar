@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase/server"
 import { calculatePricing } from "@/lib/pricing"
 import { findCustomerByPhone, getAvailableVehicles, searchCustomers } from "@/lib/data"
 import { logActivity } from "@/lib/activity-log"
-import { isTerminalStatus } from "@/lib/reservations/status"
+import { isEditableStatus } from "@/lib/reservations/status"
 import type { BookingStatus, Customer, ReservationSource, Vehicle, VehicleCategory } from "@/types/rental"
 
 export interface ReservationActionState {
@@ -52,15 +52,14 @@ function readSharedFields(formData: FormData, timeZone: string) {
   if (dailyRate < 0) throw new ActionError("Daily rate can't be negative.")
   const discountMad = optionalNumber(formData, "discountMad") ?? 0
   if (discountMad < 0) throw new ActionError("Discount can't be negative.")
-  const depositMad = optionalNumber(formData, "depositMad")
-  const amountPaidMad = optionalNumber(formData, "amountPaidMad") ?? 0
-  if (amountPaidMad < 0) throw new ActionError("Amount paid can't be negative.")
   const notes = optionalString(formData, "notes")
 
-  const pricing = calculatePricing({ dailyRateMad: dailyRate, pickupAt, returnAt, discountMad, amountPaidMad })
-  if (pricing.amountPaidMad > pricing.totalMad) {
-    throw new ActionError("Amount paid can't exceed the total.")
-  }
+  // amount_paid is not settable here — it's a trigger-maintained sum of
+  // rental_payment transactions in `payments` (see
+  // supabase/migrations/20260719090600_payments_ledger.sql). Recording a
+  // payment is a separate action, available from the reservation detail
+  // page and the pickup/return workflow.
+  const pricing = calculatePricing({ dailyRateMad: dailyRate, pickupAt, returnAt, discountMad })
 
   return {
     vehicleId,
@@ -71,7 +70,6 @@ function readSharedFields(formData: FormData, timeZone: string) {
     pickupLocation,
     returnLocation,
     dailyRate,
-    depositMad,
     notes,
     pricing,
   }
@@ -149,8 +147,6 @@ export async function createReservation(
         num_days: shared.pricing.numDays,
         discount_amount: shared.pricing.discountMad,
         total_amount: shared.pricing.totalMad,
-        amount_paid: shared.pricing.amountPaidMad,
-        deposit_amount: shared.depositMad,
         notes: shared.notes,
         created_by: session.userId,
       })
@@ -202,8 +198,8 @@ export async function updateReservation(
 
     if (fetchError) throw new ActionError(friendlyDbError(fetchError))
     if (!existing) throw new ActionError("Reservation not found.")
-    if (isTerminalStatus(existing.status as BookingStatus)) {
-      throw new ActionError(`This reservation is already ${existing.status} and can't be edited.`)
+    if (!isEditableStatus(existing.status as BookingStatus)) {
+      throw new ActionError(`A ${existing.status} reservation can't be edited this way.`)
     }
 
     const shared = readSharedFields(formData, session.company.timezone)
@@ -222,8 +218,6 @@ export async function updateReservation(
         num_days: shared.pricing.numDays,
         discount_amount: shared.pricing.discountMad,
         total_amount: shared.pricing.totalMad,
-        amount_paid: shared.pricing.amountPaidMad,
-        deposit_amount: shared.depositMad,
         notes: shared.notes,
       })
       .eq("id", reservationId)
@@ -274,6 +268,72 @@ export async function updateReservationStatus(
     revalidatePath("/reservations")
     revalidatePath("/calendar")
     revalidatePath("/fleet")
+    revalidatePath("/overview")
+    return {}
+  } catch (err) {
+    if (err instanceof ActionError) return { error: err.message }
+    throw err
+  }
+}
+
+/** Starting a rental is gated: the DB function requires an assigned
+ * vehicle and a completed pickup inspection, and only lets an owner/
+ * manager override that with a mandatory reason. See activate_rental() in
+ * supabase/migrations/20260719091000_gated_rental_transitions.sql. */
+export async function activateRentalAction(
+  reservationId: string,
+  overrideReason?: string
+): Promise<{ error?: string }> {
+  try {
+    const session = await requireSession()
+    requireRole(session, [...RESERVATION_ROLES])
+    const supabase = await createClient()
+
+    const { error } = await supabase.rpc("activate_rental", {
+      p_reservation_id: reservationId,
+      p_override_reason: overrideReason || null,
+    })
+
+    if (error) return { error: friendlyDbError(error) }
+
+    revalidatePath(`/reservations/${reservationId}`)
+    revalidatePath("/reservations")
+    revalidatePath("/fleet")
+    revalidatePath("/calendar")
+    revalidatePath("/overview")
+    return {}
+  } catch (err) {
+    if (err instanceof ActionError) return { error: err.message }
+    throw err
+  }
+}
+
+/** Completing a rental is gated the same way — a completed return
+ * inspection and a resolved balance, or an owner/manager override. The
+ * vehicle's next status is an explicit choice the caller makes here, not
+ * inferred. See complete_rental() in the same migration. */
+export async function completeRentalAction(
+  reservationId: string,
+  vehicleOutcome: "available" | "maintenance" | "unavailable",
+  overrideReason?: string
+): Promise<{ error?: string }> {
+  try {
+    const session = await requireSession()
+    requireRole(session, [...RESERVATION_ROLES])
+    const supabase = await createClient()
+
+    const { error } = await supabase.rpc("complete_rental", {
+      p_reservation_id: reservationId,
+      p_vehicle_outcome: vehicleOutcome,
+      p_override_reason: overrideReason || null,
+    })
+
+    if (error) return { error: friendlyDbError(error) }
+
+    revalidatePath(`/reservations/${reservationId}`)
+    revalidatePath("/reservations")
+    revalidatePath("/fleet")
+    revalidatePath("/calendar")
     revalidatePath("/overview")
     return {}
   } catch (err) {

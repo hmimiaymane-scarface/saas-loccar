@@ -1,19 +1,21 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
-import { Pencil, UserRound, Car, MapPin, Clock } from "lucide-react"
+import { Pencil, UserRound, Car, MapPin, Clock, ClipboardCheck, Undo2, GitCompare } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
 import { getReservationDetail } from "@/lib/data"
-import { formatMad } from "@/lib/format"
+import { formatMad, formatDateTime } from "@/lib/format"
 import { formatInTimeZone } from "@/lib/timezone"
-import { bookingStatusConfig, overdueVisual, paymentStatusConfig } from "@/lib/status"
-import { isTerminalStatus } from "@/lib/reservations/status"
+import { bookingStatusConfig, overdueVisual, paymentStatusConfig, damageStatusConfig } from "@/lib/status"
+import { isTerminalStatus, isEditableStatus } from "@/lib/reservations/status"
 import { StatusBadge } from "@/components/domain/status-badge"
 import { SectionHeader } from "@/components/domain/section-header"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { ReservationStatusActions } from "@/components/domain/reservations/reservation-status-actions"
+import { DocumentListItem } from "@/components/domain/documents/document-list-item"
+import { DepositPanel } from "@/components/domain/reservations/deposit-panel"
 
 const SOURCE_LABELS: Record<string, string> = {
   walk_in: "Walk-in",
@@ -38,7 +40,7 @@ export default async function ReservationDetailPage({
 
   const tz = session.company.timezone
   const canManage = ["owner", "manager", "agent"].includes(session.role)
-  const canEdit = canManage && !isTerminalStatus(reservation.status)
+  const canEdit = canManage && isEditableStatus(reservation.status)
 
   return (
     <>
@@ -48,6 +50,30 @@ export default async function ReservationDetailPage({
         actions={
           <div className="flex items-center gap-2">
             <StatusBadge visual={reservation.isOverdue ? overdueVisual : bookingStatusConfig[reservation.status]} />
+            {canManage && ["request", "pending", "confirmed"].includes(reservation.status) && (
+              <Button asChild>
+                <Link href={`/reservations/${reservation.id}/pickup`}>
+                  <ClipboardCheck />
+                  Prepare pickup
+                </Link>
+              </Button>
+            )}
+            {canManage && reservation.status === "active" && (
+              <Button asChild>
+                <Link href={`/reservations/${reservation.id}/return`}>
+                  <Undo2 />
+                  Manage return
+                </Link>
+              </Button>
+            )}
+            {reservation.pickupInspection && (
+              <Button variant="outline" asChild>
+                <Link href={`/reservations/${reservation.id}/comparison`}>
+                  <GitCompare />
+                  Compare pickup/return
+                </Link>
+              </Button>
+            )}
             {canEdit && (
               <Button variant="outline" asChild>
                 <Link href={`/reservations/${reservation.id}/edit`}>
@@ -146,12 +172,6 @@ export default async function ReservationDetailPage({
                 <span>Remaining</span>
                 <span>{formatMad(reservation.payment.remainingMad)}</span>
               </div>
-              {reservation.depositMad != null && (
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Deposit</span>
-                  <span>{formatMad(reservation.depositMad)}</span>
-                </div>
-              )}
               <Separator className="my-1" />
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Payment status</span>
@@ -159,6 +179,76 @@ export default async function ReservationDetailPage({
               </div>
             </CardContent>
           </Card>
+
+          {(reservation.pickupInspection || reservation.returnInspection) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Inspections</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col divide-y divide-border">
+                {[reservation.pickupInspection, reservation.returnInspection]
+                  .filter((i) => i !== null)
+                  .map((inspection) => (
+                    <Link
+                      key={inspection.id}
+                      href={`/inspections/${inspection.id}`}
+                      className="flex items-center justify-between py-2.5 text-sm hover:underline"
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-medium text-foreground capitalize">{inspection.type} inspection</span>
+                        <span className="text-xs text-muted-foreground">
+                          {inspection.odometerKm != null ? `${inspection.odometerKm.toLocaleString()} km` : "No odometer"}
+                          {inspection.completedAt ? ` · ${formatDateTime(inspection.completedAt)}` : ""}
+                        </span>
+                      </div>
+                      <StatusBadge
+                        visual={
+                          inspection.status === "completed"
+                            ? { label: "Completed", icon: ClipboardCheck, dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" }
+                            : { label: "Draft", icon: Clock, dot: "bg-amber-500", badge: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400" }
+                        }
+                      />
+                    </Link>
+                  ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {reservation.damages.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Damages</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col divide-y divide-border">
+                {reservation.damages.map((damage) => (
+                  <Link
+                    key={damage.id}
+                    href={`/damages/${damage.id}`}
+                    className="flex items-center justify-between py-2.5 text-sm hover:underline"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-foreground">{damage.vehicleArea}</span>
+                      <span className="text-xs text-muted-foreground">{damage.description}</span>
+                    </div>
+                    <StatusBadge visual={damageStatusConfig[damage.status]} />
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {reservation.documents.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Documents</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                {reservation.documents.map((doc) => (
+                  <DocumentListItem key={doc.id} document={doc} canDelete={session.role === "owner" || session.role === "manager"} />
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {reservation.notes && (
             <Card>
@@ -221,6 +311,22 @@ export default async function ReservationDetailPage({
               </div>
             </CardContent>
           </Card>
+
+          {!isTerminalStatus(reservation.status) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Deposit</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DepositPanel
+                  reservationId={reservation.id}
+                  deposit={reservation.deposit}
+                  canCollect={["owner", "manager", "agent", "accountant"].includes(session.role)}
+                  canResolve={session.role === "owner" || session.role === "manager"}
+                />
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </>

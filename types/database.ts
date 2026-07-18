@@ -239,7 +239,6 @@ export type Database = {
           total_amount: string
           amount_paid: string
           remaining_balance: string
-          deposit_amount: string | null
           notes: string | null
           created_by: string | null
         
@@ -265,7 +264,6 @@ export type Database = {
           discount_amount?: number | string
           total_amount: number | string
           amount_paid?: number | string
-          deposit_amount?: number | string | null
           notes?: string | null
           created_by?: string | null
         }
@@ -280,11 +278,13 @@ export type Database = {
           customer_id: string
           amount: string
           method: string
+          transaction_type: string
+          direction: string
           paid_at: Timestamp
           reference: string | null
           notes: string | null
           recorded_by: string | null
-        
+
           created_at: Timestamp
           updated_at: Timestamp
         }
@@ -295,6 +295,7 @@ export type Database = {
           customer_id: string
           amount: number | string
           method?: string
+          transaction_type: string
           paid_at?: Timestamp
           reference?: string | null
           notes?: string | null
@@ -401,6 +402,249 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["activity_log"]["Insert"]>
         Relationships: []
       }
+      checklist_template_items: {
+        Row: {
+          id: string
+          company_id: string
+          key: string
+          label: string
+          category: string
+          sort_order: number
+          is_active: boolean
+
+          created_at: Timestamp
+          updated_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          key: string
+          label: string
+          category: string
+          sort_order?: number
+          is_active?: boolean
+        }
+        Update: Partial<Database["public"]["Tables"]["checklist_template_items"]["Insert"]>
+        Relationships: []
+      }
+      documents: {
+        Row: {
+          id: string
+          company_id: string
+          reservation_id: string | null
+          customer_id: string | null
+          vehicle_id: string | null
+          category: string
+          storage_path: string
+          original_filename: string
+          mime_type: string
+          file_size_bytes: number
+          contract_reference: string | null
+          notes: string | null
+          status: string
+          uploaded_by: string | null
+
+          created_at: Timestamp
+          updated_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          reservation_id?: string | null
+          customer_id?: string | null
+          vehicle_id?: string | null
+          category: string
+          storage_path: string
+          original_filename: string
+          mime_type: string
+          file_size_bytes: number
+          contract_reference?: string | null
+          notes?: string | null
+          status?: string
+          uploaded_by?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["documents"]["Insert"]>
+        Relationships: []
+      }
+      inspections: {
+        Row: {
+          id: string
+          company_id: string
+          reservation_id: string
+          vehicle_id: string
+          customer_id: string
+          type: string
+          status: string
+          performed_by: string | null
+          odometer_km: number | null
+          fuel_level: string | null
+          cleanliness: string | null
+          overall_condition: string | null
+          notes: string | null
+          customer_acknowledged: boolean
+          customer_acknowledged_at: Timestamp | null
+          completed_at: Timestamp | null
+          correction_reason: string | null
+          corrected_by: string | null
+          corrected_at: Timestamp | null
+
+          created_at: Timestamp
+          updated_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          reservation_id: string
+          vehicle_id: string
+          customer_id: string
+          type: string
+          status?: string
+          performed_by?: string | null
+          odometer_km?: number | null
+          fuel_level?: string | null
+          cleanliness?: string | null
+          overall_condition?: string | null
+          notes?: string | null
+          customer_acknowledged?: boolean
+          customer_acknowledged_at?: Timestamp | null
+          completed_at?: Timestamp | null
+        }
+        Update: Partial<Database["public"]["Tables"]["inspections"]["Insert"]>
+        Relationships: []
+      }
+      inspection_checklist_responses: {
+        Row: {
+          id: string
+          company_id: string
+          inspection_id: string
+          item_key: string
+          item_label: string
+          category: string
+          response: string
+          notes: string | null
+
+          created_at: Timestamp
+          updated_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          inspection_id: string
+          item_key: string
+          item_label: string
+          category: string
+          response?: string
+          notes?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["inspection_checklist_responses"]["Insert"]>
+        Relationships: []
+      }
+      damages: {
+        Row: {
+          id: string
+          company_id: string
+          vehicle_id: string
+          reservation_id: string | null
+          discovered_in_inspection_id: string | null
+          status: string
+          category: string
+          vehicle_area: string
+          severity: string
+          description: string
+          pre_existing: boolean
+          estimated_cost: string | null
+          actual_cost: string | null
+          created_by: string | null
+
+          created_at: Timestamp
+          updated_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          vehicle_id: string
+          reservation_id?: string | null
+          discovered_in_inspection_id?: string | null
+          status?: string
+          category?: string
+          vehicle_area: string
+          severity?: string
+          description: string
+          pre_existing?: boolean
+          estimated_cost?: number | string | null
+          actual_cost?: number | string | null
+          created_by?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["damages"]["Insert"]>
+        Relationships: []
+      }
+      media: {
+        Row: {
+          id: string
+          company_id: string
+          entity_type: string
+          entity_id: string
+          storage_path: string
+          original_filename: string
+          mime_type: string
+          file_size_bytes: number
+          caption: string | null
+          uploaded_by: string | null
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          entity_type: string
+          entity_id: string
+          storage_path: string
+          original_filename: string
+          mime_type: string
+          file_size_bytes: number
+          caption?: string | null
+          uploaded_by?: string | null
+          created_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["media"]["Insert"]>
+        Relationships: []
+      }
+      deposits: {
+        Row: {
+          id: string
+          company_id: string
+          reservation_id: string
+          status: string
+          expected_amount: string
+          collected_amount: string
+          returned_amount: string
+          retained_amount: string
+          method: string | null
+          collected_at: Timestamp | null
+          returned_at: Timestamp | null
+          notes: string | null
+          created_by: string | null
+
+          created_at: Timestamp
+          updated_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          reservation_id: string
+          status?: string
+          expected_amount?: number | string
+          collected_amount?: number | string
+          returned_amount?: number | string
+          retained_amount?: number | string
+          method?: string | null
+          collected_at?: Timestamp | null
+          returned_at?: Timestamp | null
+          notes?: string | null
+          created_by?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["deposits"]["Insert"]>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -437,6 +681,42 @@ export type Database = {
       transition_reservation_status: {
         Args: { p_reservation_id: string; p_next_status: string }
         Returns: Database["public"]["Tables"]["reservations"]["Row"]
+      }
+      seed_default_checklist: {
+        Args: { target_company_id: string }
+        Returns: undefined
+      }
+      activate_rental: {
+        Args: { p_reservation_id: string; p_override_reason?: string | null }
+        Returns: Database["public"]["Tables"]["reservations"]["Row"]
+      }
+      complete_rental: {
+        Args: {
+          p_reservation_id: string
+          p_vehicle_outcome: string
+          p_override_reason?: string | null
+        }
+        Returns: Database["public"]["Tables"]["reservations"]["Row"]
+      }
+      complete_inspection: {
+        Args: { p_inspection_id: string }
+        Returns: Database["public"]["Tables"]["inspections"]["Row"]
+      }
+      correct_inspection: {
+        Args: {
+          p_inspection_id: string
+          p_reason: string
+          p_odometer_km?: number | null
+          p_fuel_level?: string | null
+          p_cleanliness?: string | null
+          p_overall_condition?: string | null
+          p_notes?: string | null
+        }
+        Returns: Database["public"]["Tables"]["inspections"]["Row"]
+      }
+      media_entity_company_id: {
+        Args: { p_entity_type: string; p_entity_id: string }
+        Returns: string
       }
     }
     Enums: Record<string, never>

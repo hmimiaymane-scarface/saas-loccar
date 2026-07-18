@@ -41,7 +41,13 @@ function ReservationStatusActions({
   }
 
   if (next.length === 0) {
-    return <p className="text-sm text-muted-foreground">No further actions — this reservation is closed.</p>
+    return (
+      <p className="text-sm text-muted-foreground">
+        {status === "active"
+          ? "Use “Manage return” above to check the vehicle back in and complete this rental."
+          : "No further actions — this reservation is closed."}
+      </p>
+    )
   }
 
   return (
