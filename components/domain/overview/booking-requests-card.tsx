@@ -28,8 +28,10 @@ function BookingRequestsCard({ requests }: { requests: Booking[] }) {
                   {booking.customer.fullName}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {booking.vehicle.make} {booking.vehicle.model} ·{" "}
-                  {formatDate(booking.startDate)} – {formatDate(booking.endDate)}
+                  {booking.vehicle
+                    ? `${booking.vehicle.make} ${booking.vehicle.model}`
+                    : `Unassigned · ${booking.requestedCategory ?? "any"} requested`}{" "}
+                  · {formatDate(booking.startDate)} – {formatDate(booking.endDate)}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Requested {formatRelativeTime(booking.createdAt)}

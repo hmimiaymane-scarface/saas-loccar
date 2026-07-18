@@ -7,6 +7,7 @@ export const currentCompany: RentalCompany = {
   city: "Marrakech",
   country: "Morocco",
   currency: "MAD",
+  timezone: "Africa/Casablanca",
   status: "active",
 }
 

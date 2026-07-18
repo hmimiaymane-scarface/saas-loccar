@@ -430,6 +430,14 @@ export type Database = {
         Args: { target_company_id: string }
         Returns: boolean
       }
+      next_reservation_reference: {
+        Args: { target_company_id: string }
+        Returns: string
+      }
+      transition_reservation_status: {
+        Args: { p_reservation_id: string; p_next_status: string }
+        Returns: Database["public"]["Tables"]["reservations"]["Row"]
+      }
     }
     Enums: Record<string, never>
   }

@@ -19,6 +19,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 const activityIcon: Record<ActivityType, LucideIcon> = {
   reservation_requested: ClipboardList,
   reservation_confirmed: CheckCircle2,
+  reservation_status_changed: RefreshCcw,
+  reservation_updated: ClipboardList,
   payment_recorded: Wallet,
   vehicle_picked_up: ArrowUpRight,
   vehicle_returned: ArrowDownLeft,

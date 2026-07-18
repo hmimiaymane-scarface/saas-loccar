@@ -53,10 +53,24 @@ export type MaintenanceType =
   | "repair"
   | "other"
 
+export type FuelType = "petrol" | "diesel" | "hybrid" | "electric"
+
+export type Transmission = "manual" | "automatic"
+
+export type ReservationSource =
+  | "walk_in"
+  | "phone"
+  | "whatsapp"
+  | "website"
+  | "partner"
+  | "other"
+
 // Mirrors the `activity_log.type` check constraint.
 export type ActivityType =
   | "reservation_requested"
   | "reservation_confirmed"
+  | "reservation_status_changed"
+  | "reservation_updated"
   | "payment_recorded"
   | "vehicle_picked_up"
   | "vehicle_returned"
@@ -77,6 +91,9 @@ export interface RentalCompany {
   city: string | null
   country: string
   currency: Currency
+  /** IANA timezone, e.g. "Africa/Casablanca". All reservation date/time
+   * input and display is done in this zone — see lib/timezone.ts. */
+  timezone: string
   status: CompanyStatus
 }
 
@@ -99,6 +116,29 @@ export interface Vehicle {
   dailyRateMad: number
   mileageKm: number
   photoUrl?: string
+}
+
+export interface Branch {
+  id: string
+  name: string
+  city: string | null
+  isMain: boolean
+}
+
+export interface VehicleDetail extends Vehicle {
+  branchId: string | null
+  branchName: string | null
+  color: string | null
+  seats: number | null
+  fuelType: FuelType
+  transmission: Transmission
+  depositMad: number | null
+  insuranceExpiresOn: string | null
+  registrationExpiresOn: string | null
+  inspectionExpiresOn: string | null
+  currentReservation: Booking | null
+  upcomingReservations: Booking[]
+  recentReservations: Booking[]
 }
 
 export interface Customer {
@@ -138,7 +178,10 @@ export interface Booking {
   id: string
   reference: string
   customer: BookingCustomerRef
-  vehicle: BookingVehicleRef
+  /** Null when the reservation hasn't been assigned a specific vehicle yet
+   * — see `requestedCategory` for what the customer asked for instead. */
+  vehicle: BookingVehicleRef | null
+  requestedCategory: VehicleCategory | null
   startDate: string
   endDate: string
   pickupLocation: string
@@ -147,6 +190,29 @@ export interface Booking {
   isOverdue: boolean
   payment: PaymentSummary
   createdAt: string
+}
+
+export interface ReservationDetail extends Booking {
+  /** Full UTC timestamps — `Booking.startDate`/`endDate` are date-only
+   * (YYYY-MM-DD), which loses the pickup/return time. Anything that needs
+   * to display or edit the time of day (this detail page, the edit form)
+   * must use these instead. */
+  pickupAt: string
+  returnAt: string
+  branchId: string | null
+  branchName: string | null
+  customerDetail: BookingCustomerRef & {
+    email?: string
+    licenseNumber?: string
+  }
+  source: ReservationSource
+  dailyRateMad: number
+  numDays: number
+  discountMad: number
+  depositMad: number | null
+  notes: string | null
+  createdByName: string | null
+  activity: ActivityItem[]
 }
 
 export interface MaintenanceAlert {

@@ -23,7 +23,9 @@ function BookingRow({
           {booking.customer.fullName}
         </p>
         <p className="truncate text-xs text-muted-foreground">
-          {booking.vehicle.make} {booking.vehicle.model} · {booking.vehicle.plate}
+          {booking.vehicle
+            ? `${booking.vehicle.make} ${booking.vehicle.model} · ${booking.vehicle.plate}`
+            : `Unassigned · ${booking.requestedCategory ?? "any"} requested`}
         </p>
       </div>
       <p className="shrink-0 text-right text-xs text-muted-foreground">{location}</p>

@@ -94,6 +94,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
       city: company.city,
       country: company.country,
       currency: company.currency,
+      timezone: company.timezone,
       status: company.status as RentalCompany["status"],
     },
     role: membership.role as EmployeeRole,

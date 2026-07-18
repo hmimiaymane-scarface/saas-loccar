@@ -132,6 +132,14 @@ values
   ('a0000000-0000-0000-0000-000000003005', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000002001', 'a0000000-0000-0000-0000-000000001001', 'RB-1005', now() - interval '10 days', now() - interval '7 days', 'Agency – Guéliz', 'Agency – Guéliz', 'completed', 'whatsapp', 280, 3, 840, 840, 'a0000000-0000-0000-0000-000000000002')
 on conflict (id) do nothing;
 
+-- A cancelled reservation and an unassigned (vehicle-less) request, so the
+-- reservations list, calendar and overview all have these states to show.
+insert into public.reservations (id, company_id, branch_id, customer_id, vehicle_id, requested_category, reference, pickup_at, return_at, pickup_location, return_location, status, source, daily_rate, num_days, total_amount, amount_paid, created_by)
+values
+  ('a0000000-0000-0000-0000-000000003006', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000002002', 'a0000000-0000-0000-0000-000000001001', null, 'RB-1006', now() - interval '20 days', now() - interval '17 days', 'Agency – Guéliz', 'Agency – Guéliz', 'cancelled', 'phone', 280, 3, 840, 0, 'a0000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000003007', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000002003', null, 'suv', 'RB-1007', now() + interval '8 days', now() + interval '12 days', 'Marrakech Menara Airport', 'Marrakech Menara Airport', 'request', 'website', 600, 4, 2400, 0, 'a0000000-0000-0000-0000-000000000002')
+on conflict (id) do nothing;
+
 -- Payments (external, recorded manually) --------------------------------------
 
 insert into public.payments (company_id, reservation_id, customer_id, amount, method, paid_at, recorded_by)
@@ -157,4 +165,5 @@ values
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'reservation_confirmed', 'Reservation confirmed', 'Mercedes-Benz Vito booked for Sara Bennis, RB-1003'),
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'customer_created', 'Customer added', 'Mehdi Chraibi added as a new customer'),
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'vehicle_returned', 'Vehicle returned', 'Dacia Logan (45871-A-6) returned by Khadija Idrissi'),
-  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'maintenance_completed', 'Maintenance logged', 'Tyre replacement started for Dacia Duster (31567-E-6)');
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'maintenance_completed', 'Maintenance logged', 'Tyre replacement started for Dacia Duster (31567-E-6)'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'reservation_status_changed', 'Reservation RB-1006 cancelled', 'Ahmed Tazi cancelled his Dacia Logan booking');
