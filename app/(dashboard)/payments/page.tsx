@@ -10,6 +10,7 @@ import { PaymentsSummaryCards } from "@/components/domain/payments/payments-summ
 import { PaymentFilters } from "@/components/domain/payments/payment-filters"
 import { PaymentListItem } from "@/components/domain/payments/payment-list-item"
 import { RecordPaymentForm } from "@/components/domain/payments/record-payment-form"
+import { ExportButton } from "@/components/domain/export-button"
 import type { PaymentTransactionType } from "@/types/rental"
 
 export default async function PaymentsPage({
@@ -44,6 +45,7 @@ export default async function PaymentsPage({
       <SectionHeader
         title="Payments"
         description="Revenue, deposits, charges and refunds — this platform never processes payments, it only tracks status."
+        actions={<ExportButton resource="payments" />}
       />
 
       <PaymentsSummaryCards summary={summary} />

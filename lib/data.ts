@@ -24,7 +24,9 @@ import { createClient } from "@/lib/supabase/server"
 import { vehicles as mockVehicles } from "@/lib/mock/vehicles"
 import { customers as mockCustomers } from "@/lib/mock/customers"
 import { bookings as mockBookings } from "@/lib/mock/bookings"
-import { maintenanceAlerts as mockMaintenanceAlerts } from "@/lib/mock/maintenance"
+import { maintenanceRecords as mockMaintenanceRecords } from "@/lib/mock/maintenance-records"
+import { expenses as mockExpenses } from "@/lib/mock/expenses"
+import { teamMembers as mockTeamMembers, pendingInvitations as mockPendingInvitations } from "@/lib/mock/team"
 import { recentActivity as mockRecentActivity } from "@/lib/mock/activity"
 import { branches as mockBranches } from "@/lib/mock/branches"
 import { checklistTemplate as mockChecklistTemplate } from "@/lib/mock/checklist"
@@ -41,6 +43,16 @@ import {
 } from "@/lib/availability"
 import { STORAGE_BUCKET } from "@/lib/storage"
 import { depositHeldMad } from "@/lib/deposits"
+import { urgencyForDaysUntil, daysUntil as daysUntilFn } from "@/lib/alerts"
+import { MAINTENANCE_TYPE_LABELS } from "@/lib/status"
+import {
+  rentalDaysFor,
+  occupancyRate as occupancyRateFn,
+  downtimeDays as downtimeDaysFn,
+  knownOperatingResult,
+  isReturningCustomer,
+  type ReportDateRange,
+} from "@/lib/reports"
 import type {
   Booking,
   BookingStatus,
@@ -63,8 +75,27 @@ import type {
   Inspection,
   InspectionStatus,
   InspectionType,
-  MaintenanceAlert,
-  MaintenanceSeverity,
+  MaintenanceRecord,
+  MaintenancePriority,
+  MaintenanceRecordStatus,
+  MaintenanceType,
+  ReservationConflict,
+  Expense,
+  ExpenseCategory,
+  LiveAlert,
+  NotificationItem,
+  NotificationType,
+  FinancialReport,
+  FleetPerformanceReport,
+  FleetPerformanceRow,
+  ReservationPerformanceReport,
+  CustomerOverviewReport,
+  VehicleEconomics,
+  ReservationSource,
+  TeamMember,
+  TeamInvitation,
+  EmployeeRole,
+  ActivityType,
   MediaFile,
   OverallCondition,
   OverviewMetrics,
@@ -226,60 +257,17 @@ function mapCustomerRow(row: {
 
 /** Days-until-due -> alert severity. Not a stored column; derived here so
  * both mock and live data go through the same rule. */
-function severityForDueDate(dueDate: string): MaintenanceSeverity {
-  const days = Math.floor((new Date(dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-  if (days <= 2) return "critical"
-  if (days <= 10) return "warning"
-  return "info"
-}
-
-function mapMaintenanceRow(row: {
-  id: string
-  type: string
-  scheduled_on: string | null
-  next_service_on: string | null
-  vehicle: { id: string; make: string; model: string; registration_number: string } | null
-}): MaintenanceAlert | null {
-  const dueDate = row.scheduled_on ?? row.next_service_on
-  if (!dueDate || !row.vehicle) return null
-
-  return {
-    id: row.id,
-    vehicle: {
-      id: row.vehicle.id,
-      make: row.vehicle.make,
-      model: row.vehicle.model,
-      plate: row.vehicle.registration_number,
-    },
-    type: row.type as MaintenanceAlert["type"],
-    title: maintenanceTitle(row.type),
-    dueDate,
-    severity: severityForDueDate(dueDate),
-  }
-}
-
-function maintenanceTitle(type: string): string {
-  const labels: Record<string, string> = {
-    oil_change: "Oil and filter change",
-    inspection: "Technical inspection",
-    tire: "Tyre replacement",
-    brake: "Brake service",
-    insurance_renewal: "Insurance renewal",
-    registration_renewal: "Registration renewal",
-    repair: "Repair",
-    other: "Maintenance",
-  }
-  return labels[type] ?? "Maintenance"
-}
-
 function mapActivityRow(row: {
   id: string
   type: string
   title: string
   description: string | null
   created_at: string
+  actor_id?: string | null
+  metadata?: Record<string, unknown> | null
   actor: { full_name: string | null } | null
 }): ActivityItem {
+  const metadata = row.metadata ?? {}
   return {
     id: row.id,
     type: row.type as ActivityItem["type"],
@@ -287,6 +275,9 @@ function mapActivityRow(row: {
     description: row.description ?? row.title,
     timestamp: row.created_at,
     actor: row.actor?.full_name ?? undefined,
+    actorId: row.actor_id ?? undefined,
+    reservationId: typeof metadata.reservation_id === "string" ? metadata.reservation_id : undefined,
+    vehicleId: typeof metadata.vehicle_id === "string" ? metadata.vehicle_id : undefined,
   }
 }
 
@@ -1209,14 +1200,20 @@ export async function getCalendarMaintenanceBlocks(
   query: CalendarQuery
 ): Promise<MaintenanceBlock[]> {
   if (isMockMode()) {
-    return mockMaintenanceAlerts
-      .filter((a) => a.dueDate >= query.startDate && a.dueDate <= query.endDate)
-      .map((a) => ({
-        id: a.id,
-        vehicleId: a.vehicle.id,
-        vehicleLabel: `${a.vehicle.make} ${a.vehicle.model}`,
-        date: a.dueDate,
-        title: a.title,
+    return mockMaintenanceRecords
+      .filter(
+        (m) =>
+          ["planned", "scheduled", "in_progress", "waiting_for_parts"].includes(m.status) &&
+          m.scheduledOn &&
+          m.scheduledOn >= query.startDate &&
+          m.scheduledOn <= query.endDate
+      )
+      .map((m) => ({
+        id: m.id,
+        vehicleId: m.vehicleId,
+        vehicleLabel: m.vehicleLabel,
+        date: m.scheduledOn as string,
+        title: MAINTENANCE_TYPE_LABELS[m.type] ?? m.type,
       }))
   }
 
@@ -1225,7 +1222,7 @@ export async function getCalendarMaintenanceBlocks(
     .from("maintenance_records")
     .select("id, type, scheduled_on, vehicle:vehicles(id, make, model)")
     .eq("company_id", companyId)
-    .in("status", ["scheduled", "in_progress"])
+    .in("status", ["planned", "scheduled", "in_progress", "waiting_for_parts"])
     .gte("scheduled_on", query.startDate)
     .lte("scheduled_on", query.endDate)
 
@@ -1239,37 +1236,14 @@ export async function getCalendarMaintenanceBlocks(
         vehicleId: v.id,
         vehicleLabel: `${v.make} ${v.model}`,
         date: r.scheduled_on as string,
-        title: maintenanceTitle(r.type),
+        title: MAINTENANCE_TYPE_LABELS[r.type] ?? r.type,
       }
     })
 }
 
 // ---------------------------------------------------------------------
-// Maintenance & activity (Overview)
+// Activity (Overview)
 // ---------------------------------------------------------------------
-
-export async function getMaintenanceAlerts(companyId: string): Promise<MaintenanceAlert[]> {
-  if (isMockMode()) {
-    return [...mockMaintenanceAlerts].sort(
-      (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
-    )
-  }
-
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from("maintenance_records")
-    .select("id, type, scheduled_on, next_service_on, vehicle:vehicles(id, make, model, registration_number)")
-    .eq("company_id", companyId)
-    .in("status", ["scheduled", "in_progress"])
-    .order("scheduled_on", { ascending: true, nullsFirst: false })
-    .limit(10)
-
-  if (error) throw error
-  return (data ?? [])
-    .map((row) => mapMaintenanceRow(row as never))
-    .filter((alert): alert is MaintenanceAlert => alert !== null)
-    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-}
 
 export async function getRecentActivity(companyId: string, limit = 6): Promise<ActivityItem[]> {
   if (isMockMode()) {
@@ -1288,6 +1262,63 @@ export async function getRecentActivity(companyId: string, limit = 6): Promise<A
 
   if (error) throw error
   return (data ?? []).map((row) => mapActivityRow(row as never))
+}
+
+export interface ActivityLogFilters {
+  type?: ActivityType
+  dateFrom?: string
+  dateTo?: string
+  reservationId?: string
+  vehicleId?: string
+  actorId?: string
+}
+
+/** Deliberately does not log page views or every minor field edit — see
+ * the activity_log migrations for exactly which action types exist.
+ * Filtering by reservation/vehicle reads the same jsonb `metadata` every
+ * event already carries (see the phase 4 and 5 migrations' `metadata:
+ * jsonb_build_object(...)` calls), not a separate index table. */
+export async function getActivityLogList(
+  companyId: string,
+  filters: ActivityLogFilters = {},
+  page = 1,
+  pageSize = 30
+): Promise<PaginatedResult<ActivityItem>> {
+  if (isMockMode()) {
+    let items = [...mockRecentActivity]
+    if (filters.type) items = items.filter((a) => a.type === filters.type)
+    if (filters.dateFrom) items = items.filter((a) => a.timestamp >= filters.dateFrom!)
+    if (filters.dateTo) items = items.filter((a) => a.timestamp <= filters.dateTo!)
+    items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    const total = items.length
+    const start = (page - 1) * pageSize
+    return { items: items.slice(start, start + pageSize), total, page, pageSize }
+  }
+
+  const supabase = await createClient()
+  let query = supabase
+    .from("activity_log")
+    .select("id, type, title, description, created_at, actor_id, metadata, actor:profiles(full_name)", { count: "exact" })
+    .eq("company_id", companyId)
+
+  if (filters.type) query = query.eq("type", filters.type)
+  if (filters.dateFrom) query = query.gte("created_at", filters.dateFrom)
+  if (filters.dateTo) query = query.lte("created_at", filters.dateTo)
+  if (filters.reservationId) query = query.eq("metadata->>reservation_id", filters.reservationId)
+  if (filters.vehicleId) query = query.eq("metadata->>vehicle_id", filters.vehicleId)
+  if (filters.actorId) query = query.eq("actor_id", filters.actorId)
+
+  const start = (page - 1) * pageSize
+  const { data, error, count } = await query.order("created_at", { ascending: false }).range(start, start + pageSize - 1)
+
+  if (error) throw error
+
+  return {
+    items: (data ?? []).map((row) => mapActivityRow(row as never)),
+    total: count ?? 0,
+    page,
+    pageSize,
+  }
 }
 
 export async function getTodayPickups(companyId: string): Promise<Booking[]> {
@@ -1353,10 +1384,39 @@ export async function getRecentBookingRequests(companyId: string, limit = 4): Pr
   return ((data ?? []) as unknown as ReservationJoinRow[]).map(mapReservationRow)
 }
 
+/** Shared by getOverviewMetrics and getPaymentsSummary so "money currently
+ * held on behalf of customers" is computed exactly once, not duplicated
+ * — and so it can never accidentally drift between the two pages. */
+async function getDepositsHeldMad(companyId: string): Promise<number> {
+  if (isMockMode()) {
+    return mockDeposits.reduce((sum, d) => sum + depositHeldMad(d), 0)
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("deposits")
+    .select("collected_amount, returned_amount, retained_amount")
+    .eq("company_id", companyId)
+
+  if (error) throw error
+  return (data ?? []).reduce(
+    (sum, d) =>
+      sum +
+      depositHeldMad({
+        collectedMad: Number(d.collected_amount),
+        returnedMad: Number(d.returned_amount),
+        retainedMad: Number(d.retained_amount),
+      }),
+    0
+  )
+}
+
 export async function getOverviewMetrics(companyId: string): Promise<OverviewMetrics> {
-  const [todayPickups, todayReturns] = await Promise.all([
+  const [todayPickups, todayReturns, depositsHeldMad, expenseSummary] = await Promise.all([
     getTodayPickups(companyId),
     getTodayReturns(companyId),
+    getDepositsHeldMad(companyId),
+    getExpenseSummary(companyId, monthStartIso().slice(0, 10), new Date().toISOString().slice(0, 10)),
   ])
 
   if (isMockMode()) {
@@ -1370,11 +1430,15 @@ export async function getOverviewMetrics(companyId: string): Promise<OverviewMet
     const outstandingBalanceMad = mockBookings
       .filter((b) => b.status !== "cancelled" && b.status !== "no_show")
       .reduce((sum, b) => sum + b.payment.remainingMad, 0)
+    const revenueThisMonthMad = 187300
 
     return {
       revenueTodayMad: 8450,
-      revenueThisMonthMad: 187300,
+      revenueThisMonthMad,
       outstandingBalanceMad,
+      expensesThisMonthMad: expenseSummary.totalMad,
+      knownOperatingResultMad: revenueThisMonthMad - expenseSummary.totalMad,
+      depositsHeldMad,
       fleetTotal,
       fleetAvailable,
       fleetRented,
@@ -1440,6 +1504,9 @@ export async function getOverviewMetrics(companyId: string): Promise<OverviewMet
     revenueTodayMad,
     revenueThisMonthMad,
     outstandingBalanceMad,
+    expensesThisMonthMad: expenseSummary.totalMad,
+    knownOperatingResultMad: revenueThisMonthMad - expenseSummary.totalMad,
+    depositsHeldMad,
     fleetTotal,
     fleetAvailable,
     fleetRented,
@@ -1843,12 +1910,11 @@ export async function getPaymentsSummary(companyId: string): Promise<PaymentsSum
   const metrics = await getOverviewMetrics(companyId)
 
   if (isMockMode()) {
-    const depositsHeldMad = mockDeposits.reduce((sum, d) => sum + depositHeldMad(d), 0)
     return {
       revenueTodayMad: metrics.revenueTodayMad,
       revenueThisMonthMad: metrics.revenueThisMonthMad,
       outstandingBalanceMad: metrics.outstandingBalanceMad,
-      depositsHeldMad,
+      depositsHeldMad: metrics.depositsHeldMad,
       unresolvedDamageChargesMad: mockDamages
         .filter((d) => !["repaired", "closed"].includes(d.status))
         .reduce((sum, d) => sum + (d.estimatedCostMad ?? 0), 0),
@@ -1856,32 +1922,15 @@ export async function getPaymentsSummary(companyId: string): Promise<PaymentsSum
   }
 
   const supabase = await createClient()
-  const [depositRows, damageRows] = await Promise.all([
-    supabase
-      .from("deposits")
-      .select("collected_amount, returned_amount, retained_amount")
-      .eq("company_id", companyId),
-    supabase
-      .from("damages")
-      .select("estimated_cost, status")
-      .eq("company_id", companyId)
-      .not("status", "in", "(repaired,closed)"),
-  ])
+  const { data: damageRows, error: damageError } = await supabase
+    .from("damages")
+    .select("estimated_cost, status")
+    .eq("company_id", companyId)
+    .not("status", "in", "(repaired,closed)")
 
-  if (depositRows.error) throw depositRows.error
-  if (damageRows.error) throw damageRows.error
+  if (damageError) throw damageError
 
-  const depositsHeldMad = (depositRows.data ?? []).reduce(
-    (sum, d) =>
-      sum +
-      depositHeldMad({
-        collectedMad: Number(d.collected_amount),
-        returnedMad: Number(d.returned_amount),
-        retainedMad: Number(d.retained_amount),
-      }),
-    0
-  )
-  const unresolvedDamageChargesMad = (damageRows.data ?? []).reduce(
+  const unresolvedDamageChargesMad = (damageRows ?? []).reduce(
     (sum, d) => sum + (d.estimated_cost ? Number(d.estimated_cost) : 0),
     0
   )
@@ -1890,7 +1939,7 @@ export async function getPaymentsSummary(companyId: string): Promise<PaymentsSum
     revenueTodayMad: metrics.revenueTodayMad,
     revenueThisMonthMad: metrics.revenueThisMonthMad,
     outstandingBalanceMad: metrics.outstandingBalanceMad,
-    depositsHeldMad,
+    depositsHeldMad: metrics.depositsHeldMad,
     unresolvedDamageChargesMad,
   }
 }
@@ -1986,5 +2035,1337 @@ export async function getCustomerDetail(companyId: string, customerId: string): 
       url: urlMap.get(d.storagePath) ?? null,
     })),
     outstandingBalanceMad,
+  }
+}
+
+// ---------------------------------------------------------------------
+// Maintenance
+// ---------------------------------------------------------------------
+
+const MAINTENANCE_SELECT =
+  "id, vehicle_id, type, priority, status, description, scheduled_on, started_on, completed_on, odometer_km, estimated_cost, actual_cost, supplier, next_service_on, next_service_odometer_km, receipt_path, notes, created_by, created_at, vehicle:vehicles(make, model, registration_number)"
+
+function mapMaintenanceRecordRow(row: {
+  id: string
+  vehicle_id: string
+  type: string
+  priority: string
+  status: string
+  description: string | null
+  scheduled_on: string | null
+  started_on: string | null
+  completed_on: string | null
+  odometer_km: number | null
+  estimated_cost: string | null
+  actual_cost: string | null
+  supplier: string | null
+  next_service_on: string | null
+  next_service_odometer_km: number | null
+  receipt_path: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  vehicle: { make: string; model: string; registration_number: string } | null
+}): Omit<MaintenanceRecord, "createdByName" | "hasLinkedExpense" | "receiptUrl"> & {
+  createdBy: string | null
+  receiptPath: string | null
+} {
+  return {
+    id: row.id,
+    vehicleId: row.vehicle_id,
+    vehicleLabel: row.vehicle ? `${row.vehicle.make} ${row.vehicle.model}` : "",
+    vehiclePlate: row.vehicle?.registration_number ?? "",
+    type: row.type as MaintenanceType,
+    priority: row.priority as MaintenancePriority,
+    status: row.status as MaintenanceRecordStatus,
+    description: row.description,
+    scheduledOn: row.scheduled_on,
+    startedOn: row.started_on,
+    completedOn: row.completed_on,
+    odometerKm: row.odometer_km,
+    estimatedCostMad: row.estimated_cost != null ? Number(row.estimated_cost) : null,
+    actualCostMad: row.actual_cost != null ? Number(row.actual_cost) : null,
+    supplier: row.supplier,
+    nextServiceOn: row.next_service_on,
+    nextServiceOdometerKm: row.next_service_odometer_km,
+    receiptPath: row.receipt_path,
+    notes: row.notes,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+  }
+}
+
+export interface MaintenanceListFilters {
+  status?: MaintenanceRecordStatus
+  vehicleId?: string
+  priority?: MaintenancePriority
+  search?: string
+}
+
+export async function getMaintenanceList(
+  companyId: string,
+  filters: MaintenanceListFilters = {},
+  page = 1,
+  pageSize = 20
+): Promise<PaginatedResult<MaintenanceRecord>> {
+  if (isMockMode()) {
+    let items = [...mockMaintenanceRecords]
+    if (filters.status) items = items.filter((m) => m.status === filters.status)
+    if (filters.vehicleId) items = items.filter((m) => m.vehicleId === filters.vehicleId)
+    if (filters.priority) items = items.filter((m) => m.priority === filters.priority)
+    if (filters.search) {
+      const q = filters.search.toLowerCase()
+      items = items.filter(
+        (m) => m.vehicleLabel.toLowerCase().includes(q) || m.vehiclePlate.toLowerCase().includes(q)
+      )
+    }
+    items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    const total = items.length
+    const start = (page - 1) * pageSize
+    return { items: items.slice(start, start + pageSize), total, page, pageSize }
+  }
+
+  const supabase = await createClient()
+  let query = supabase.from("maintenance_records").select(MAINTENANCE_SELECT, { count: "exact" }).eq("company_id", companyId)
+
+  if (filters.status) query = query.eq("status", filters.status)
+  if (filters.vehicleId) query = query.eq("vehicle_id", filters.vehicleId)
+  if (filters.priority) query = query.eq("priority", filters.priority)
+
+  const start = (page - 1) * pageSize
+  const { data, error, count } = await query
+    .order("created_at", { ascending: false })
+    .range(start, start + pageSize - 1)
+
+  if (error) throw error
+
+  let mapped = (data ?? []).map((r) => mapMaintenanceRecordRow(r as never))
+  if (filters.search?.trim()) {
+    const q = filters.search.toLowerCase()
+    mapped = mapped.filter((m) => m.vehicleLabel.toLowerCase().includes(q) || m.vehiclePlate.toLowerCase().includes(q))
+  }
+
+  const nameMap = await resolveProfileNames(supabase, mapped.map((m) => m.createdBy))
+  const urlMap = await resolveSignedUrls(supabase, mapped.map((m) => m.receiptPath).filter((p): p is string => Boolean(p)))
+  const ids = mapped.map((m) => m.id)
+  const linkedExpenseIds = new Set<string>()
+  if (ids.length > 0) {
+    const { data: expenseRows } = await supabase
+      .from("expenses")
+      .select("maintenance_record_id")
+      .in("maintenance_record_id", ids)
+    for (const row of expenseRows ?? []) {
+      if (row.maintenance_record_id) linkedExpenseIds.add(row.maintenance_record_id)
+    }
+  }
+
+  return {
+    items: mapped.map((m) => ({
+      ...m,
+      createdByName: m.createdBy ? nameMap.get(m.createdBy) ?? null : null,
+      receiptUrl: m.receiptPath ? urlMap.get(m.receiptPath) ?? null : null,
+      hasLinkedExpense: linkedExpenseIds.has(m.id),
+    })),
+    total: count ?? 0,
+    page,
+    pageSize,
+  }
+}
+
+export async function getMaintenanceDetail(companyId: string, maintenanceId: string): Promise<MaintenanceRecord | null> {
+  if (isMockMode()) {
+    return mockMaintenanceRecords.find((m) => m.id === maintenanceId) ?? null
+  }
+
+  const supabase = await createClient()
+  const { data: row, error } = await supabase
+    .from("maintenance_records")
+    .select(MAINTENANCE_SELECT)
+    .eq("company_id", companyId)
+    .eq("id", maintenanceId)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!row) return null
+
+  const mapped = mapMaintenanceRecordRow(row as never)
+  const nameMap = await resolveProfileNames(supabase, [mapped.createdBy])
+  const urlMap = await resolveSignedUrls(supabase, mapped.receiptPath ? [mapped.receiptPath] : [])
+  const { data: expenseRow } = await supabase
+    .from("expenses")
+    .select("id")
+    .eq("maintenance_record_id", maintenanceId)
+    .maybeSingle()
+
+  return {
+    ...mapped,
+    createdByName: mapped.createdBy ? nameMap.get(mapped.createdBy) ?? null : null,
+    receiptUrl: mapped.receiptPath ? urlMap.get(mapped.receiptPath) ?? null : null,
+    hasLinkedExpense: Boolean(expenseRow),
+  }
+}
+
+export async function getVehicleMaintenanceHistory(companyId: string, vehicleId: string): Promise<MaintenanceRecord[]> {
+  const result = await getMaintenanceList(companyId, { vehicleId }, 1, 100)
+  return result.items
+}
+
+/** Reservations this vehicle is still committed to (not cancelled/no-show/
+ * completed) with a future pickup — surfaced so an owner moving a vehicle
+ * into maintenance sees what it affects instead of the app silently
+ * cancelling anything. */
+export async function getUpcomingReservationConflicts(
+  companyId: string,
+  vehicleId: string
+): Promise<ReservationConflict[]> {
+  if (isMockMode()) {
+    const now = new Date()
+    return mockBookings
+      .filter(
+        (b) =>
+          b.vehicle?.id === vehicleId &&
+          ["request", "pending", "confirmed"].includes(b.status) &&
+          new Date(b.startDate) > now
+      )
+      .map((b) => ({
+        id: b.id,
+        reference: b.reference,
+        customerName: b.customer.fullName,
+        pickupAt: b.startDate,
+        returnAt: b.endDate,
+        status: b.status,
+      }))
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("id, reference, pickup_at, return_at, status, customer:customers(full_name)")
+    .eq("company_id", companyId)
+    .eq("vehicle_id", vehicleId)
+    .in("status", ["request", "pending", "confirmed"])
+    .gt("pickup_at", new Date().toISOString())
+    .order("pickup_at", { ascending: true })
+
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    reference: r.reference,
+    customerName: (r.customer as unknown as { full_name: string } | null)?.full_name ?? "Unknown",
+    pickupAt: r.pickup_at,
+    returnAt: r.return_at,
+    status: r.status as BookingStatus,
+  }))
+}
+
+// ---------------------------------------------------------------------
+// Expenses
+// ---------------------------------------------------------------------
+
+const EXPENSE_SELECT =
+  "id, category, amount, expense_date, method, branch_id, vehicle_id, reservation_id, maintenance_record_id, supplier, description, receipt_path, notes, recorded_by, created_at, branch:branches(name), vehicle:vehicles(make, model), reservation:reservations(reference)"
+
+function mapExpenseRow(row: {
+  id: string
+  category: string
+  amount: string
+  expense_date: string
+  method: string | null
+  branch_id: string | null
+  vehicle_id: string | null
+  reservation_id: string | null
+  maintenance_record_id: string | null
+  supplier: string | null
+  description: string | null
+  receipt_path: string | null
+  notes: string | null
+  recorded_by: string | null
+  created_at: string
+  branch: { name: string } | null
+  vehicle: { make: string; model: string } | null
+  reservation: { reference: string } | null
+}): Omit<Expense, "recordedByName" | "receiptUrl"> & { recordedBy: string | null; receiptPath: string | null } {
+  return {
+    id: row.id,
+    category: row.category as ExpenseCategory,
+    amountMad: Number(row.amount),
+    expenseDate: row.expense_date,
+    method: row.method as Expense["method"],
+    branchId: row.branch_id,
+    branchName: row.branch?.name ?? null,
+    vehicleId: row.vehicle_id,
+    vehicleLabel: row.vehicle ? `${row.vehicle.make} ${row.vehicle.model}` : null,
+    reservationId: row.reservation_id,
+    reservationReference: row.reservation?.reference ?? null,
+    maintenanceRecordId: row.maintenance_record_id,
+    supplier: row.supplier,
+    description: row.description,
+    receiptPath: row.receipt_path,
+    notes: row.notes,
+    recordedBy: row.recorded_by,
+    createdAt: row.created_at,
+  }
+}
+
+export interface ExpenseListFilters {
+  category?: ExpenseCategory
+  vehicleId?: string
+  supplier?: string
+  dateFrom?: string
+  dateTo?: string
+  search?: string
+}
+
+export async function getExpensesList(
+  companyId: string,
+  filters: ExpenseListFilters = {},
+  page = 1,
+  pageSize = 25
+): Promise<PaginatedResult<Expense>> {
+  if (isMockMode()) {
+    let items = [...mockExpenses]
+    if (filters.category) items = items.filter((e) => e.category === filters.category)
+    if (filters.vehicleId) items = items.filter((e) => e.vehicleId === filters.vehicleId)
+    if (filters.supplier) items = items.filter((e) => (e.supplier ?? "").toLowerCase().includes(filters.supplier!.toLowerCase()))
+    if (filters.dateFrom) items = items.filter((e) => e.expenseDate >= filters.dateFrom!)
+    if (filters.dateTo) items = items.filter((e) => e.expenseDate <= filters.dateTo!)
+    if (filters.search) {
+      const q = filters.search.toLowerCase()
+      items = items.filter(
+        (e) => (e.description ?? "").toLowerCase().includes(q) || (e.supplier ?? "").toLowerCase().includes(q)
+      )
+    }
+    items.sort((a, b) => new Date(b.expenseDate).getTime() - new Date(a.expenseDate).getTime())
+    const total = items.length
+    const start = (page - 1) * pageSize
+    return { items: items.slice(start, start + pageSize), total, page, pageSize }
+  }
+
+  const supabase = await createClient()
+  let query = supabase.from("expenses").select(EXPENSE_SELECT, { count: "exact" }).eq("company_id", companyId)
+
+  if (filters.category) query = query.eq("category", filters.category)
+  if (filters.vehicleId) query = query.eq("vehicle_id", filters.vehicleId)
+  if (filters.supplier) query = query.ilike("supplier", `%${escapeIlike(filters.supplier)}%`)
+  if (filters.dateFrom) query = query.gte("expense_date", filters.dateFrom)
+  if (filters.dateTo) query = query.lte("expense_date", filters.dateTo)
+  if (filters.search?.trim()) {
+    const q = escapeIlike(filters.search)
+    query = query.or(`description.ilike.%${q}%,supplier.ilike.%${q}%`)
+  }
+
+  const start = (page - 1) * pageSize
+  const { data, error, count } = await query
+    .order("expense_date", { ascending: false })
+    .range(start, start + pageSize - 1)
+
+  if (error) throw error
+
+  const mapped = (data ?? []).map((r) => mapExpenseRow(r as never))
+  const nameMap = await resolveProfileNames(supabase, mapped.map((e) => e.recordedBy))
+  const urlMap = await resolveSignedUrls(supabase, mapped.map((e) => e.receiptPath).filter((p): p is string => Boolean(p)))
+
+  return {
+    items: mapped.map((e) => ({
+      ...e,
+      recordedByName: e.recordedBy ? nameMap.get(e.recordedBy) ?? null : null,
+      receiptUrl: e.receiptPath ? urlMap.get(e.receiptPath) ?? null : null,
+    })),
+    total: count ?? 0,
+    page,
+    pageSize,
+  }
+}
+
+export async function getExpenseDetail(companyId: string, expenseId: string): Promise<Expense | null> {
+  if (isMockMode()) {
+    return mockExpenses.find((e) => e.id === expenseId) ?? null
+  }
+
+  const supabase = await createClient()
+  const { data: row, error } = await supabase
+    .from("expenses")
+    .select(EXPENSE_SELECT)
+    .eq("company_id", companyId)
+    .eq("id", expenseId)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!row) return null
+
+  const mapped = mapExpenseRow(row as never)
+  const nameMap = await resolveProfileNames(supabase, [mapped.recordedBy])
+  const urlMap = await resolveSignedUrls(supabase, mapped.receiptPath ? [mapped.receiptPath] : [])
+
+  return {
+    ...mapped,
+    recordedByName: mapped.recordedBy ? nameMap.get(mapped.recordedBy) ?? null : null,
+    receiptUrl: mapped.receiptPath ? urlMap.get(mapped.receiptPath) ?? null : null,
+  }
+}
+
+export interface ExpenseSummary {
+  totalMad: number
+  byCategory: { category: ExpenseCategory; totalMad: number }[]
+  byVehicle: { vehicleId: string; vehicleLabel: string; totalMad: number }[]
+}
+
+/** Sums expenses for a date range using the same "money recorded in this
+ * period" definition the reports page uses (see lib/reports.ts) — kept
+ * here rather than duplicated because this is also what the expenses
+ * page's own summary cards show. */
+export async function getExpenseSummary(companyId: string, dateFrom: string, dateTo: string): Promise<ExpenseSummary> {
+  if (isMockMode()) {
+    const items = mockExpenses.filter((e) => e.expenseDate >= dateFrom && e.expenseDate <= dateTo)
+    const totalMad = items.reduce((sum, e) => sum + e.amountMad, 0)
+    const byCategoryMap = new Map<ExpenseCategory, number>()
+    const byVehicleMap = new Map<string, { vehicleLabel: string; totalMad: number }>()
+    for (const e of items) {
+      byCategoryMap.set(e.category, (byCategoryMap.get(e.category) ?? 0) + e.amountMad)
+      if (e.vehicleId) {
+        const existing = byVehicleMap.get(e.vehicleId)
+        byVehicleMap.set(e.vehicleId, {
+          vehicleLabel: e.vehicleLabel ?? "",
+          totalMad: (existing?.totalMad ?? 0) + e.amountMad,
+        })
+      }
+    }
+    return {
+      totalMad,
+      byCategory: Array.from(byCategoryMap.entries()).map(([category, total]) => ({ category, totalMad: total })),
+      byVehicle: Array.from(byVehicleMap.entries()).map(([vehicleId, v]) => ({ vehicleId, ...v })),
+    }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("expenses")
+    .select("category, amount, vehicle_id, vehicle:vehicles(make, model)")
+    .eq("company_id", companyId)
+    .gte("expense_date", dateFrom)
+    .lte("expense_date", dateTo)
+
+  if (error) throw error
+
+  const rows = (data ?? []) as unknown as { category: string; amount: string; vehicle_id: string | null; vehicle: { make: string; model: string } | null }[]
+  const totalMad = rows.reduce((sum, r) => sum + Number(r.amount), 0)
+  const byCategoryMap = new Map<ExpenseCategory, number>()
+  const byVehicleMap = new Map<string, { vehicleLabel: string; totalMad: number }>()
+  for (const r of rows) {
+    const category = r.category as ExpenseCategory
+    byCategoryMap.set(category, (byCategoryMap.get(category) ?? 0) + Number(r.amount))
+    if (r.vehicle_id) {
+      const existing = byVehicleMap.get(r.vehicle_id)
+      byVehicleMap.set(r.vehicle_id, {
+        vehicleLabel: r.vehicle ? `${r.vehicle.make} ${r.vehicle.model}` : "",
+        totalMad: (existing?.totalMad ?? 0) + Number(r.amount),
+      })
+    }
+  }
+
+  return {
+    totalMad,
+    byCategory: Array.from(byCategoryMap.entries()).map(([category, total]) => ({ category, totalMad: total })),
+    byVehicle: Array.from(byVehicleMap.entries()).map(([vehicleId, v]) => ({ vehicleId, ...v })),
+  }
+}
+
+// ---------------------------------------------------------------------
+// Live alerts — see the `notifications` table's own comment (Notifications
+// migration) for why these are computed fresh on every call instead of
+// stored: they're current-state facts, and a stored copy would just be a
+// second place for the truth to drift from. Every query below is scoped
+// and limited — this reads a handful of narrow, indexed slices, not the
+// company's full history.
+// ---------------------------------------------------------------------
+
+export interface LiveAlertOptions {
+  maintenanceReminderDays: number
+  documentExpiryWarningDays: number
+}
+
+export async function getLiveAlerts(companyId: string, options: LiveAlertOptions): Promise<LiveAlert[]> {
+  const nowMs = Date.now()
+  const now = new Date(nowMs)
+  const alerts: LiveAlert[] = []
+
+  if (isMockMode()) {
+    for (const b of mockBookings) {
+      if (b.status === "active" && b.isOverdue) {
+        alerts.push({
+          key: `rental_overdue:${b.id}`,
+          type: "rental_overdue",
+          urgency: "overdue",
+          title: `${b.reference} is overdue for return`,
+          description: `${b.customer.fullName} — expected back ${b.endDate}`,
+          href: `/reservations/${b.id}`,
+          dueDate: b.endDate,
+        })
+      }
+      if ((b.status === "active" || b.status === "completed") && b.payment.remainingMad > 0) {
+        alerts.push({
+          key: `outstanding_balance:${b.id}`,
+          type: "outstanding_balance",
+          urgency: "due_now",
+          title: `${b.reference} has an outstanding balance`,
+          description: `${b.customer.fullName} owes ${b.payment.remainingMad} MAD`,
+          href: `/reservations/${b.id}`,
+          dueDate: null,
+        })
+      }
+    }
+    for (const d of mockDeposits) {
+      const booking = mockBookings.find((b) => b.id === d.reservationId)
+      if (booking?.status === "completed" && d.collectedMad > depositHeldMad({ collectedMad: 0, returnedMad: d.returnedMad, retainedMad: d.retainedMad }) && depositHeldMad(d) > 0) {
+        alerts.push({
+          key: `deposit_unresolved:${d.reservationId}`,
+          type: "deposit_unresolved",
+          urgency: "due_now",
+          title: `Deposit not yet resolved for ${booking.reference}`,
+          description: `${depositHeldMad(d)} MAD still held`,
+          href: `/reservations/${d.reservationId}`,
+          dueDate: null,
+        })
+      }
+    }
+    for (const m of mockMaintenanceRecords) {
+      if (["planned", "scheduled", "waiting_for_parts"].includes(m.status) && m.scheduledOn) {
+        const days = daysUntilFn(m.scheduledOn, nowMs)
+        if (days <= options.maintenanceReminderDays) {
+          const urgency = urgencyForDaysUntil(days)
+          alerts.push({
+            key: `maintenance_${urgency === "overdue" ? "overdue" : "due"}:${m.id}`,
+            type: urgency === "overdue" ? "maintenance_overdue" : "maintenance_due",
+            urgency,
+            title: `${m.vehicleLabel} — ${m.type.replace("_", " ")}`,
+            description: `Scheduled ${m.scheduledOn}`,
+            href: `/maintenance/${m.id}`,
+            dueDate: m.scheduledOn,
+          })
+        }
+      }
+    }
+    // Vehicle document / customer licence expiry alerts are live-mode only:
+    // the base mock Vehicle/Customer fixtures don't carry expiry dates
+    // (only VehicleDetail/CustomerDetail do), so there's nothing to derive
+    // them from here.
+    for (const d of mockDamages) {
+      if (d.status === "newly_discovered" || d.status === "under_review") {
+        alerts.push({
+          key: `damage_recorded:${d.id}`,
+          type: "damage_recorded",
+          urgency: "due_now",
+          title: `${d.vehicleLabel} — damage needs review`,
+          description: d.description,
+          href: `/damages/${d.id}`,
+          dueDate: null,
+        })
+      }
+    }
+    return alerts.sort((a, b) => (a.urgency === b.urgency ? 0 : a.urgency === "overdue" ? -1 : 1))
+  }
+
+  const supabase = await createClient()
+  const warningIso = new Date(nowMs + options.documentExpiryWarningDays * 86_400_000).toISOString().slice(0, 10)
+  const maintenanceWindowIso = new Date(nowMs + options.maintenanceReminderDays * 86_400_000).toISOString().slice(0, 10)
+  const soonIso = new Date(nowMs + 86_400_000).toISOString()
+
+  const [overdueRes, balanceRes, depositRes, maintenanceRes, vehicleDocsRes, licenceRes, damageRes, unavailableRes] =
+    await Promise.all([
+      supabase
+        .from("reservations")
+        .select("id, reference, return_at, customer:customers(full_name)")
+        .eq("company_id", companyId)
+        .eq("status", "active")
+        .lt("return_at", now.toISOString())
+        .limit(25),
+      supabase
+        .from("reservations")
+        .select("id, reference, remaining_balance, customer:customers(full_name)")
+        .eq("company_id", companyId)
+        .in("status", ["active", "completed"])
+        .gt("remaining_balance", 0)
+        .limit(25),
+      supabase
+        .from("deposits")
+        .select("reservation_id, collected_amount, returned_amount, retained_amount, reservation:reservations(reference, status)")
+        .eq("company_id", companyId)
+        .gt("collected_amount", 0)
+        .limit(50),
+      supabase
+        .from("maintenance_records")
+        .select("id, type, scheduled_on, vehicle:vehicles(make, model)")
+        .eq("company_id", companyId)
+        .in("status", ["planned", "scheduled", "waiting_for_parts"])
+        .not("scheduled_on", "is", null)
+        .lte("scheduled_on", maintenanceWindowIso)
+        .limit(25),
+      supabase
+        .from("vehicles")
+        .select("id, make, model, insurance_expires_on, registration_expires_on, inspection_expires_on")
+        .eq("company_id", companyId)
+        .or(
+          `insurance_expires_on.lte.${warningIso},registration_expires_on.lte.${warningIso},inspection_expires_on.lte.${warningIso}`
+        )
+        .limit(25),
+      supabase
+        .from("reservations")
+        .select("id, reference, status, customer:customers(full_name, license_expires_on)")
+        .eq("company_id", companyId)
+        .in("status", ["active", "confirmed"])
+        .limit(50),
+      supabase
+        .from("damages")
+        .select("id, vehicle_area, description, vehicle:vehicles(make, model)")
+        .eq("company_id", companyId)
+        .in("status", ["newly_discovered", "under_review"])
+        .limit(25),
+      supabase
+        .from("vehicles")
+        .select(
+          "id, make, model, status, reservations:reservations(id, reference, pickup_at, status)"
+        )
+        .eq("company_id", companyId)
+        .in("status", ["maintenance", "unavailable"])
+        .limit(50),
+    ])
+
+  for (const r of overdueRes.data ?? []) {
+    const customer = r.customer as unknown as { full_name: string } | null
+    alerts.push({
+      key: `rental_overdue:${r.id}`,
+      type: "rental_overdue",
+      urgency: "overdue",
+      title: `${r.reference} is overdue for return`,
+      description: `${customer?.full_name ?? "Customer"} — expected back ${formatInTimeZoneShort(r.return_at)}`,
+      href: `/reservations/${r.id}`,
+      dueDate: r.return_at,
+    })
+  }
+
+  for (const r of balanceRes.data ?? []) {
+    const customer = r.customer as unknown as { full_name: string } | null
+    alerts.push({
+      key: `outstanding_balance:${r.id}`,
+      type: "outstanding_balance",
+      urgency: "due_now",
+      title: `${r.reference} has an outstanding balance`,
+      description: `${customer?.full_name ?? "Customer"} owes ${Number(r.remaining_balance)} MAD`,
+      href: `/reservations/${r.id}`,
+      dueDate: null,
+    })
+  }
+
+  for (const d of depositRes.data ?? []) {
+    const reservation = d.reservation as unknown as { reference: string; status: string } | null
+    if (reservation?.status !== "completed") continue
+    const held = depositHeldMad({
+      collectedMad: Number(d.collected_amount),
+      returnedMad: Number(d.returned_amount),
+      retainedMad: Number(d.retained_amount),
+    })
+    if (held <= 0) continue
+    alerts.push({
+      key: `deposit_unresolved:${d.reservation_id}`,
+      type: "deposit_unresolved",
+      urgency: "due_now",
+      title: `Deposit not yet resolved for ${reservation.reference}`,
+      description: `${held} MAD still held`,
+      href: `/reservations/${d.reservation_id}`,
+      dueDate: null,
+    })
+  }
+
+  for (const m of maintenanceRes.data ?? []) {
+    const vehicle = m.vehicle as unknown as { make: string; model: string } | null
+    const days = daysUntilFn(m.scheduled_on as string, nowMs)
+    const urgency = urgencyForDaysUntil(days)
+    alerts.push({
+      key: `maintenance_${urgency === "overdue" ? "overdue" : "due"}:${m.id}`,
+      type: urgency === "overdue" ? "maintenance_overdue" : "maintenance_due",
+      urgency,
+      title: `${vehicle ? `${vehicle.make} ${vehicle.model}` : "Vehicle"} — ${String(m.type).replace("_", " ")}`,
+      description: `Scheduled ${m.scheduled_on}`,
+      href: `/maintenance/${m.id}`,
+      dueDate: m.scheduled_on as string,
+    })
+  }
+
+  const docFields: { field: "insurance_expires_on" | "registration_expires_on" | "inspection_expires_on"; label: string }[] = [
+    { field: "insurance_expires_on", label: "Insurance" },
+    { field: "registration_expires_on", label: "Registration" },
+    { field: "inspection_expires_on", label: "Technical inspection" },
+  ]
+  for (const v of vehicleDocsRes.data ?? []) {
+    for (const { field, label } of docFields) {
+      const date = v[field] as string | null
+      if (!date) continue
+      const days = daysUntilFn(date, nowMs)
+      if (days > options.documentExpiryWarningDays) continue
+      alerts.push({
+        key: `vehicle_document_expiring:${v.id}:${field}`,
+        type: "vehicle_document_expiring",
+        urgency: urgencyForDaysUntil(days),
+        title: `${v.make} ${v.model} — ${label.toLowerCase()} ${days < 0 ? "expired" : "expiring"}`,
+        description: `${label} ${days < 0 ? "expired" : "expires"} ${date}`,
+        href: `/fleet/${v.id}`,
+        dueDate: date,
+      })
+    }
+  }
+
+  for (const r of licenceRes.data ?? []) {
+    const customer = r.customer as unknown as { full_name: string; license_expires_on: string | null } | null
+    if (!customer?.license_expires_on) continue
+    const days = daysUntilFn(customer.license_expires_on, nowMs)
+    if (days > options.documentExpiryWarningDays) continue
+    alerts.push({
+      key: `licence_expiring:${r.id}`,
+      type: "licence_expiring",
+      urgency: urgencyForDaysUntil(days),
+      title: `${customer.full_name} — driving licence ${days < 0 ? "expired" : "expiring"}`,
+      description: `Reservation ${r.reference}`,
+      href: `/reservations/${r.id}`,
+      dueDate: customer.license_expires_on,
+    })
+  }
+
+  for (const d of damageRes.data ?? []) {
+    const vehicle = d.vehicle as unknown as { make: string; model: string } | null
+    alerts.push({
+      key: `damage_recorded:${d.id}`,
+      type: "damage_recorded",
+      urgency: "due_now",
+      title: `${vehicle ? `${vehicle.make} ${vehicle.model}` : "Vehicle"} — damage needs review`,
+      description: d.description,
+      href: `/damages/${d.id}`,
+      dueDate: null,
+    })
+  }
+
+  for (const v of unavailableRes.data ?? []) {
+    const upcoming = (v.reservations as unknown as { id: string; reference: string; pickup_at: string; status: string }[] | null ?? [])
+      .filter((r) => ["request", "pending", "confirmed"].includes(r.status) && r.pickup_at >= soonIso)
+      .sort((a, b) => a.pickup_at.localeCompare(b.pickup_at))[0]
+    if (!upcoming) continue
+    alerts.push({
+      key: `vehicle_unavailable_upcoming_reservation:${v.id}`,
+      type: "vehicle_unavailable_upcoming_reservation",
+      urgency: "due_soon",
+      title: `${v.make} ${v.model} is unavailable but booked soon`,
+      description: `${upcoming.reference} — reassign or resolve availability`,
+      href: `/fleet/${v.id}`,
+      dueDate: upcoming.pickup_at,
+    })
+  }
+
+  return alerts.sort((a, b) => (a.urgency === b.urgency ? 0 : a.urgency === "overdue" ? -1 : 1))
+}
+
+function formatInTimeZoneShort(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+}
+
+const URGENCY_TO_PRIORITY: Record<LiveAlert["urgency"], NotificationItem["priority"]> = {
+  due_soon: "normal",
+  due_now: "high",
+  overdue: "urgent",
+}
+
+export interface NotificationFeed {
+  items: NotificationItem[]
+  unreadCount: number
+}
+
+/** Merges the two notification sources described on the `notifications`
+ * table itself: live alerts (recomputed here, hidden once the user has a
+ * dismissal marker for that alert's key) and genuine stored events
+ * (read/unread tracked directly on the row). Muted types are dropped
+ * before either source is even queried where possible. */
+export async function getNotificationFeed(
+  companyId: string,
+  userId: string,
+  options: LiveAlertOptions & { mutedTypes: string[] }
+): Promise<NotificationFeed> {
+  const [liveAlerts, dismissedKeys, eventRows] = await Promise.all([
+    getLiveAlerts(companyId, options),
+    getDismissedAlertKeys(userId),
+    getStoredNotificationEvents(companyId, userId),
+  ])
+
+  const mutedSet = new Set(options.mutedTypes)
+  const liveItems: NotificationItem[] = liveAlerts
+    .filter((a) => !dismissedKeys.has(a.key) && !mutedSet.has(a.type))
+    .map((a) => ({
+      id: a.key,
+      source: "live" as const,
+      type: a.type,
+      title: a.title,
+      description: a.description,
+      priority: URGENCY_TO_PRIORITY[a.urgency],
+      href: a.href,
+      isRead: false,
+      createdAt: a.dueDate ?? new Date().toISOString(),
+    }))
+
+  const eventItems: NotificationItem[] = eventRows
+    .filter((e) => !mutedSet.has(e.type))
+    .map((e) => ({
+      id: e.id,
+      source: "event" as const,
+      type: e.type,
+      title: e.title,
+      description: e.description,
+      priority: e.priority,
+      href: e.href,
+      isRead: e.isRead,
+      createdAt: e.createdAt,
+    }))
+
+  const items = [...liveItems, ...eventItems].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  const unreadCount = items.filter((i) => !i.isRead).length
+
+  return { items, unreadCount }
+}
+
+async function getDismissedAlertKeys(userId: string): Promise<Set<string>> {
+  if (isMockMode()) return new Set()
+
+  const supabase = await createClient()
+  const { data } = await supabase.from("notifications").select("key").eq("user_id", userId).not("key", "is", null)
+  return new Set((data ?? []).map((r) => r.key as string))
+}
+
+async function getStoredNotificationEvents(
+  companyId: string,
+  userId: string
+): Promise<
+  { id: string; type: NotificationType; title: string; description: string | null; priority: NotificationItem["priority"]; href: string | null; isRead: boolean; createdAt: string }[]
+> {
+  if (isMockMode()) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("id, type, title, description, priority, link_href, read_at, created_at")
+    .eq("company_id", companyId)
+    .eq("user_id", userId)
+    .is("key", null)
+    .order("created_at", { ascending: false })
+    .limit(100)
+
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    type: r.type as NotificationType,
+    title: r.title,
+    description: r.description,
+    priority: r.priority as NotificationItem["priority"],
+    href: r.link_href,
+    isRead: Boolean(r.read_at),
+    createdAt: r.created_at,
+  }))
+}
+
+// ---------------------------------------------------------------------
+// Owner reports
+// ---------------------------------------------------------------------
+//
+// Default view: "money recorded during the selected period" (payments and
+// expenses dated within [fromIso, toIso)) — the brief explicitly asks for
+// one clearly-labelled default rather than every possible view. Two
+// simplifications, both intentional and both noted in the completion
+// report rather than silently assumed:
+//   - depositsHeldMad and depositsRetainedMad are always a *current*
+//     snapshot, never period-scoped — reconstructing "deposits held as of
+//     a past date" would need historical balance snapshots, which the
+//     brief explicitly says not to build yet ("no complex materialized
+//     analytics systems").
+//   - outstandingBalanceMad is likewise "as of today", not "as of the
+//     period end", for the same reason.
+
+export async function getFinancialReport(companyId: string, range: ReportDateRange): Promise<FinancialReport> {
+  const [expenseSummary, depositsHeldMad] = await Promise.all([
+    getExpenseSummary(companyId, range.fromIso.slice(0, 10), range.toIso.slice(0, 10)),
+    getDepositsHeldMad(companyId),
+  ])
+  const maintenanceCostMad = expenseSummary.byCategory.find((c) => c.category === "maintenance")?.totalMad ?? 0
+
+  if (isMockMode()) {
+    const inRange = mockPaymentLedger.filter((p) => p.paidAt >= range.fromIso && p.paidAt < range.toIso)
+    const sumType = (type: string) => inRange.filter((p) => p.transactionType === type).reduce((s, p) => s + p.amountMad, 0)
+    const outstandingBalanceMad = mockBookings
+      .filter((b) => b.status !== "cancelled" && b.status !== "no_show")
+      .reduce((sum, b) => sum + b.payment.remainingMad, 0)
+    const depositsRetainedMad = mockDeposits.reduce((sum, d) => sum + d.retainedMad, 0)
+    const rentalPaymentsMad = sumType("rental_payment")
+
+    return {
+      rentalPaymentsMad,
+      additionalChargesMad: sumType("additional_charge"),
+      discountsMad: 0,
+      refundsMad: sumType("refund"),
+      outstandingBalanceMad,
+      depositsCollectedMad: sumType("deposit_collection"),
+      depositsHeldMad,
+      depositsReturnedMad: sumType("deposit_return"),
+      depositsRetainedMad,
+      expensesMad: expenseSummary.totalMad,
+      maintenanceCostMad,
+      knownOperatingResultMad: knownOperatingResult(rentalPaymentsMad, expenseSummary.totalMad),
+    }
+  }
+
+  const supabase = await createClient()
+  const [paymentRows, reservationRows, depositRows] = await Promise.all([
+    supabase
+      .from("payments")
+      .select("transaction_type, amount")
+      .eq("company_id", companyId)
+      .gte("paid_at", range.fromIso)
+      .lt("paid_at", range.toIso),
+    supabase
+      .from("reservations")
+      .select("remaining_balance, status")
+      .eq("company_id", companyId)
+      .not("status", "in", "(cancelled,no_show)"),
+    supabase.from("deposits").select("retained_amount").eq("company_id", companyId),
+  ])
+
+  if (paymentRows.error) throw paymentRows.error
+  if (reservationRows.error) throw reservationRows.error
+  if (depositRows.error) throw depositRows.error
+
+  const sumType = (type: string) =>
+    (paymentRows.data ?? []).filter((p) => p.transaction_type === type).reduce((s, p) => s + Number(p.amount), 0)
+  const outstandingBalanceMad = (reservationRows.data ?? []).reduce((sum, r) => sum + Number(r.remaining_balance), 0)
+  const depositsRetainedMad = (depositRows.data ?? []).reduce((sum, d) => sum + Number(d.retained_amount), 0)
+  const rentalPaymentsMad = sumType("rental_payment")
+
+  return {
+    rentalPaymentsMad,
+    additionalChargesMad: sumType("additional_charge"),
+    discountsMad: 0,
+    refundsMad: sumType("refund"),
+    outstandingBalanceMad,
+    depositsCollectedMad: sumType("deposit_collection"),
+    depositsHeldMad,
+    depositsReturnedMad: sumType("deposit_return"),
+    depositsRetainedMad,
+    expensesMad: expenseSummary.totalMad,
+    maintenanceCostMad,
+    knownOperatingResultMad: knownOperatingResult(rentalPaymentsMad, expenseSummary.totalMad),
+  }
+}
+
+/** Rental days / reservation counts are attributed to the period a
+ * reservation's pickup falls in — "rentals that started in this window",
+ * not a day-by-day interval intersection (which would need real
+ * date-range math per row); a clear, defensible definition, applied the
+ * same way everywhere it's used. */
+export async function getFleetPerformanceReport(companyId: string, range: ReportDateRange): Promise<FleetPerformanceReport> {
+  const periodDays = Math.max(1, Math.round((new Date(range.toIso).getTime() - new Date(range.fromIso).getTime()) / 86_400_000))
+
+  if (isMockMode()) {
+    const fleetSize = mockVehicles.length
+    const availableCount = mockVehicles.filter((v) => v.status === "available").length
+    const activeRentalsCount = mockVehicles.filter((v) => v.status === "rented").length
+
+    const rows: FleetPerformanceRow[] = mockVehicles.map((v) => {
+      const vehicleReservations = mockBookings.filter(
+        (b) => b.vehicle?.id === v.id && b.startDate >= range.fromIso.slice(0, 10) && b.startDate < range.toIso.slice(0, 10)
+      )
+      const rentalDays = vehicleReservations
+        .filter((b) => b.status === "active" || b.status === "completed")
+        .reduce((sum, b) => sum + rentalDaysFor(b.startDate, b.endDate), 0)
+      const recordedRevenueMad = mockPaymentLedger
+        .filter(
+          (p) =>
+            p.transactionType === "rental_payment" &&
+            p.paidAt >= range.fromIso &&
+            p.paidAt < range.toIso &&
+            mockBookings.find((b) => b.id === p.reservationId)?.vehicle?.id === v.id
+        )
+        .reduce((sum, p) => sum + p.amountMad, 0)
+      const vehicleExpenses = mockExpenses.filter(
+        (e) => e.vehicleId === v.id && e.expenseDate >= range.fromIso.slice(0, 10) && e.expenseDate < range.toIso.slice(0, 10)
+      )
+      return {
+        vehicleId: v.id,
+        vehicleLabel: `${v.make} ${v.model}`,
+        plate: v.plate,
+        status: v.status,
+        rentalDays,
+        recordedRevenueMad,
+        recordedExpensesMad: vehicleExpenses.reduce((sum, e) => sum + e.amountMad, 0),
+        maintenanceCostMad: vehicleExpenses.filter((e) => e.category === "maintenance").reduce((sum, e) => sum + e.amountMad, 0),
+        downtimeDays: downtimeDaysFn(periodDays, rentalDays),
+        reservationCount: vehicleReservations.length,
+      }
+    })
+
+    return {
+      fleetSize,
+      availableCount,
+      activeRentalsCount,
+      occupancyRate: occupancyRateFn(rows.reduce((sum, r) => sum + r.rentalDays, 0), fleetSize, periodDays),
+      rows,
+    }
+  }
+
+  const supabase = await createClient()
+  const [vehicleRows, reservationRows, paymentRows, expenseRows] = await Promise.all([
+    supabase.from("vehicles").select("id, make, model, registration_number, status").eq("company_id", companyId),
+    supabase
+      .from("reservations")
+      .select("id, vehicle_id, pickup_at, return_at, status")
+      .eq("company_id", companyId)
+      .gte("pickup_at", range.fromIso)
+      .lt("pickup_at", range.toIso)
+      .in("status", ["active", "completed"]),
+    supabase
+      .from("payments")
+      .select("amount, reservation:reservations!inner(vehicle_id)")
+      .eq("company_id", companyId)
+      .eq("transaction_type", "rental_payment")
+      .gte("paid_at", range.fromIso)
+      .lt("paid_at", range.toIso),
+    supabase
+      .from("expenses")
+      .select("vehicle_id, category, amount")
+      .eq("company_id", companyId)
+      .not("vehicle_id", "is", null)
+      .gte("expense_date", range.fromIso.slice(0, 10))
+      .lt("expense_date", range.toIso.slice(0, 10)),
+  ])
+
+  if (vehicleRows.error) throw vehicleRows.error
+  if (reservationRows.error) throw reservationRows.error
+  if (paymentRows.error) throw paymentRows.error
+  if (expenseRows.error) throw expenseRows.error
+
+  const vehicles = vehicleRows.data ?? []
+  const fleetSize = vehicles.length
+  const availableCount = vehicles.filter((v) => v.status === "available").length
+  const activeRentalsCount = vehicles.filter((v) => v.status === "rented").length
+
+  const revenueByVehicle = new Map<string, number>()
+  for (const p of paymentRows.data ?? []) {
+    const vehicleId = (p.reservation as unknown as { vehicle_id: string | null })?.vehicle_id
+    if (!vehicleId) continue
+    revenueByVehicle.set(vehicleId, (revenueByVehicle.get(vehicleId) ?? 0) + Number(p.amount))
+  }
+
+  const rows: FleetPerformanceRow[] = vehicles.map((v) => {
+    const vehicleReservations = (reservationRows.data ?? []).filter((r) => r.vehicle_id === v.id)
+    const rentalDays = vehicleReservations.reduce((sum, r) => sum + rentalDaysFor(r.pickup_at, r.return_at), 0)
+    const vehicleExpenses = (expenseRows.data ?? []).filter((e) => e.vehicle_id === v.id)
+    return {
+      vehicleId: v.id,
+      vehicleLabel: `${v.make} ${v.model}`,
+      plate: v.registration_number,
+      status: v.status as VehicleStatus,
+      rentalDays,
+      recordedRevenueMad: revenueByVehicle.get(v.id) ?? 0,
+      recordedExpensesMad: vehicleExpenses.reduce((sum, e) => sum + Number(e.amount), 0),
+      maintenanceCostMad: vehicleExpenses.filter((e) => e.category === "maintenance").reduce((sum, e) => sum + Number(e.amount), 0),
+      downtimeDays: downtimeDaysFn(periodDays, rentalDays),
+      reservationCount: vehicleReservations.length,
+    }
+  })
+
+  return {
+    fleetSize,
+    availableCount,
+    activeRentalsCount,
+    occupancyRate: occupancyRateFn(rows.reduce((sum, r) => sum + r.rentalDays, 0), fleetSize, periodDays),
+    rows,
+  }
+}
+
+/** "Created in this period" cohort — every count below is about
+ * reservations whose created_at falls in [fromIso, toIso), not their
+ * current status alone, so the numbers describe what happened to a
+ * consistent group rather than mixing cohorts. */
+export async function getReservationPerformanceReport(
+  companyId: string,
+  range: ReportDateRange
+): Promise<ReservationPerformanceReport> {
+  if (isMockMode()) {
+    const cohort = mockBookings.filter((b) => b.createdAt >= range.fromIso && b.createdAt < range.toIso)
+    const confirmed = cohort.filter((b) => ["confirmed", "active", "completed"].includes(b.status)).length
+    const completed = cohort.filter((b) => b.status === "completed")
+    const cancelled = cohort.filter((b) => b.status === "cancelled").length
+    const noShows = cohort.filter((b) => b.status === "no_show").length
+    const valued = cohort.filter((b) => b.status !== "cancelled" && b.status !== "no_show")
+
+    return {
+      created: cohort.length,
+      confirmed,
+      completed: completed.length,
+      cancelled,
+      noShows,
+      requestsConvertedRate: cohort.length > 0 ? Math.round((confirmed / cohort.length) * 100) : 0,
+      averageDurationDays: completed.length > 0 ? Math.round(completed.reduce((s, b) => s + rentalDaysFor(b.startDate, b.endDate), 0) / completed.length) : 0,
+      averageValueMad: valued.length > 0 ? Math.round(valued.reduce((s, b) => s + b.payment.totalDueMad, 0) / valued.length) : 0,
+      bySource: [
+        { source: "walk_in", count: Math.round(cohort.length * 0.2) },
+        { source: "phone", count: Math.round(cohort.length * 0.15) },
+        { source: "whatsapp", count: Math.round(cohort.length * 0.35) },
+        { source: "website", count: Math.round(cohort.length * 0.2) },
+        { source: "partner", count: Math.round(cohort.length * 0.05) },
+        { source: "other", count: Math.round(cohort.length * 0.05) },
+      ],
+    }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("id, status, source, pickup_at, return_at, total_amount")
+    .eq("company_id", companyId)
+    .gte("created_at", range.fromIso)
+    .lt("created_at", range.toIso)
+
+  if (error) throw error
+
+  const cohort = data ?? []
+  const confirmed = cohort.filter((r) => ["confirmed", "active", "completed"].includes(r.status)).length
+  const completed = cohort.filter((r) => r.status === "completed")
+  const cancelled = cohort.filter((r) => r.status === "cancelled").length
+  const noShows = cohort.filter((r) => r.status === "no_show").length
+  const valued = cohort.filter((r) => r.status !== "cancelled" && r.status !== "no_show")
+
+  const bySourceMap = new Map<ReservationSource, number>()
+  for (const r of cohort) {
+    const source = r.source as ReservationSource
+    bySourceMap.set(source, (bySourceMap.get(source) ?? 0) + 1)
+  }
+
+  return {
+    created: cohort.length,
+    confirmed,
+    completed: completed.length,
+    cancelled,
+    noShows,
+    requestsConvertedRate: cohort.length > 0 ? Math.round((confirmed / cohort.length) * 100) : 0,
+    averageDurationDays:
+      completed.length > 0 ? Math.round(completed.reduce((s, r) => s + rentalDaysFor(r.pickup_at, r.return_at), 0) / completed.length) : 0,
+    averageValueMad: valued.length > 0 ? Math.round(valued.reduce((s, r) => s + Number(r.total_amount), 0) / valued.length) : 0,
+    bySource: Array.from(bySourceMap.entries()).map(([source, count]) => ({ source, count })),
+  }
+}
+
+/** newCustomers is period-scoped (created_at in range); every other field
+ * is a current company-wide snapshot — see the module comment above for
+ * why "as of a past date" reconstruction isn't attempted yet. */
+export async function getCustomerOverviewReport(companyId: string, range: ReportDateRange): Promise<CustomerOverviewReport> {
+  if (isMockMode()) {
+    const bookingCountByCustomer = new Map<string, { fullName: string; count: number }>()
+    for (const b of mockBookings) {
+      if (b.status === "cancelled" || b.status === "no_show") continue
+      const existing = bookingCountByCustomer.get(b.customer.id)
+      bookingCountByCustomer.set(b.customer.id, { fullName: b.customer.fullName, count: (existing?.count ?? 0) + 1 })
+    }
+    const returningCustomers = Array.from(bookingCountByCustomer.values()).filter((c) => isReturningCustomer(c.count)).length
+    const activeRentalCustomers = new Set(mockBookings.filter((b) => b.status === "active").map((b) => b.customer.id)).size
+    const outstandingBalanceCustomers = new Set(
+      mockBookings.filter((b) => b.status !== "cancelled" && b.status !== "no_show" && b.payment.remainingMad > 0).map((b) => b.customer.id)
+    ).size
+    const topReturning = Array.from(bookingCountByCustomer.entries())
+      .map(([customerId, v]) => ({ customerId, fullName: v.fullName, bookingCount: v.count }))
+      .sort((a, b) => b.bookingCount - a.bookingCount)
+      .slice(0, 5)
+    const totalRecordedValueMad = mockPaymentLedger
+      .filter((p) => p.transactionType === "rental_payment" && p.paidAt >= range.fromIso && p.paidAt < range.toIso)
+      .reduce((sum, p) => sum + p.amountMad, 0)
+
+    return {
+      newCustomers: mockCustomers.length > 0 ? Math.min(2, mockCustomers.length) : 0,
+      returningCustomers,
+      activeRentalCustomers,
+      outstandingBalanceCustomers,
+      topReturning,
+      totalRecordedValueMad,
+    }
+  }
+
+  const supabase = await createClient()
+  const [newCustomersRes, reservationRows, paymentRows] = await Promise.all([
+    supabase
+      .from("customers")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .gte("created_at", range.fromIso)
+      .lt("created_at", range.toIso),
+    supabase
+      .from("reservations")
+      .select("customer_id, status, customer:customers(full_name)")
+      .eq("company_id", companyId)
+      .not("status", "in", "(cancelled,no_show)"),
+    supabase
+      .from("payments")
+      .select("amount")
+      .eq("company_id", companyId)
+      .eq("transaction_type", "rental_payment")
+      .gte("paid_at", range.fromIso)
+      .lt("paid_at", range.toIso),
+  ])
+
+  if (newCustomersRes.error) throw newCustomersRes.error
+  if (reservationRows.error) throw reservationRows.error
+  if (paymentRows.error) throw paymentRows.error
+
+  const bookingCountByCustomer = new Map<string, { fullName: string; count: number }>()
+  const activeCustomerIds = new Set<string>()
+  for (const r of reservationRows.data ?? []) {
+    const fullName = (r.customer as unknown as { full_name: string } | null)?.full_name ?? "Unknown"
+    const existing = bookingCountByCustomer.get(r.customer_id)
+    bookingCountByCustomer.set(r.customer_id, { fullName, count: (existing?.count ?? 0) + 1 })
+    if (r.status === "active") activeCustomerIds.add(r.customer_id)
+  }
+  const returningCustomers = Array.from(bookingCountByCustomer.values()).filter((c) => isReturningCustomer(c.count)).length
+  const topReturning = Array.from(bookingCountByCustomer.entries())
+    .map(([customerId, v]) => ({ customerId, fullName: v.fullName, bookingCount: v.count }))
+    .sort((a, b) => b.bookingCount - a.bookingCount)
+    .slice(0, 5)
+
+  const { data: outstandingRows, error: outstandingError } = await supabase
+    .from("reservations")
+    .select("customer_id")
+    .eq("company_id", companyId)
+    .not("status", "in", "(cancelled,no_show)")
+    .gt("remaining_balance", 0)
+  if (outstandingError) throw outstandingError
+
+  return {
+    newCustomers: newCustomersRes.count ?? 0,
+    returningCustomers,
+    activeRentalCustomers: activeCustomerIds.size,
+    outstandingBalanceCustomers: new Set((outstandingRows ?? []).map((r) => r.customer_id)).size,
+    topReturning,
+    totalRecordedValueMad: (paymentRows.data ?? []).reduce((sum, p) => sum + Number(p.amount), 0),
+  }
+}
+
+/** Same per-vehicle definitions as getFleetPerformanceReport's rows, for
+ * a single vehicle over an owner-selected date range — the vehicle detail
+ * page's financial summary and the fleet report must never disagree
+ * about what "this vehicle's recorded revenue" means. */
+export async function getVehicleEconomics(companyId: string, vehicleId: string, range: ReportDateRange): Promise<VehicleEconomics> {
+  const fleet = await getFleetPerformanceReport(companyId, range)
+  const row = fleet.rows.find((r) => r.vehicleId === vehicleId)
+  if (!row) {
+    return {
+      recordedRevenueMad: 0,
+      recordedExpensesMad: 0,
+      maintenanceCostMad: 0,
+      rentalDays: 0,
+      reservationCount: 0,
+      downtimeDays: 0,
+      knownMarginMad: 0,
+    }
+  }
+  return {
+    recordedRevenueMad: row.recordedRevenueMad,
+    recordedExpensesMad: row.recordedExpensesMad,
+    maintenanceCostMad: row.maintenanceCostMad,
+    rentalDays: row.rentalDays,
+    reservationCount: row.reservationCount,
+    downtimeDays: row.downtimeDays,
+    knownMarginMad: knownOperatingResult(row.recordedRevenueMad, row.recordedExpensesMad),
+  }
+}
+
+// ---------------------------------------------------------------------
+// Minimal team access
+// ---------------------------------------------------------------------
+
+export async function getTeamMembers(companyId: string): Promise<TeamMember[]> {
+  if (isMockMode()) return mockTeamMembers
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("company_memberships")
+    .select("id, user_id, role, status, branch_id, created_at, profile:profiles(full_name), branch:branches(name)")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: true })
+
+  if (error) throw error
+
+  const userIds = (data ?? []).map((m) => m.user_id)
+  const emailMap = new Map<string, string>()
+  if (userIds.length > 0) {
+    // auth.users isn't directly queryable from the client role; profiles
+    // doesn't carry email, so this goes through the same admin-safe path
+    // as everywhere else that needs it — see get_invitation_preview for
+    // the equivalent pattern on the invitations side.
+    const { data: authUsers } = await supabase.rpc("get_member_emails", { p_user_ids: userIds })
+    for (const row of authUsers ?? []) emailMap.set(row.user_id, row.email)
+  }
+
+  return (data ?? []).map((m) => ({
+    membershipId: m.id,
+    userId: m.user_id,
+    fullName: (m.profile as unknown as { full_name: string | null } | null)?.full_name ?? null,
+    email: emailMap.get(m.user_id) ?? null,
+    role: m.role as TeamMember["role"],
+    status: m.status as TeamMember["status"],
+    branchId: m.branch_id,
+    branchName: (m.branch as unknown as { name: string } | null)?.name ?? null,
+    createdAt: m.created_at,
+  }))
+}
+
+export async function getPendingInvitations(companyId: string): Promise<TeamInvitation[]> {
+  if (isMockMode()) return mockPendingInvitations
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("invitations")
+    .select("id, email, role, branch_id, status, token, expires_at, created_at, branch:branches(name)")
+    .eq("company_id", companyId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+
+  if (error) throw error
+
+  return (data ?? []).map((i) => ({
+    id: i.id,
+    email: i.email,
+    role: i.role as TeamInvitation["role"],
+    branchId: i.branch_id,
+    branchName: (i.branch as unknown as { name: string } | null)?.name ?? null,
+    status: i.status as TeamInvitation["status"],
+    token: i.token,
+    expiresAt: i.expires_at,
+    createdAt: i.created_at,
+  }))
+}
+
+export interface InvitationPreview {
+  companyName: string
+  role: EmployeeRole
+  status: string
+  expiresAt: string
+}
+
+/** No mock-mode fixture — the invite/accept flow only makes sense against
+ * a real Supabase project with real auth users, so this returns null in
+ * mock mode rather than a fake demo row. */
+export async function getInvitationPreview(token: string): Promise<InvitationPreview | null> {
+  if (isMockMode()) return null
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("get_invitation_preview", { p_token: token })
+  if (error) throw error
+  const row = data?.[0]
+  if (!row) return null
+
+  return {
+    companyName: row.company_name,
+    role: row.role as EmployeeRole,
+    status: row.status,
+    expiresAt: row.expires_at,
   }
 }

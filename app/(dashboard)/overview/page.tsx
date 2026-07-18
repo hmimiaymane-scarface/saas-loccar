@@ -7,8 +7,8 @@ import {
   getTodayPickups,
   getTodayReturns,
   getRecentBookingRequests,
-  getMaintenanceAlerts,
   getRecentActivity,
+  getLiveAlerts,
 } from "@/lib/data"
 import { formatMad } from "@/lib/format"
 import { SectionHeader } from "@/components/domain/section-header"
@@ -16,8 +16,9 @@ import { StatCard } from "@/components/domain/stat-card"
 import { FleetStatusCard } from "@/components/domain/overview/fleet-status-card"
 import { PickupsReturnsCard } from "@/components/domain/overview/pickups-returns-card"
 import { BookingRequestsCard } from "@/components/domain/overview/booking-requests-card"
-import { MaintenanceAlertsCard } from "@/components/domain/overview/maintenance-alerts-card"
 import { ActivityFeedCard } from "@/components/domain/overview/activity-feed-card"
+import { NeedsAttentionCard } from "@/components/domain/overview/needs-attention-card"
+import { FinancialSummaryCard } from "@/components/domain/overview/financial-summary-card"
 
 export default async function OverviewPage() {
   const session = await getSessionContext()
@@ -25,13 +26,16 @@ export default async function OverviewPage() {
 
   const companyId = session.company.id
 
-  const [metrics, pickups, returns, requests, alerts, activity] = await Promise.all([
+  const [metrics, pickups, returns, requests, activity, alerts] = await Promise.all([
     getOverviewMetrics(companyId),
     getTodayPickups(companyId),
     getTodayReturns(companyId),
     getRecentBookingRequests(companyId),
-    getMaintenanceAlerts(companyId),
     getRecentActivity(companyId),
+    getLiveAlerts(companyId, {
+      maintenanceReminderDays: session.company.maintenanceReminderDays,
+      documentExpiryWarningDays: session.company.documentExpiryWarningDays,
+    }),
   ])
 
   const firstName = (session.profile.fullName ?? "there").split(" ")[0]
@@ -47,6 +51,8 @@ export default async function OverviewPage() {
         title="Overview"
         description={`Good morning, ${firstName} — here's how things stand today, ${today}.`}
       />
+
+      <NeedsAttentionCard alerts={alerts} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard
@@ -71,14 +77,21 @@ export default async function OverviewPage() {
         />
       </div>
 
-      <FleetStatusCard
-        total={metrics.fleetTotal}
-        available={metrics.fleetAvailable}
-        rented={metrics.fleetRented}
-        reserved={metrics.fleetReserved}
-        maintenance={metrics.fleetMaintenance}
-        occupancyRate={metrics.occupancyRate}
-      />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <FleetStatusCard
+          total={metrics.fleetTotal}
+          available={metrics.fleetAvailable}
+          rented={metrics.fleetRented}
+          reserved={metrics.fleetReserved}
+          maintenance={metrics.fleetMaintenance}
+          occupancyRate={metrics.occupancyRate}
+        />
+        <FinancialSummaryCard
+          expensesThisMonthMad={metrics.expensesThisMonthMad}
+          knownOperatingResultMad={metrics.knownOperatingResultMad}
+          depositsHeldMad={metrics.depositsHeldMad}
+        />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="flex flex-col gap-4 lg:col-span-2">
@@ -86,7 +99,6 @@ export default async function OverviewPage() {
           <BookingRequestsCard requests={requests} />
         </div>
         <div className="flex flex-col gap-4">
-          <MaintenanceAlertsCard alerts={alerts} />
           <ActivityFeedCard items={activity} />
         </div>
       </div>

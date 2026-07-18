@@ -7,6 +7,7 @@ import { SectionHeader } from "@/components/domain/section-header"
 import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
 import { CustomerSearch } from "@/components/domain/customers/customer-search"
 import { CustomerListItem } from "@/components/domain/customers/customer-list-item"
+import { ExportButton } from "@/components/domain/export-button"
 
 export default async function CustomersPage({
   searchParams,
@@ -30,6 +31,7 @@ export default async function CustomersPage({
       <SectionHeader
         title="Customers"
         description={`${filtered.length} customer${filtered.length === 1 ? "" : "s"}`}
+        actions={<ExportButton resource="customers" />}
       />
 
       <CustomerSearch />

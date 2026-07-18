@@ -39,19 +39,32 @@ export type BookingStatus =
 
 export type PaymentStatus = "paid" | "partial" | "unpaid"
 
-// Not a stored column — derived from how close a maintenance item's due
-// date is when mapping `maintenance_records` to `MaintenanceAlert`.
-export type MaintenanceSeverity = "info" | "warning" | "critical"
-
 export type MaintenanceType =
   | "oil_change"
-  | "inspection"
   | "tire"
   | "brake"
+  | "battery"
+  | "engine"
+  | "transmission"
+  | "air_conditioning"
+  | "bodywork"
+  | "cleaning"
+  | "inspection"
   | "insurance_renewal"
   | "registration_renewal"
+  | "routine_service"
   | "repair"
   | "other"
+
+export type MaintenancePriority = "low" | "normal" | "high" | "urgent"
+
+export type MaintenanceRecordStatus =
+  | "planned"
+  | "scheduled"
+  | "in_progress"
+  | "waiting_for_parts"
+  | "completed"
+  | "cancelled"
 
 export type FuelType = "petrol" | "diesel" | "hybrid" | "electric"
 
@@ -88,6 +101,14 @@ export type ActivityType =
   | "deposit_collected"
   | "deposit_returned"
   | "deposit_retained"
+  | "maintenance_scheduled"
+  | "vehicle_entered_maintenance"
+  | "maintenance_cancelled"
+  | "expense_recorded"
+  | "user_suspended"
+  | "user_reactivated"
+  | "user_removed"
+  | "invitation_accepted"
 
 export type EmployeeRole = "owner" | "manager" | "agent" | "accountant" | "driver"
 
@@ -104,6 +125,10 @@ export interface RentalCompany {
    * input and display is done in this zone — see lib/timezone.ts. */
   timezone: string
   status: CompanyStatus
+  maintenanceReminderDays: number
+  documentExpiryWarningDays: number
+  agentsCanRecordExpenses: boolean
+  mutedNotificationTypes: string[]
 }
 
 export interface Employee {
@@ -233,15 +258,6 @@ export interface ReservationDetail extends Booking {
   payments: PaymentTransaction[]
 }
 
-export interface MaintenanceAlert {
-  id: string
-  vehicle: Pick<Vehicle, "id" | "make" | "model" | "plate">
-  type: MaintenanceType
-  title: string
-  dueDate: string
-  severity: MaintenanceSeverity
-}
-
 export interface ActivityItem {
   id: string
   type: ActivityType
@@ -249,12 +265,18 @@ export interface ActivityItem {
   description: string
   timestamp: string
   actor?: string
+  actorId?: string
+  reservationId?: string
+  vehicleId?: string
 }
 
 export interface OverviewMetrics {
   revenueTodayMad: number
   revenueThisMonthMad: number
   outstandingBalanceMad: number
+  expensesThisMonthMad: number
+  knownOperatingResultMad: number
+  depositsHeldMad: number
   fleetTotal: number
   fleetAvailable: number
   fleetRented: number
@@ -477,4 +499,243 @@ export interface CustomerDetail extends Customer {
   activeRental: Booking | null
   documents: RentalDocument[]
   outstandingBalanceMad: number
+}
+
+// ---------------------------------------------------------------------
+// Maintenance (owner-operating-system phase)
+// ---------------------------------------------------------------------
+
+export interface MaintenanceRecord {
+  id: string
+  vehicleId: string
+  vehicleLabel: string
+  vehiclePlate: string
+  type: MaintenanceType
+  priority: MaintenancePriority
+  status: MaintenanceRecordStatus
+  description: string | null
+  scheduledOn: string | null
+  startedOn: string | null
+  completedOn: string | null
+  odometerKm: number | null
+  estimatedCostMad: number | null
+  actualCostMad: number | null
+  supplier: string | null
+  nextServiceOn: string | null
+  nextServiceOdometerKm: number | null
+  receiptUrl: string | null
+  notes: string | null
+  createdByName: string | null
+  createdAt: string
+  hasLinkedExpense: boolean
+}
+
+export interface ReservationConflict {
+  id: string
+  reference: string
+  customerName: string
+  pickupAt: string
+  returnAt: string
+  status: BookingStatus
+}
+
+// ---------------------------------------------------------------------
+// Expenses
+// ---------------------------------------------------------------------
+
+export type ExpenseCategory =
+  | "maintenance"
+  | "fuel"
+  | "cleaning"
+  | "insurance"
+  | "technical_inspection"
+  | "registration"
+  | "rent"
+  | "utilities"
+  | "marketing"
+  | "commission"
+  | "office_supplies"
+  | "tolls"
+  | "fines"
+  | "vehicle_purchase"
+  | "salary"
+  | "parking"
+  | "other"
+
+export interface Expense {
+  id: string
+  category: ExpenseCategory
+  amountMad: number
+  expenseDate: string
+  method: PaymentMethod | null
+  branchId: string | null
+  branchName: string | null
+  vehicleId: string | null
+  vehicleLabel: string | null
+  reservationId: string | null
+  reservationReference: string | null
+  maintenanceRecordId: string | null
+  supplier: string | null
+  description: string | null
+  receiptUrl: string | null
+  notes: string | null
+  recordedByName: string | null
+  createdAt: string
+}
+
+// ---------------------------------------------------------------------
+// Notifications and live alerts
+// ---------------------------------------------------------------------
+
+export type NotificationType =
+  | "pickup_approaching"
+  | "return_approaching"
+  | "rental_overdue"
+  | "outstanding_balance"
+  | "deposit_unresolved"
+  | "maintenance_due"
+  | "maintenance_overdue"
+  | "vehicle_document_expiring"
+  | "licence_expiring"
+  | "damage_recorded"
+  | "inspection_draft_unfinished"
+  | "vehicle_unavailable_upcoming_reservation"
+
+export type AlertUrgency = "due_soon" | "due_now" | "overdue"
+
+/** A live alert is computed fresh from current data on every request —
+ * never stored — except for its dismissal state (see lib/notifications.ts
+ * and the `notifications` table's own comment in the migration). `key` is
+ * the stable identity used for that per-user dismissal marker. */
+export interface LiveAlert {
+  key: string
+  type: NotificationType
+  urgency: AlertUrgency
+  title: string
+  description: string
+  href: string
+  dueDate: string | null
+}
+
+export interface NotificationItem {
+  /** For a live alert, this is the alert's own `key` (not a real row id
+   * until/unless it's dismissed) — see lib/data.ts's getNotificationFeed
+   * for how the two sources are merged. */
+  id: string
+  source: "live" | "event"
+  type: NotificationType
+  title: string
+  description: string | null
+  priority: "low" | "normal" | "high" | "urgent"
+  href: string | null
+  isRead: boolean
+  createdAt: string
+}
+
+// ---------------------------------------------------------------------
+// Minimal team access
+// ---------------------------------------------------------------------
+
+export type MembershipStatus = "active" | "suspended"
+
+export interface TeamMember {
+  membershipId: string
+  userId: string
+  fullName: string | null
+  email: string | null
+  role: EmployeeRole
+  status: MembershipStatus
+  branchId: string | null
+  branchName: string | null
+  createdAt: string
+}
+
+export type InvitationStatus = "pending" | "accepted" | "revoked" | "expired"
+
+export interface TeamInvitation {
+  id: string
+  email: string
+  role: EmployeeRole
+  branchId: string | null
+  branchName: string | null
+  status: InvitationStatus
+  token: string
+  expiresAt: string
+  createdAt: string
+}
+
+// ---------------------------------------------------------------------
+// Reports and vehicle-level economics
+// ---------------------------------------------------------------------
+
+export interface DateRange {
+  fromIso: string
+  toIso: string
+}
+
+export interface FinancialReport {
+  rentalPaymentsMad: number
+  additionalChargesMad: number
+  discountsMad: number
+  refundsMad: number
+  outstandingBalanceMad: number
+  depositsCollectedMad: number
+  depositsHeldMad: number
+  depositsReturnedMad: number
+  depositsRetainedMad: number
+  expensesMad: number
+  maintenanceCostMad: number
+  knownOperatingResultMad: number
+}
+
+export interface FleetPerformanceRow {
+  vehicleId: string
+  vehicleLabel: string
+  plate: string
+  status: VehicleStatus
+  rentalDays: number
+  recordedRevenueMad: number
+  recordedExpensesMad: number
+  maintenanceCostMad: number
+  downtimeDays: number
+  reservationCount: number
+}
+
+export interface FleetPerformanceReport {
+  fleetSize: number
+  availableCount: number
+  activeRentalsCount: number
+  occupancyRate: number
+  rows: FleetPerformanceRow[]
+}
+
+export interface ReservationPerformanceReport {
+  created: number
+  confirmed: number
+  completed: number
+  cancelled: number
+  noShows: number
+  requestsConvertedRate: number
+  averageDurationDays: number
+  averageValueMad: number
+  bySource: { source: ReservationSource; count: number }[]
+}
+
+export interface CustomerOverviewReport {
+  newCustomers: number
+  returningCustomers: number
+  activeRentalCustomers: number
+  outstandingBalanceCustomers: number
+  topReturning: { customerId: string; fullName: string; bookingCount: number }[]
+  totalRecordedValueMad: number
+}
+
+export interface VehicleEconomics {
+  recordedRevenueMad: number
+  recordedExpensesMad: number
+  maintenanceCostMad: number
+  rentalDays: number
+  reservationCount: number
+  downtimeDays: number
+  knownMarginMad: number
 }

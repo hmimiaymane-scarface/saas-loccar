@@ -52,8 +52,14 @@ ones with a later timestamp prefix.
 
 `supabase/seed.sql` only runs automatically with `supabase db reset`
 (local stack). It creates one Moroccan rental company ("Atlas Rent Car")
-with a fleet, customers, reservations in different statuses, payments,
-maintenance records and activity — enough to see a populated Overview.
+with a realistic small owner-operated fleet: a vehicle mid-maintenance,
+a completed maintenance record linked to exactly one expense, an
+overdue (unreturned) rental, an unpaid completed reservation with an
+unresolved deposit, a newly-discovered damage, a vehicle document
+expiring soon, expenses across several categories spanning two months,
+a second team member (manager) who already accepted an invitation, and
+one pending invitation — enough to exercise every "needs attention"
+live alert and give Reports two periods to compare.
 
 It also creates a local-only login: `owner@atlasrentcar.ma` /
 `Password123!`. See the comment at the top of `seed.sql` if that block
@@ -123,33 +129,37 @@ onboarding).
 
 - `/sign-up` -> `app/(auth)/actions.ts#signUp` -> Supabase Auth ->
   confirmation email (if enabled in your project) -> `/auth/callback`
-  exchanges the code for a session -> `/onboarding`.
+  exchanges the code for a session -> `/onboarding` (or, for someone
+  arriving via an invite link, straight to `/invite/[token]` instead —
+  `signUp` forwards a `?next=` through `emailRedirectTo` so an invited
+  person never gets routed through "create a company").
 - `/sign-in` -> `signIn` -> redirects to `?next=` or `/overview`.
-- `middleware.ts` refreshes the session on every request and enforces two
-  redirects: unauthenticated -> `/sign-in`; authenticated with no company
-  -> `/onboarding`. Both are convenience redirects, not the security
-  boundary (RLS is — see security.md).
+- `proxy.ts` (this Next.js version's `middleware.ts`) refreshes the
+  session on every request and enforces: unauthenticated -> `/sign-in`;
+  authenticated with no *active* company membership -> `/onboarding`,
+  except `/invite/*` which stays reachable without a company. Both are
+  convenience redirects, not the security boundary (RLS is — see
+  security.md).
 - Sign-out: the user menu calls the `signOut` server action.
 
-## Onboarding
+## Onboarding and invitations
 
 `/onboarding` collects company name, city, phone, currency and language,
-then calls the `create_company_with_owner()` Postgres function via
-`supabase.rpc(...)`. That function is the only way a `companies` or
-`company_memberships` row gets created — see security.md for why.
+then calls `create_company_with_owner()`. `/invite/[token]` is the other
+way to get a membership: an owner/manager sends a link from the Team page
+(`/employees`, backed by `invite_member()`), and the recipient accepts it
+via `accept_invitation()` after signing in — see security.md for the full
+RPC list and the guarantees each one enforces (no self-promotion, last
+owner protected, etc). Neither path lets a client insert a
+`company_memberships` row directly.
 
 ## Known unfinished areas (next phase)
 
-- No employee invitation flow — a company has exactly one member (its
-  owner) until a future invite RPC ships.
-- `driver` role has no write path yet.
-- No per-branch access scoping.
-- Reservation `amount_paid`/`remaining_balance` aren't reconciled against
-  the `payments` ledger automatically; treat `payments` as the source of
-  truth for what's actually been collected until that trigger exists.
-- No file storage yet (contracts, vehicle photos, damage reports) — the
-  columns that will hold storage paths (`photo_path`, `receipt_path`, ...)
-  already exist so the UI won't need new fields when storage lands.
-- No reservation calendar, availability calculation, or write UI for
-  fleet/customers/reservations — this phase is schema, auth and the
-  Overview read path only.
+- `driver` role has no write path yet, by design.
+- No per-branch access scoping — a membership can record which branch
+  someone belongs to, but nothing enforces it at the RLS level yet (most
+  target companies have exactly one branch).
+- No outbound email — invitations are shared by copying a link from the
+  Team page (WhatsApp, SMS, in person), not sent automatically.
+- No public booking website, WhatsApp integration, AI assistant, or SaaS
+  founder dashboard — explicitly out of scope through this phase.

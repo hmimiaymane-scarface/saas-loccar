@@ -112,7 +112,7 @@ function VehicleForm({ action, branches, vehicle }: VehicleFormProps) {
             step="0.01"
             defaultValue={vehicle?.depositMad ?? undefined}
           />
-          {branches.length > 0 && (
+          {branches.length > 1 ? (
             <div className="flex flex-col gap-1.5 sm:col-span-2">
               <Label htmlFor="branchId">Branch</Label>
               <NativeSelect id="branchId" name="branchId" defaultValue={vehicle?.branchId ?? branches[0]?.id ?? ""}>
@@ -123,6 +123,11 @@ function VehicleForm({ action, branches, vehicle }: VehicleFormProps) {
                 ))}
               </NativeSelect>
             </div>
+          ) : (
+            // A single branch (the normal case) is applied automatically
+            // rather than shown as a one-option dropdown — see the phase
+            // brief's "avoid asking the user to repeatedly choose it."
+            branches[0] && <input type="hidden" name="branchId" value={vehicle?.branchId ?? branches[0].id} />
           )}
         </CardContent>
       </Card>

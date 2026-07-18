@@ -60,10 +60,17 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
 
   const [{ data: profile }, { data: membership }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+    // A suspended membership row still exists (and is still visible to its
+    // own owner under RLS, so a suspended person can be told why they lost
+    // access) — but it must never grant a working session. Filtering to
+    // 'active' here is what makes suspension actually take effect instead
+    // of leaving someone "signed in" to a company where every real data
+    // query then silently fails RLS's is_company_member() check.
     supabase
       .from("company_memberships")
       .select("role, company_id")
       .eq("user_id", user.id)
+      .eq("status", "active")
       .limit(1)
       .maybeSingle(),
   ])
@@ -96,6 +103,10 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
       currency: company.currency,
       timezone: company.timezone,
       status: company.status as RentalCompany["status"],
+      maintenanceReminderDays: company.maintenance_reminder_days,
+      documentExpiryWarningDays: company.document_expiry_warning_days,
+      agentsCanRecordExpenses: company.agents_can_record_expenses,
+      mutedNotificationTypes: company.muted_notification_types ?? [],
     },
     role: membership.role as EmployeeRole,
   }

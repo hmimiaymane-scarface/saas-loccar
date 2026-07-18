@@ -9,6 +9,10 @@ export const currentCompany: RentalCompany = {
   currency: "MAD",
   timezone: "Africa/Casablanca",
   status: "active",
+  maintenanceReminderDays: 14,
+  documentExpiryWarningDays: 30,
+  agentsCanRecordExpenses: false,
+  mutedNotificationTypes: [],
 }
 
 export const currentEmployee: Employee = {

@@ -111,7 +111,10 @@ values
   ('a0000000-0000-0000-0000-000000001001', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', '45871-A-6', 'Dacia', 'Logan', 2023, 'economy', 'maintenance', 280, 32060, 5, current_date + interval '4 months', current_date + interval '7 months'),
   ('a0000000-0000-0000-0000-000000001002', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', '51092-B-6', 'Renault', 'Clio 5', 2023, 'compact', 'rented', 350, 21800, 5, current_date + interval '2 months', current_date + interval '9 months'),
   ('a0000000-0000-0000-0000-000000001003', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', '48812-E-6', 'Dacia', 'Duster', 2023, 'suv', 'available', 550, 26700, 5, current_date + interval '6 months', current_date + interval '11 months'),
-  ('a0000000-0000-0000-0000-000000001004', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', '55302-B-6', 'Hyundai', 'Tucson', 2023, 'suv', 'rented', 700, 19300, 5, current_date + interval '1 months', current_date + interval '10 months'),
+  -- Insurance expiring within the default 30-day warning window -> a
+  -- "vehicle document expiring" live alert, on top of this vehicle's
+  -- overdue rental (RB-1002) below.
+  ('a0000000-0000-0000-0000-000000001004', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', '55302-B-6', 'Hyundai', 'Tucson', 2023, 'suv', 'rented', 700, 19300, 5, current_date + interval '15 days', current_date + interval '10 months'),
   ('a0000000-0000-0000-0000-000000001005', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', '31567-E-6', 'Dacia', 'Duster', 2022, 'suv', 'maintenance', 550, 68900, 5, current_date + interval '3 months', current_date + interval '5 months'),
   ('a0000000-0000-0000-0000-000000001006', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', '40213-E-6', 'Mercedes-Benz', 'Vito', 2022, 'van', 'reserved', 900, 39200, 8, current_date + interval '5 months', current_date + interval '8 months')
 on conflict (id) do nothing;
@@ -131,7 +134,10 @@ on conflict (id) do nothing;
 insert into public.reservations (id, company_id, branch_id, customer_id, vehicle_id, reference, pickup_at, return_at, pickup_location, return_location, status, source, daily_rate, num_days, total_amount, amount_paid, created_by)
 values
   ('a0000000-0000-0000-0000-000000003001', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000002001', 'a0000000-0000-0000-0000-000000001002', 'RB-1001', now() - interval '2 days', now() + interval '2 days', 'Marrakech Menara Airport', 'Marrakech Menara Airport', 'active', 'whatsapp', 350, 4, 1400, 1000, 'a0000000-0000-0000-0000-000000000002'),
-  ('a0000000-0000-0000-0000-000000003002', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000002002', 'a0000000-0000-0000-0000-000000001004', 'RB-1002', now() - interval '4 days', now() + interval '1 hours', 'Agency – Guéliz', 'Agency – Guéliz', 'active', 'phone', 700, 5, 3500, 3500, 'a0000000-0000-0000-0000-000000000002'),
+  -- Return time already passed -> a "rental overdue" live alert, on top
+  -- of being ready for its return workflow (completed pickup inspection
+  -- below, no return inspection yet).
+  ('a0000000-0000-0000-0000-000000003002', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000002002', 'a0000000-0000-0000-0000-000000001004', 'RB-1002', now() - interval '5 days', now() - interval '3 hours', 'Agency – Guéliz', 'Agency – Guéliz', 'active', 'phone', 700, 5, 3500, 3500, 'a0000000-0000-0000-0000-000000000002'),
   ('a0000000-0000-0000-0000-000000003003', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000002003', 'a0000000-0000-0000-0000-000000001006', 'RB-1003', now() + interval '3 days', now() + interval '6 days', 'Marrakech Menara Airport', 'Marrakech Menara Airport', 'confirmed', 'website', 900, 3, 2700, 900, 'a0000000-0000-0000-0000-000000000002'),
   ('a0000000-0000-0000-0000-000000003004', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000002004', 'a0000000-0000-0000-0000-000000001003', 'RB-1004', now() + interval '5 days', now() + interval '9 days', 'Agency – Guéliz', 'Agency – Guéliz', 'request', 'walk_in', 550, 4, 2200, 0, 'a0000000-0000-0000-0000-000000000002'),
   ('a0000000-0000-0000-0000-000000003005', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000002001', 'a0000000-0000-0000-0000-000000001001', 'RB-1005', now() - interval '10 days', now() - interval '7 days', 'Agency – Guéliz', 'Agency – Guéliz', 'completed', 'whatsapp', 280, 3, 840, 840, 'a0000000-0000-0000-0000-000000000002')
@@ -143,6 +149,15 @@ insert into public.reservations (id, company_id, branch_id, customer_id, vehicle
 values
   ('a0000000-0000-0000-0000-000000003006', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000002002', 'a0000000-0000-0000-0000-000000001001', null, 'RB-1006', now() - interval '20 days', now() - interval '17 days', 'Agency – Guéliz', 'Agency – Guéliz', 'cancelled', 'phone', 280, 3, 840, 0, 'a0000000-0000-0000-0000-000000000002'),
   ('a0000000-0000-0000-0000-000000003007', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000002003', null, 'suv', 'RB-1007', now() + interval '8 days', now() + interval '12 days', 'Marrakech Menara Airport', 'Marrakech Menara Airport', 'request', 'website', 600, 4, 2400, 0, 'a0000000-0000-0000-0000-000000000002')
+on conflict (id) do nothing;
+
+-- A completed rental from ~6 weeks ago, fully unpaid, with its deposit
+-- still held — gives the "outstanding balance" and "deposit unresolved"
+-- live alerts something real to point at, and (being from last month)
+-- gives the reports page a second month of data to compare against.
+insert into public.reservations (id, company_id, branch_id, customer_id, vehicle_id, reference, pickup_at, return_at, pickup_location, return_location, status, source, daily_rate, num_days, total_amount, amount_paid, created_by)
+values
+  ('a0000000-0000-0000-0000-000000003008', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000002004', 'a0000000-0000-0000-0000-000000001006', 'RB-1008', now() - interval '45 days', now() - interval '42 days', 'Marrakech Menara Airport', 'Marrakech Menara Airport', 'completed', 'partner', 900, 3, 2700, 0, 'a0000000-0000-0000-0000-000000000002')
 on conflict (id) do nothing;
 
 -- Payments (external, recorded manually) --------------------------------------
@@ -170,14 +185,18 @@ values
   -- RB-1002 (active): collected at pickup, not yet resolved.
   ('a0000000-0000-0000-0000-000000007002', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000003002', 'collected', 1500, 1500, 0, 0, 'card', now() - interval '4 days', null, null, 'a0000000-0000-0000-0000-000000000002'),
   -- RB-1003 (confirmed, not yet picked up): expected but nothing collected yet.
-  ('a0000000-0000-0000-0000-000000007003', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000003003', 'expected', 1200, 0, 0, 0, null, null, null, null, 'a0000000-0000-0000-0000-000000000002')
+  ('a0000000-0000-0000-0000-000000007003', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000003003', 'expected', 1200, 0, 0, 0, null, null, null, null, 'a0000000-0000-0000-0000-000000000002'),
+  -- RB-1008 (completed 6 weeks ago): collected at pickup, never resolved —
+  -- exactly the "deposit unresolved" alert condition.
+  ('a0000000-0000-0000-0000-000000007004', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000003008', 'collected', 1500, 1500, 0, 0, 'cash', now() - interval '45 days', null, null, 'a0000000-0000-0000-0000-000000000002')
 on conflict (id) do nothing;
 
 insert into public.payments (company_id, reservation_id, customer_id, transaction_type, amount, method, paid_at, recorded_by)
 values
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000003005', 'a0000000-0000-0000-0000-000000002001', 'deposit_collection', 1000, 'cash', now() - interval '10 days', 'a0000000-0000-0000-0000-000000000002'),
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000003005', 'a0000000-0000-0000-0000-000000002001', 'deposit_return', 700, 'cash', now() - interval '7 days', 'a0000000-0000-0000-0000-000000000002'),
-  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000003002', 'a0000000-0000-0000-0000-000000002002', 'deposit_collection', 1500, 'card', now() - interval '4 days', 'a0000000-0000-0000-0000-000000000002');
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000003002', 'a0000000-0000-0000-0000-000000002002', 'deposit_collection', 1500, 'card', now() - interval '4 days', 'a0000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000003008', 'a0000000-0000-0000-0000-000000002004', 'deposit_collection', 1500, 'cash', now() - interval '45 days', 'a0000000-0000-0000-0000-000000000002');
 
 -- Inspections --------------------------------------------------------------------
 -- Pickup + return for the completed rental (RB-1005), pickup only for the
@@ -230,12 +249,15 @@ values
   ('a0000000-0000-0000-0000-000000006001', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001003', null, null, 'existing', 'bodywork', 'Front-left door', 'minor', 'Small pre-existing scratch noted before this vehicle entered service.', true, 400, null, 'a0000000-0000-0000-0000-000000000002'),
   -- Newly discovered during the RB-1005 return inspection, already repaired
   -- and paid for out of the retained deposit above.
-  ('a0000000-0000-0000-0000-000000006002', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001001', 'a0000000-0000-0000-0000-000000003005', 'a0000000-0000-0000-0000-000000005002', 'repaired', 'bodywork', 'Rear bumper', 'minor', 'Scuff mark found on rear bumper during return inspection.', false, 300, 300, 'a0000000-0000-0000-0000-000000000002')
+  ('a0000000-0000-0000-0000-000000006002', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001001', 'a0000000-0000-0000-0000-000000003005', 'a0000000-0000-0000-0000-000000005002', 'repaired', 'bodywork', 'Rear bumper', 'minor', 'Scuff mark found on rear bumper during return inspection.', false, 300, 300, 'a0000000-0000-0000-0000-000000000002'),
+  -- Newly discovered, not yet triaged -> a "damage recorded" live alert.
+  ('a0000000-0000-0000-0000-000000006003', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001004', 'a0000000-0000-0000-0000-000000003002', null, 'newly_discovered', 'interior', 'Driver seat', 'minor', 'Small tear noticed on the driver seat fabric — reported by the customer mid-rental.', false, 200, null, 'a0000000-0000-0000-0000-000000000002')
 on conflict (id) do nothing;
 
-insert into public.maintenance_records (company_id, vehicle_id, type, description, status, scheduled_on, completed_on, cost, supplier, created_by)
+insert into public.maintenance_records (id, company_id, vehicle_id, type, priority, description, status, scheduled_on, completed_on, estimated_cost, actual_cost, supplier, created_by)
 values
-  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001001', 'repair', 'Rear bumper touch-up following RB-1005 return inspection.', 'completed', current_date - interval '7 days', current_date - interval '6 days', 300, 'Garage Atlas Pneus', 'a0000000-0000-0000-0000-000000000002');
+  ('a0000000-0000-0000-0000-000000008001', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001001', 'repair', 'normal', 'Rear bumper touch-up following RB-1005 return inspection.', 'completed', current_date - interval '7 days', current_date - interval '6 days', 300, 300, 'Garage Atlas Pneus', 'a0000000-0000-0000-0000-000000000002')
+on conflict (id) do nothing;
 
 -- Documents ----------------------------------------------------------------------
 -- Storage paths follow the app's {company_id}/... convention, but no
@@ -254,11 +276,94 @@ on conflict (id) do nothing;
 
 -- Maintenance records ----------------------------------------------------------
 
-insert into public.maintenance_records (company_id, vehicle_id, type, description, status, scheduled_on, cost, supplier, created_by)
+insert into public.maintenance_records (id, company_id, vehicle_id, type, priority, description, status, scheduled_on, estimated_cost, supplier, created_by)
 values
-  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001005', 'tire', 'Rear tyre replacement', 'in_progress', current_date, 1200, 'Garage Atlas Pneus', 'a0000000-0000-0000-0000-000000000002'),
-  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001001', 'oil_change', 'Oil and filter change', 'scheduled', current_date + interval '5 days', 350, 'Speedy Marrakech', 'a0000000-0000-0000-0000-000000000002'),
-  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001004', 'insurance_renewal', 'Annual insurance renewal', 'scheduled', current_date + interval '20 days', null, null, 'a0000000-0000-0000-0000-000000000002');
+  -- In progress: this is *why* vehicle 1005 is currently in 'maintenance' status.
+  ('a0000000-0000-0000-0000-000000008002', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001005', 'tire', 'urgent', 'Rear tyre replacement', 'in_progress', current_date, 1200, 'Garage Atlas Pneus', 'a0000000-0000-0000-0000-000000000002'),
+  -- Scheduled within the default 14-day reminder window -> shows up as a
+  -- "maintenance due" live alert on Overview / Notifications.
+  ('a0000000-0000-0000-0000-000000008003', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001001', 'oil_change', 'normal', 'Oil and filter change', 'scheduled', current_date + interval '5 days', 350, 'Speedy Marrakech', 'a0000000-0000-0000-0000-000000000002'),
+  -- Scheduled further out than the reminder window -> deliberately does
+  -- NOT alert yet, so the list isn't uniformly urgent.
+  ('a0000000-0000-0000-0000-000000008004', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001004', 'insurance_renewal', 'high', 'Annual insurance renewal', 'scheduled', current_date + interval '20 days', null, null, 'a0000000-0000-0000-0000-000000000002'),
+  -- Overdue: scheduled in the past and still only 'planned' -> shows up as
+  -- a "maintenance overdue" live alert.
+  ('a0000000-0000-0000-0000-000000008005', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001003', 'inspection', 'high', 'Technical inspection renewal — overdue.', 'planned', current_date - interval '3 days', 400, null, 'a0000000-0000-0000-0000-000000000002')
+on conflict (id) do nothing;
+
+-- Expenses -----------------------------------------------------------------------
+-- Several categories, one linked to the completed bumper-repair
+-- maintenance record above (so it's counted once, not twice — see
+-- 20260720090100_expenses_upgrade.sql), spread across this month and
+-- last month so the reports page has two full periods to compare.
+
+insert into public.expenses (company_id, vehicle_id, maintenance_record_id, category, amount, expense_date, method, supplier, description, recorded_by)
+values
+  -- Linked to maintenance ...008001 (the completed bumper repair) —
+  -- exactly one expense per maintenance record, per the unique index.
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001001', 'a0000000-0000-0000-0000-000000008001', 'maintenance', 300, current_date - interval '6 days', 'cash', 'Garage Atlas Pneus', 'Repair maintenance', 'a0000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001002', null, 'fuel', 450, current_date - interval '2 days', 'cash', 'Afriquia', 'Full tank before handover', 'a0000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001001', null, 'cleaning', 150, current_date - interval '7 days', 'cash', 'Wash Point Guéliz', 'Interior detailing after long rental', 'a0000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000000001', null, null, 'rent', 6000, date_trunc('month', current_date), 'transfer', 'Immobilière Atlas', 'Monthly office and lot rent', 'a0000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001004', null, 'fines', 300, current_date - interval '9 days', 'cash', null, 'Parking fine', 'a0000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000000001', null, null, 'marketing', 800, current_date - interval '30 days', 'card', 'Meta Ads', 'Facebook ads boost for last month''s bookings', 'a0000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001005', null, 'maintenance', 1200, current_date, 'cash', 'Garage Atlas Pneus', 'Rear tyre replacement (in progress)', 'a0000000-0000-0000-0000-000000000002'),
+  -- Last month, so month-over-month figures on the reports page have
+  -- something to compare against.
+  ('a0000000-0000-0000-0000-000000000001', null, null, 'rent', 6000, date_trunc('month', current_date) - interval '1 month', 'transfer', 'Immobilière Atlas', 'Monthly office and lot rent', 'a0000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000001006', null, 'insurance', 2400, current_date - interval '45 days', 'transfer', 'Wafa Assurance', 'Annual insurance renewal', 'a0000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000000001', null, null, 'office_supplies', 220, current_date - interval '40 days', 'cash', 'Bureau Plus', 'Printer paper and ink', 'a0000000-0000-0000-0000-000000000002');
+
+-- Second team member and a pending invitation -----------------------------------
+-- Demonstrates the Team page beyond a lone owner: an active manager who
+-- already accepted an invitation, and one still pending. Uses the same
+-- local-only auth-user pattern as Part 1 above.
+
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, last_sign_in_at,
+  raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at,
+  confirmation_token, email_change, email_change_token_new, recovery_token
+) values (
+  '00000000-0000-0000-0000-000000000000',
+  'a0000000-0000-0000-0000-000000000009',
+  'authenticated', 'authenticated',
+  'sara@atlasrentcar.ma',
+  crypt('Password123!', gen_salt('bf')),
+  now(), now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"full_name":"Sara Benkirane"}',
+  now() - interval '60 days', now(),
+  '', '', '', ''
+)
+on conflict (id) do nothing;
+
+insert into auth.identities (
+  id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at
+) values (
+  gen_random_uuid(),
+  'a0000000-0000-0000-0000-000000000009',
+  format('{"sub":"%s","email":"%s"}', 'a0000000-0000-0000-0000-000000000009', 'sara@atlasrentcar.ma')::jsonb,
+  'email',
+  'a0000000-0000-0000-0000-000000000009',
+  now(), now(), now()
+)
+on conflict do nothing;
+
+insert into public.company_memberships (company_id, user_id, role, status, branch_id)
+values ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000009', 'manager', 'active', 'a0000000-0000-0000-0000-000000000003')
+on conflict (company_id, user_id) do nothing;
+
+insert into public.invitations (company_id, email, role, invited_by, expires_at)
+values (
+  'a0000000-0000-0000-0000-000000000001',
+  'hamid.accountant@example.com',
+  'accountant',
+  'a0000000-0000-0000-0000-000000000002',
+  now() + interval '7 days'
+)
+on conflict (company_id, lower(email)) where status = 'pending' do nothing;
 
 -- Activity log -----------------------------------------------------------------
 
@@ -268,11 +373,18 @@ values
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'reservation_confirmed', 'Reservation confirmed', 'Mercedes-Benz Vito booked for Sara Bennis, RB-1003'),
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'customer_created', 'Customer added', 'Mehdi Chraibi added as a new customer'),
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'vehicle_returned', 'Vehicle returned', 'Dacia Logan (45871-A-6) returned by Khadija Idrissi'),
-  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'maintenance_completed', 'Maintenance logged', 'Tyre replacement started for Dacia Duster (31567-E-6)'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'maintenance_scheduled', 'Maintenance scheduled', 'Tyre replacement scheduled for Dacia Duster (31567-E-6)'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'maintenance_completed', 'Maintenance completed', 'Rear bumper repair completed for Dacia Logan (45871-A-6)'),
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'reservation_status_changed', 'Reservation RB-1006 cancelled', 'Ahmed Tazi cancelled his Dacia Logan booking'),
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'inspection_completed', 'Pickup inspection completed', 'Dacia Logan (45871-A-6) checked out for RB-1005'),
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'deposit_collected', 'Deposit collected', '1,000 MAD deposit collected in cash for RB-1005'),
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'inspection_completed', 'Return inspection completed', 'Dacia Logan (45871-A-6) checked in for RB-1005'),
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'damage_recorded', 'Damage recorded', 'Rear bumper scuff found on Dacia Logan (45871-A-6) at return'),
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'deposit_retained', 'Deposit partially retained', '300 MAD retained from RB-1005 deposit for bumper repair'),
-  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'deposit_returned', 'Deposit returned', '700 MAD returned to Khadija Idrissi for RB-1005');
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'deposit_returned', 'Deposit returned', '700 MAD returned to Khadija Idrissi for RB-1005'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'expense_recorded', 'Fuel expense recorded', '450 MAD fuel expense for Renault Clio 5 (51092-B-6)'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'maintenance_scheduled', 'Oil change scheduled', 'Oil and filter change scheduled for Dacia Logan (45871-A-6)'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'vehicle_entered_maintenance', 'Vehicle entered maintenance', 'Dacia Duster (31567-E-6) moved to maintenance for tyre replacement'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'member_invited', 'Team member invited', 'Sara Benkirane invited as manager'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000009', 'invitation_accepted', 'Invitation accepted', 'Sara Benkirane joined as manager'),
+  ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'member_invited', 'Team member invited', 'hamid.accountant@example.com invited as accountant');

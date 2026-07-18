@@ -12,9 +12,11 @@ import type {
   VehicleStatus,
   BookingStatus,
   PaymentStatus,
-  MaintenanceSeverity,
   DamageStatus,
   DepositStatus,
+  MaintenanceRecordStatus,
+  MaintenancePriority,
+  AlertUrgency,
 } from "@/types/rental"
 
 /**
@@ -263,24 +265,129 @@ export const depositStatusConfig: Record<DepositStatus, StatusVisual> = {
   },
 }
 
-export const maintenanceSeverityConfig: Record<
-  MaintenanceSeverity,
-  StatusVisual
-> = {
-  info: {
-    label: "Upcoming",
+export const maintenanceRecordStatusConfig: Record<MaintenanceRecordStatus, StatusVisual> = {
+  planned: {
+    label: "Planned",
+    icon: Circle,
+    dot: "bg-zinc-400",
+    badge: "bg-zinc-100 text-zinc-600 dark:bg-zinc-500/10 dark:text-zinc-400",
+  },
+  scheduled: {
+    label: "Scheduled",
     icon: CalendarClock,
     dot: "bg-blue-500",
     badge: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
   },
-  warning: {
-    label: "Due soon",
+  in_progress: {
+    label: "In progress",
+    icon: Wrench,
+    dot: "bg-amber-500",
+    badge:
+      "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  },
+  waiting_for_parts: {
+    label: "Waiting for parts",
+    icon: AlertTriangle,
+    dot: "bg-orange-500",
+    badge:
+      "bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400",
+  },
+  completed: {
+    label: "Completed",
+    icon: CheckCircle2,
+    dot: "bg-emerald-500",
+    badge:
+      "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+  },
+  cancelled: {
+    label: "Cancelled",
+    icon: Ban,
+    dot: "bg-zinc-400",
+    badge: "bg-zinc-100 text-zinc-500 dark:bg-zinc-500/10 dark:text-zinc-500",
+  },
+}
+
+export const maintenancePriorityConfig: Record<MaintenancePriority, StatusVisual> = {
+  low: {
+    label: "Low",
+    icon: Circle,
+    dot: "bg-zinc-400",
+    badge: "bg-zinc-100 text-zinc-600 dark:bg-zinc-500/10 dark:text-zinc-400",
+  },
+  normal: {
+    label: "Normal",
+    icon: Circle,
+    dot: "bg-blue-500",
+    badge: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
+  },
+  high: {
+    label: "High",
     icon: AlertTriangle,
     dot: "bg-amber-500",
     badge:
       "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
   },
-  critical: {
+  urgent: {
+    label: "Urgent",
+    icon: AlertTriangle,
+    dot: "bg-red-500",
+    badge: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+  },
+}
+
+export const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
+  maintenance: "Maintenance",
+  fuel: "Fuel",
+  cleaning: "Cleaning",
+  insurance: "Insurance",
+  technical_inspection: "Technical inspection",
+  registration: "Registration",
+  rent: "Rent",
+  utilities: "Utilities",
+  marketing: "Marketing",
+  commission: "Commission",
+  office_supplies: "Office supplies",
+  tolls: "Tolls",
+  fines: "Fines",
+  vehicle_purchase: "Vehicle-related purchase",
+  salary: "Salary",
+  parking: "Parking",
+  other: "Other",
+}
+
+export const MAINTENANCE_TYPE_LABELS: Record<string, string> = {
+  oil_change: "Oil and filters",
+  tire: "Tyres",
+  brake: "Brakes",
+  battery: "Battery",
+  engine: "Engine",
+  transmission: "Transmission",
+  air_conditioning: "Air conditioning",
+  bodywork: "Bodywork",
+  cleaning: "Cleaning or detailing",
+  inspection: "Technical inspection",
+  insurance_renewal: "Insurance-related work",
+  registration_renewal: "Registration renewal",
+  routine_service: "Routine service",
+  repair: "Repair",
+  other: "Other",
+}
+
+export const alertUrgencyConfig: Record<AlertUrgency, StatusVisual> = {
+  due_soon: {
+    label: "Due soon",
+    icon: CalendarClock,
+    dot: "bg-blue-500",
+    badge: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
+  },
+  due_now: {
+    label: "Due now",
+    icon: AlertTriangle,
+    dot: "bg-amber-500",
+    badge:
+      "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  },
+  overdue: {
     label: "Overdue",
     icon: AlertTriangle,
     dot: "bg-red-500",

@@ -56,7 +56,11 @@ export type Database = {
           business_register: string | null
           default_language: string
           status: string
-        
+          maintenance_reminder_days: number
+          document_expiry_warning_days: number
+          agents_can_record_expenses: boolean
+          muted_notification_types: string[]
+
           created_at: Timestamp
           updated_at: Timestamp
         }
@@ -76,6 +80,10 @@ export type Database = {
           business_register?: string | null
           default_language?: string
           status?: string
+          maintenance_reminder_days?: number
+          document_expiry_warning_days?: number
+          agents_can_record_expenses?: boolean
+          muted_notification_types?: string[]
         }
         Update: Partial<Database["public"]["Tables"]["companies"]["Insert"]>
         Relationships: []
@@ -86,7 +94,9 @@ export type Database = {
           company_id: string
           user_id: string
           role: string
-        
+          status: string
+          branch_id: string | null
+
           created_at: Timestamp
           updated_at: Timestamp
         }
@@ -95,8 +105,72 @@ export type Database = {
           company_id: string
           user_id: string
           role: string
+          status?: string
+          branch_id?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["company_memberships"]["Insert"]>
+        Relationships: []
+      }
+      invitations: {
+        Row: {
+          id: string
+          company_id: string
+          email: string
+          role: string
+          branch_id: string | null
+          token: string
+          status: string
+          invited_by: string | null
+          expires_at: Timestamp
+          accepted_at: Timestamp | null
+          accepted_by: string | null
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          email: string
+          role: string
+          branch_id?: string | null
+          token?: string
+          status?: string
+          invited_by?: string | null
+          expires_at?: Timestamp
+          accepted_at?: Timestamp | null
+          accepted_by?: string | null
+          created_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["invitations"]["Insert"]>
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          id: string
+          company_id: string
+          user_id: string
+          type: string
+          key: string | null
+          title: string
+          description: string | null
+          priority: string
+          link_href: string | null
+          read_at: Timestamp | null
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          user_id: string
+          type: string
+          key?: string | null
+          title: string
+          description?: string | null
+          priority?: string
+          link_href?: string | null
+          read_at?: Timestamp | null
+          created_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["notifications"]["Insert"]>
         Relationships: []
       }
       branches: {
@@ -310,14 +384,18 @@ export type Database = {
           company_id: string
           branch_id: string | null
           vehicle_id: string | null
+          maintenance_record_id: string | null
+          reservation_id: string | null
           category: string
           amount: string
+          method: string | null
           expense_date: string
           supplier: string | null
           description: string | null
           receipt_path: string | null
+          notes: string | null
           recorded_by: string | null
-        
+
           created_at: Timestamp
           updated_at: Timestamp
         }
@@ -326,12 +404,16 @@ export type Database = {
           company_id: string
           branch_id?: string | null
           vehicle_id?: string | null
+          maintenance_record_id?: string | null
+          reservation_id?: string | null
           category: string
           amount: number | string
+          method?: string | null
           expense_date?: string
           supplier?: string | null
           description?: string | null
           receipt_path?: string | null
+          notes?: string | null
           recorded_by?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["expenses"]["Insert"]>
@@ -343,18 +425,22 @@ export type Database = {
           company_id: string
           vehicle_id: string
           type: string
+          priority: string
           description: string | null
           status: string
           scheduled_on: string | null
+          started_on: string | null
           completed_on: string | null
           odometer_km: number | null
-          cost: string | null
+          estimated_cost: string | null
+          actual_cost: string | null
           supplier: string | null
           next_service_on: string | null
           next_service_odometer_km: number | null
+          receipt_path: string | null
           notes: string | null
           created_by: string | null
-        
+
           created_at: Timestamp
           updated_at: Timestamp
         }
@@ -363,15 +449,19 @@ export type Database = {
           company_id: string
           vehicle_id: string
           type: string
+          priority?: string
           description?: string | null
           status?: string
           scheduled_on?: string | null
+          started_on?: string | null
           completed_on?: string | null
           odometer_km?: number | null
-          cost?: number | string | null
+          estimated_cost?: number | string | null
+          actual_cost?: number | string | null
           supplier?: string | null
           next_service_on?: string | null
           next_service_odometer_km?: number | null
+          receipt_path?: string | null
           notes?: string | null
           created_by?: string | null
         }
@@ -717,6 +807,82 @@ export type Database = {
       media_entity_company_id: {
         Args: { p_entity_type: string; p_entity_id: string }
         Returns: string
+      }
+      assert_no_active_rental: {
+        Args: { p_vehicle_id: string; p_company_id: string }
+        Returns: undefined
+      }
+      create_maintenance: {
+        Args: {
+          p_vehicle_id: string
+          p_type: string
+          p_priority: string
+          p_status: string
+          p_description?: string | null
+          p_scheduled_on?: string | null
+          p_odometer_km?: number | null
+          p_estimated_cost?: number | null
+          p_supplier?: string | null
+          p_notes?: string | null
+        }
+        Returns: Database["public"]["Tables"]["maintenance_records"]["Row"]
+      }
+      start_maintenance: {
+        Args: { p_maintenance_id: string }
+        Returns: Database["public"]["Tables"]["maintenance_records"]["Row"]
+      }
+      complete_maintenance: {
+        Args: {
+          p_maintenance_id: string
+          p_vehicle_outcome: string
+          p_actual_cost?: number | null
+          p_next_service_on?: string | null
+          p_next_service_odometer_km?: number | null
+          p_create_expense?: boolean
+        }
+        Returns: Database["public"]["Tables"]["maintenance_records"]["Row"]
+      }
+      cancel_maintenance: {
+        Args: { p_maintenance_id: string; p_vehicle_outcome?: string | null }
+        Returns: Database["public"]["Tables"]["maintenance_records"]["Row"]
+      }
+      invite_member: {
+        Args: { p_company_id: string; p_email: string; p_role: string; p_branch_id?: string | null }
+        Returns: Database["public"]["Tables"]["invitations"]["Row"]
+      }
+      accept_invitation: {
+        Args: { p_token: string }
+        Returns: Database["public"]["Tables"]["company_memberships"]["Row"]
+      }
+      update_member_role: {
+        Args: { p_membership_id: string; p_role: string }
+        Returns: Database["public"]["Tables"]["company_memberships"]["Row"]
+      }
+      suspend_member: {
+        Args: { p_membership_id: string }
+        Returns: Database["public"]["Tables"]["company_memberships"]["Row"]
+      }
+      reactivate_member: {
+        Args: { p_membership_id: string }
+        Returns: Database["public"]["Tables"]["company_memberships"]["Row"]
+      }
+      remove_member: {
+        Args: { p_membership_id: string }
+        Returns: undefined
+      }
+      get_invitation_preview: {
+        Args: { p_token: string }
+        Returns: {
+          invitation_id: string
+          company_name: string
+          role: string
+          status: string
+          expires_at: string
+        }[]
+      }
+      get_member_emails: {
+        Args: { p_user_ids: string[] }
+        Returns: { user_id: string; email: string }[]
       }
     }
     Enums: Record<string, never>

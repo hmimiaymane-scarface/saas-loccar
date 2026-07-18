@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { ReservationFilters } from "@/components/domain/reservations/reservation-filters"
 import { ReservationListItem } from "@/components/domain/reservations/reservation-list-item"
 import { PaginationBar } from "@/components/domain/pagination-bar"
+import { ExportButton } from "@/components/domain/export-button"
 import type { BookingStatus } from "@/types/rental"
 
 export default async function ReservationsPage({
@@ -56,14 +57,17 @@ export default async function ReservationsPage({
         title="Reservations"
         description={`${result.total} reservation${result.total === 1 ? "" : "s"}`}
         actions={
-          canCreate ? (
-            <Button asChild>
-              <Link href="/reservations/new">
-                <Plus />
-                New reservation
-              </Link>
-            </Button>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            <ExportButton resource="reservations" />
+            {canCreate && (
+              <Button asChild>
+                <Link href="/reservations/new">
+                  <Plus />
+                  New reservation
+                </Link>
+              </Button>
+            )}
+          </div>
         }
       />
 

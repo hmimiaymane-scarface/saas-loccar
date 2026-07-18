@@ -4,41 +4,62 @@
 
 Every rental company's data lives in the same Postgres tables, distinguished
 by a `company_id` column. **Row Level Security (RLS) is the only thing that
-enforces isolation.** The Next.js app, the middleware, and the navigation
-are usability layers on top — none of them are load-bearing for security.
-If a request reaches Postgres with a valid but low-privilege session, RLS
-is what stops it from touching another company's rows, even if every layer
-above it were bypassed or buggy.
+enforces isolation.** The Next.js app, the middleware (`proxy.ts` — this
+Next.js version renamed `middleware.ts`), and the navigation are usability
+layers on top — none of them are load-bearing for security. If a request
+reaches Postgres with a valid but low-privilege session, RLS is what stops
+it from touching another company's rows, even if every layer above it were
+bypassed or buggy.
 
-## Membership and roles
+## Membership, roles, and suspension
 
 A user gets access to a company through a row in `company_memberships`
-(`company_id`, `user_id`, `role`). Roles: `owner`, `manager`, `agent`,
-`accountant`, `driver`. A user may belong to multiple companies (multiple
-membership rows) — the schema supports this today even though the current
-UI assumes one company per user.
+(`company_id`, `user_id`, `role`, `status`, `branch_id`). Roles: `owner`,
+`manager`, `agent`, `accountant`, `driver`. Status: `active` or
+`suspended`. A user may belong to multiple companies (multiple membership
+rows) — the schema supports this today even though the current UI assumes
+one company per user.
+
+**A suspended membership grants nothing.** The four RLS helper functions
+below all filter on `status = 'active'`, so suspension is enforced in
+exactly one place and takes effect everywhere at once — no per-feature
+"is this user suspended" check to remember. `lib/auth/session.ts` and
+`proxy.ts` additionally filter their own membership lookups the same way,
+so a suspended user is treated as having no session/company rather than
+being let into a dashboard where every real query then fails RLS anyway.
 
 **Membership rows cannot be written by ordinary clients.** There is no
 INSERT/UPDATE/DELETE policy on `company_memberships` for the `authenticated`
-role. The only way to create one is `create_company_with_owner()`, a
-`SECURITY DEFINER` function that always assigns `auth.uid()` (never a
-client-supplied id) as `owner` of a company it just created. This is what
-guarantees:
+role. Every write goes through a narrow `SECURITY DEFINER` RPC that
+validates the caller's role server-side, never a direct table insert:
 
-- A user cannot promote themselves to `owner` of an existing company.
-- A user cannot join a company they weren't invited to (no invite flow
-  exists yet — this is intentional; see "Known limitations").
-- A user cannot forge someone else's membership.
+- `create_company_with_owner()` — always assigns `auth.uid()` as `owner` of
+  a company it just created.
+- `invite_member()` — owner/manager only; a manager can never invite
+  another `owner` (only an owner can grant ownership); rejects inviting
+  someone who already has active access.
+- `accept_invitation()` — only usable by the account whose auth email
+  matches the invitation's email (checked server-side against
+  `auth.users`, never a client-supplied email); single-use (the row's
+  `status` flips to `accepted`); rejects expired invitations.
+- `update_member_role()`, `suspend_member()`, `reactivate_member()`,
+  `remove_member()` — owner/manager only; a manager can never touch an
+  `owner`'s membership; nobody can act on their own membership through
+  these (no self-promotion, self-suspension, or self-removal); the last
+  remaining `owner` can never be demoted, suspended, or removed.
 
-A future invitation feature must follow the same pattern: a
-`SECURITY DEFINER` RPC that validates the inviter's role server-side, never
-a direct table insert from the client.
+This is what guarantees: a user cannot promote themselves to `owner` of an
+existing company, cannot join a company they weren't invited to, cannot
+forge someone else's membership, and a company can never be left without
+an owner.
 
 ## Avoiding RLS recursion
 
 A naive policy on `company_memberships` that queries `company_memberships`
 to authorize itself would recurse. Instead, all policies call one of four
-helper functions (`supabase/migrations/20260718120700_security_helper_functions.sql`):
+helper functions (`supabase/migrations/20260718120700_security_helper_functions.sql`,
+redefined in `20260720090500_invitations.sql` to add the `status = 'active'`
+check):
 
 - `is_company_member(company_id)`
 - `company_role(company_id)`
@@ -52,46 +73,97 @@ re-entering it — no recursion. Each function also pins
 `set search_path = public` so it can't be tricked into resolving an
 attacker-controlled object of the same name via a manipulated search path.
 
+The same pattern extends to cross-boundary reads that need to see past the
+normal membership check: `get_invitation_preview()` lets a signed-in user
+preview an invitation addressed to their own email before they're a member
+of that company (matched by their real auth email, never a client-supplied
+one), and `get_member_emails()` lets an owner/manager resolve teammates'
+emails (not stored on `profiles`) without granting direct access to
+`auth.users`.
+
 ## Per-table access
 
 | Table | Read | Write | Delete |
 |---|---|---|---|
 | `companies` | members | owner/manager (update only) | — (not exposed) |
-| `company_memberships` | own row, or owner/manager of the company | — (RPC only) | — |
+| `company_memberships` | own row, or owner/manager of the company | — (RPC only, see above) | — (RPC only) |
+| `invitations` | owner/manager, or the invitee previewing their own (via RPC) | — (RPC only) | — |
+| `notifications` | own rows only (every row is per-user) | own rows only | — |
 | `branches`, `vehicles`, `maintenance_records` | members | owner/manager | owner/manager (branches: owner only) |
 | `customers`, `reservations` | members | owner/manager/agent | owner/manager |
-| `payments`, `expenses` | members | owner/manager/accountant | owner/manager |
+| `payments` | members | owner/manager/agent/accountant | owner/manager |
+| `expenses` | members | owner/manager/accountant/agent (insert only — see below) | owner/manager |
+| `deposits`, `documents`, `damages`, `inspections`, `media`, `checklist_template_items` | members | see the handoff-phase migrations (`20260719*`) — same coarse-RLS-plus-fine-action-check pattern | owner/manager where applicable |
 | `activity_log` | members | any member (insert only) | nobody — append-only |
 
-`driver` is read-only across every table in this phase. Scoped write access
-(marking an assigned pickup/return/inspection complete) is a future phase.
+`driver` is read-only across every table in this phase.
+
+**`expenses` INSERT is intentionally wider than UPDATE/DELETE.** RLS
+allows `agent` to *record* an expense (whether that's actually offered in
+the UI depends on the company's `agents_can_record_expenses` setting,
+checked in `app/(dashboard)/expenses/actions.ts` — the same "coarse RLS,
+fine action-layer check" split used elsewhere), but *editing* or
+*attaching a receipt to* an existing expense stays limited to
+owner/manager/accountant. The action-layer role checks for update/attach
+were deliberately kept in sync with this narrower RLS grant — using the
+wider "can record" check for an update would let the action report
+success while Postgres silently updates zero rows.
 
 Every INSERT/UPDATE policy re-checks `company_id` in its `WITH CHECK`
-clause against the same helper functions. That's what stops a member of
+clause against the same helper functions, and the handoff- and
+owner-operating-system-phase policies additionally re-check that any
+other id on the row (`vehicle_id`, `reservation_id`, `maintenance_record_id`,
+...) actually belongs to the same company — never trusting a
+client-supplied foreign key at face value. That's what stops a member of
 company A from writing a row — or retargeting an existing row via UPDATE —
-to claim `company_id = B`: the check is evaluated against the *new* row,
-and the caller is never a member of B.
+to claim `company_id = B`, or to attach company A's expense to company B's
+vehicle.
+
+## Live alerts vs. stored notifications
+
+Most of the "needs attention" list (overdue rentals, maintenance due,
+expiring documents, ...) is recomputed fresh on every request from current
+data (`lib/data.ts`'s `getLiveAlerts`) — there is no row to secure beyond
+the normal per-table RLS above, because there is no row. The
+`notifications` table only stores two things, both scoped strictly
+per-user: genuine one-off events (e.g. a damage was recorded) and a
+per-user "I've seen this" dismissal marker for a live alert. Every row's
+`user_id` is checked against `auth.uid()`, so one person's dismissal or
+event feed is never visible to (or editable by) another.
 
 ## What the app layer adds on top
 
-- `middleware.ts` redirects unauthenticated requests to `/sign-in` and
-  gates dashboard routes behind having at least one company membership
-  (redirecting to `/onboarding` otherwise). This is for UX flow, not
-  security — RLS holds even if this redirect is skipped.
+- `proxy.ts` redirects unauthenticated requests to `/sign-in` and gates
+  dashboard routes behind having at least one *active* company membership
+  (redirecting to `/onboarding` otherwise) — except `/invite/*`, which an
+  authenticated user with no company yet must be able to reach to accept
+  an invitation without being forced through "create a company" first.
+  This is for UX flow, not security — RLS holds even if this redirect is
+  skipped.
 - `lib/auth/session.ts` centralizes "who is the user, what's their current
-  company, what's their role" so pages don't each re-derive it.
+  company, what's their role" so pages don't each re-derive it, and is
+  itself filtered to active memberships only.
 - `lib/navigation.ts` filters visible nav items by role so people aren't
   shown sections they can't act on. Hiding a link is not access control;
   the database policies above are.
+- CSV export routes (`app/api/exports/*`) re-derive the session and role
+  server-side exactly like a mutating server action would, and reuse the
+  same filtered `lib/data.ts` query functions the corresponding list page
+  uses — an export can never see more than the page it's exported from.
 
 ## Known limitations (intentional, for a future phase)
 
-- No invitation flow yet — the schema and RLS pattern are ready for one,
-  but onboarding only creates a single owner.
 - No per-branch access restriction (e.g. an agent scoped to one branch) —
-  access is company-wide once a role permits an action.
+  a membership can *record* which branch someone belongs to
+  (`company_memberships.branch_id`), but nothing yet enforces it at the
+  RLS level; access is company-wide once a role permits an action. Most
+  target companies have exactly one branch, so this is deferred rather
+  than solved partially.
 - `driver` has no write path yet, by design.
-- Financial totals on `reservations` (`amount_paid`, `remaining_balance`)
-  are not yet reconciled against the `payments` ledger by a trigger; until
-  the reservation workflow ships, treat `payments` as the source of truth
-  for what's actually been collected.
+- An agent who records an expense (when their company allows it) cannot
+  attach a receipt to it or edit it afterward — see the `expenses` section
+  above. They can still view the expense they created.
+- Deposit "retained" amounts and "currently held" totals shown in reports
+  are always a current snapshot, never reconstructed as of a past date —
+  see `lib/reports.ts`'s module comment for why (no historical balance
+  snapshots yet, on purpose).

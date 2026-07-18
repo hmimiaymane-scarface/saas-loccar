@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { FleetFilters } from "@/components/domain/fleet/fleet-filters"
 import { VehicleCard } from "@/components/domain/fleet/vehicle-card"
 import { PaginationBar } from "@/components/domain/pagination-bar"
+import { ExportButton } from "@/components/domain/export-button"
 import type { VehicleCategory, VehicleStatus } from "@/types/rental"
 
 export default async function FleetPage({
@@ -53,14 +54,17 @@ export default async function FleetPage({
         title="Fleet"
         description={`${result.total} vehicle${result.total === 1 ? "" : "s"} in your fleet`}
         actions={
-          canAddVehicle ? (
-            <Button asChild>
-              <Link href="/fleet/new">
-                <Plus />
-                Add vehicle
-              </Link>
-            </Button>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            <ExportButton resource="fleet" />
+            {canAddVehicle && (
+              <Button asChild>
+                <Link href="/fleet/new">
+                  <Plus />
+                  Add vehicle
+                </Link>
+              </Button>
+            )}
+          </div>
         }
       />
 

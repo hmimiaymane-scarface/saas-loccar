@@ -1,16 +1,16 @@
 "use client"
 
-import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Search, Bell } from "lucide-react"
+import { Search } from "lucide-react"
 
-import type { RentalCompany, Employee, EmployeeRole } from "@/types/rental"
+import type { RentalCompany, Employee, EmployeeRole, NotificationItem } from "@/types/rental"
 import { allNavItems } from "@/lib/navigation"
 import { isActivePath } from "@/components/layout/nav-item"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { MobileNav } from "@/components/layout/mobile-nav"
 import { UserMenu } from "@/components/layout/user-menu"
+import { NotificationBell } from "@/components/layout/notification-bell"
 
 function useCurrentPageTitle() {
   const pathname = usePathname()
@@ -24,10 +24,14 @@ function Header({
   company,
   employee,
   role,
+  notifications,
+  unreadCount,
 }: {
   company: RentalCompany
   employee: Employee
   role: EmployeeRole
+  notifications: NotificationItem[]
+  unreadCount: number
 }) {
   const title = useCurrentPageTitle()
 
@@ -55,12 +59,7 @@ function Header({
           <Search className="size-[18px]" />
         </Button>
 
-        <Button variant="ghost" size="icon" className="relative" aria-label="Notifications" asChild>
-          <Link href="/notifications">
-            <Bell className="size-[18px]" />
-            <span className="absolute top-2 right-2 size-1.5 rounded-full bg-red-500" />
-          </Link>
-        </Button>
+        <NotificationBell notifications={notifications} unreadCount={unreadCount} />
 
         <Separator orientation="vertical" className="h-6" />
 

@@ -52,6 +52,11 @@ export async function signUp(
   const fullName = String(formData.get("fullName") ?? "").trim()
   const email = String(formData.get("email") ?? "").trim()
   const password = String(formData.get("password") ?? "")
+  // Set when this signup came from an invite link — see /invite/[token].
+  // A user arriving this way joins an existing company and must never be
+  // routed through onboarding's "create a company" flow.
+  const next = String(formData.get("next") ?? "")
+  const nextPath = next.startsWith("/") ? next : null
 
   if (!fullName || !email || !password) {
     return { error: "Fill in your name, email and password." }
@@ -62,13 +67,16 @@ export async function signUp(
 
   const supabase = await createClient()
   const origin = (await headers()).get("origin")
+  const emailRedirectTo = nextPath
+    ? `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
+    : `${origin}/auth/callback`
 
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: { full_name: fullName },
-      emailRedirectTo: `${origin}/auth/callback`,
+      emailRedirectTo,
     },
   })
 
@@ -85,7 +93,7 @@ export async function signUp(
     }
   }
 
-  redirect("/onboarding")
+  redirect(nextPath ?? "/onboarding")
 }
 
 export async function signOut() {

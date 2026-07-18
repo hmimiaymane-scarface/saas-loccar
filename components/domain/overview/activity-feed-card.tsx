@@ -1,3 +1,4 @@
+import Link from "next/link"
 import {
   ClipboardList,
   CheckCircle2,
@@ -16,6 +17,12 @@ import {
   Banknote,
   Undo2,
   Lock,
+  CalendarClock,
+  Ban,
+  Receipt,
+  UserX,
+  UserCheck2,
+  UserMinus,
   type LucideIcon,
 } from "lucide-react"
 
@@ -45,13 +52,24 @@ const activityIcon: Record<ActivityType, LucideIcon> = {
   deposit_collected: Banknote,
   deposit_returned: Undo2,
   deposit_retained: Lock,
+  maintenance_scheduled: CalendarClock,
+  vehicle_entered_maintenance: Wrench,
+  maintenance_cancelled: Ban,
+  expense_recorded: Receipt,
+  user_suspended: UserX,
+  user_reactivated: UserCheck2,
+  user_removed: UserMinus,
+  invitation_accepted: UserRoundPlus,
 }
 
 function ActivityFeedCard({ items }: { items: ActivityItem[] }) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex items-center justify-between">
         <CardTitle>Recent activity</CardTitle>
+        <Link href="/activity" className="text-xs font-medium text-primary hover:underline">
+          View all
+        </Link>
       </CardHeader>
       <CardContent>
         <ol className="flex flex-col gap-5">
@@ -65,7 +83,7 @@ function ActivityFeedCard({ items }: { items: ActivityItem[] }) {
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <p className="text-sm text-foreground">{item.description}</p>
                   <p className="text-xs text-muted-foreground">
-                    {formatRelativeTime(item.timestamp, new Date("2026-07-18T10:00:00+01:00"))}
+                    {formatRelativeTime(item.timestamp)}
                     {item.actor ? ` · ${item.actor}` : ""}
                   </p>
                 </div>
@@ -78,4 +96,4 @@ function ActivityFeedCard({ items }: { items: ActivityItem[] }) {
   )
 }
 
-export { ActivityFeedCard }
+export { ActivityFeedCard, activityIcon }

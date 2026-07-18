@@ -1,11 +1,12 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
-import { Pencil, Plus, Gauge, MapPin, AlertTriangle } from "lucide-react"
+import { Pencil, Plus, Gauge, MapPin, AlertTriangle, Wrench } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
-import { getVehicleDetail } from "@/lib/data"
+import { getVehicleDetail, getVehicleMaintenanceHistory, getVehicleEconomics } from "@/lib/data"
 import { formatMad, formatDate, formatDateTime } from "@/lib/format"
-import { vehicleStatusConfig, damageStatusConfig } from "@/lib/status"
+import { vehicleStatusConfig, damageStatusConfig, maintenanceRecordStatusConfig, MAINTENANCE_TYPE_LABELS } from "@/lib/status"
+import { resolveReportPeriod, type ReportPeriod } from "@/lib/reports"
 import { StatusBadge } from "@/components/domain/status-badge"
 import { SectionHeader } from "@/components/domain/section-header"
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { ReservationRow } from "@/components/domain/reservations/reservation-row"
 import { VehicleStatusActions } from "@/components/domain/fleet/vehicle-status-actions"
 import { DocumentListItem } from "@/components/domain/documents/document-list-item"
+import { VehicleEconomicsCard } from "@/components/domain/fleet/vehicle-economics-card"
 
 function daysUntil(date: string, nowMs: number): number {
   return Math.floor((new Date(date).getTime() - nowMs) / 86400000)
@@ -46,16 +48,29 @@ function DocumentRow({ label, date, nowMs }: { label: string; date: string | nul
   )
 }
 
+const VALID_PERIODS: ReportPeriod[] = ["today", "this_week", "this_month", "last_month", "custom"]
+
 export default async function VehicleDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ period?: string; from?: string; to?: string }>
 }) {
   const session = await getSessionContext()
   if (!session) redirect("/sign-in")
 
   const { id } = await params
-  const vehicle = await getVehicleDetail(session.company.id, id)
+  const query = await searchParams
+  const period: ReportPeriod = VALID_PERIODS.includes(query.period as ReportPeriod) ? (query.period as ReportPeriod) : "this_month"
+  const today = new Date().toISOString().slice(0, 10)
+  const range = resolveReportPeriod(period, session.company.timezone, { from: query.from ?? today, to: query.to ?? today })
+
+  const [vehicle, maintenanceHistory, economics] = await Promise.all([
+    getVehicleDetail(session.company.id, id),
+    getVehicleMaintenanceHistory(session.company.id, id),
+    getVehicleEconomics(session.company.id, id, range),
+  ])
   if (!vehicle) notFound()
 
   const canManage = session.role === "owner" || session.role === "manager"
@@ -83,6 +98,14 @@ export default async function VehicleDetailPage({
                 Record damage
               </Link>
             </Button>
+            {canManage && (
+              <Button variant="outline" asChild>
+                <Link href={`/maintenance/new?vehicle=${vehicle.id}`}>
+                  <Wrench />
+                  Schedule maintenance
+                </Link>
+              </Button>
+            )}
             {canManage && (
               <Button variant="outline" asChild>
                 <Link href={`/fleet/${vehicle.id}/edit`}>
@@ -125,6 +148,8 @@ export default async function VehicleDetailPage({
               </div>
             </CardContent>
           </Card>
+
+          <VehicleEconomicsCard economics={economics} period={period} />
 
           {vehicle.currentReservation && (
             <Card>
@@ -183,6 +208,32 @@ export default async function VehicleDetailPage({
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground capitalize">{inspection.status}</span>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {maintenanceHistory.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Maintenance history</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col divide-y divide-border">
+                {maintenanceHistory.map((record) => (
+                  <Link
+                    key={record.id}
+                    href={`/maintenance/${record.id}`}
+                    className="flex items-center justify-between py-2.5 text-sm hover:underline"
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium text-foreground">{MAINTENANCE_TYPE_LABELS[record.type] ?? record.type}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {record.scheduledOn ? formatDate(record.scheduledOn) : "No date"}
+                        {record.actualCostMad != null ? ` · ${formatMad(record.actualCostMad)}` : ""}
+                      </span>
+                    </div>
+                    <StatusBadge visual={maintenanceRecordStatusConfig[record.status]} />
                   </Link>
                 ))}
               </CardContent>

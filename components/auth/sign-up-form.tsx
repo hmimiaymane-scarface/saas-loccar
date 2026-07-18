@@ -12,7 +12,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 
 const initialState: AuthActionState = {}
 
-function SignUpForm() {
+function SignUpForm({ next }: { next?: string }) {
   const [state, formAction, isPending] = useActionState(signUp, initialState)
 
   if (state.message) {
@@ -36,11 +36,12 @@ function SignUpForm() {
       <CardHeader>
         <CardTitle className="text-lg">Create your account</CardTitle>
         <CardDescription>
-          Set up your rental company&apos;s digital office.
+          {next ? "Create an account to accept your invitation." : "Set up your rental company's digital office."}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form action={formAction} className="flex flex-col gap-4">
+          {next && <input type="hidden" name="next" value={next} />}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="fullName">Full name</Label>
             <Input id="fullName" name="fullName" autoComplete="name" required />
@@ -85,7 +86,10 @@ function SignUpForm() {
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/sign-in" className="font-medium text-foreground hover:underline">
+          <Link
+            href={next ? `/sign-in?next=${encodeURIComponent(next)}` : "/sign-in"}
+            className="font-medium text-foreground hover:underline"
+          >
             Sign in
           </Link>
         </p>
