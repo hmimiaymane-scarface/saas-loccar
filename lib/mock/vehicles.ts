@@ -1,0 +1,28 @@
+import type { Vehicle } from "@/types/rental"
+
+export const vehicles: Vehicle[] = [
+  { id: "veh_1", make: "Dacia", model: "Logan", year: 2023, plate: "45871-أ-6", category: "economy", status: "available", dailyRateMad: 280, mileageKm: 32100 },
+  { id: "veh_2", make: "Dacia", model: "Logan", year: 2022, plate: "38210-أ-6", category: "economy", status: "rented", dailyRateMad: 280, mileageKm: 51400 },
+  { id: "veh_3", make: "Renault", model: "Clio 5", year: 2023, plate: "51092-ب-6", category: "compact", status: "available", dailyRateMad: 350, mileageKm: 21800 },
+  { id: "veh_4", make: "Renault", model: "Clio 5", year: 2023, plate: "51093-ب-6", category: "compact", status: "reserved", dailyRateMad: 350, mileageKm: 18400 },
+  { id: "veh_5", make: "Hyundai", model: "Accent", year: 2022, plate: "29981-د-1", category: "compact", status: "rented", dailyRateMad: 380, mileageKm: 44200 },
+  { id: "veh_6", make: "Peugeot", model: "208", year: 2023, plate: "60214-أ-6", category: "compact", status: "available", dailyRateMad: 370, mileageKm: 15200 },
+  { id: "veh_7", make: "Dacia", model: "Duster", year: 2023, plate: "48812-ه-6", category: "suv", status: "available", dailyRateMad: 550, mileageKm: 26700 },
+  { id: "veh_8", make: "Dacia", model: "Duster", year: 2022, plate: "31567-ه-6", category: "suv", status: "maintenance", dailyRateMad: 550, mileageKm: 68900 },
+  { id: "veh_9", make: "Hyundai", model: "Tucson", year: 2023, plate: "55302-ب-6", category: "suv", status: "rented", dailyRateMad: 700, mileageKm: 19300 },
+  { id: "veh_10", make: "Toyota", model: "Hilux", year: 2022, plate: "22908-د-1", category: "suv", status: "rented", dailyRateMad: 800, mileageKm: 58100 },
+  { id: "veh_11", make: "Toyota", model: "Yaris", year: 2023, plate: "60771-أ-6", category: "economy", status: "available", dailyRateMad: 300, mileageKm: 12900 },
+  { id: "veh_12", make: "Volkswagen", model: "Golf 8", year: 2023, plate: "51988-ب-6", category: "compact", status: "available", dailyRateMad: 420, mileageKm: 17600 },
+  { id: "veh_13", make: "Mercedes-Benz", model: "Vito", year: 2022, plate: "40213-ه-6", category: "van", status: "reserved", dailyRateMad: 900, mileageKm: 39200 },
+  { id: "veh_14", make: "Volkswagen", model: "Transporter", year: 2021, plate: "18654-ه-6", category: "van", status: "available", dailyRateMad: 850, mileageKm: 71300 },
+  { id: "veh_15", make: "Range Rover", model: "Evoque", year: 2023, plate: "60002-ل-6", category: "luxury", status: "rented", dailyRateMad: 1600, mileageKm: 9800 },
+  { id: "veh_16", make: "Mercedes-Benz", model: "Classe C", year: 2022, plate: "45119-ل-6", category: "luxury", status: "available", dailyRateMad: 1450, mileageKm: 22400 },
+  { id: "veh_17", make: "Dacia", model: "Sandero", year: 2023, plate: "60890-أ-6", category: "economy", status: "available", dailyRateMad: 260, mileageKm: 8100 },
+  { id: "veh_18", make: "Dacia", model: "Sandero", year: 2022, plate: "33481-أ-6", category: "economy", status: "unavailable", dailyRateMad: 260, mileageKm: 89200 },
+  { id: "veh_19", make: "Kia", model: "Sportage", year: 2023, plate: "58873-ب-6", category: "suv", status: "available", dailyRateMad: 650, mileageKm: 14700 },
+  { id: "veh_20", make: "Peugeot", model: "2008", year: 2022, plate: "40556-د-1", category: "suv", status: "reserved", dailyRateMad: 580, mileageKm: 33900 },
+  { id: "veh_21", make: "Renault", model: "Symbol", year: 2021, plate: "27784-أ-6", category: "economy", status: "available", dailyRateMad: 250, mileageKm: 64500 },
+  { id: "veh_22", make: "Fiat", model: "500", year: 2022, plate: "50992-ب-6", category: "economy", status: "rented", dailyRateMad: 310, mileageKm: 29800 },
+  { id: "veh_23", make: "Hyundai", model: "Santa Fe", year: 2023, plate: "59214-ه-6", category: "suv", status: "available", dailyRateMad: 750, mileageKm: 11200 },
+  { id: "veh_24", make: "Dacia", model: "Duster", year: 2024, plate: "61045-أ-6", category: "suv", status: "maintenance", dailyRateMad: 580, mileageKm: 4300 },
+]
