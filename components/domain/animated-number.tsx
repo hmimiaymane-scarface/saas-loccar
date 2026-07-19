@@ -11,6 +11,7 @@ import { formatMad } from "@/lib/format"
 const FORMATTERS = {
   mad: formatMad,
   integer: (n: number) => Math.round(n).toLocaleString("en-GB"),
+  percent: (n: number) => `${Math.round(n)}%`,
 } as const
 
 /** Counts up to `value` on mount/change instead of just appearing —
