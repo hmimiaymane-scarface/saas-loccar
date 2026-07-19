@@ -28,6 +28,8 @@ import { completeRentalAction } from "@/app/(dashboard)/reservations/actions"
 import { recordPayment, returnDeposit, retainDeposit } from "@/app/(dashboard)/payments/actions"
 import { createDamage } from "@/app/(dashboard)/damages/actions"
 import { isValidReturnOdometer } from "@/lib/inspections/rules"
+import { resolveInitialStep, type RequirementItem } from "@/lib/workflow/steps"
+import { useStepFocus } from "@/hooks/use-step-focus"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,6 +37,9 @@ import { NativeSelect } from "@/components/ui/native-select"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { WizardProgress } from "@/components/domain/wizard-progress"
+import { WizardFooter } from "@/components/domain/wizard-footer"
+import { SummaryRow } from "@/components/domain/summary-row"
+import { RequirementsSummary } from "@/components/domain/requirements-summary"
 import { SegmentedSelector } from "@/components/domain/inspections/segmented-selector"
 import { ChecklistSection } from "@/components/domain/inspections/checklist-section"
 import { PhotoUploadGrid, type UploadedPhoto } from "@/components/domain/photo-upload-grid"
@@ -94,7 +99,26 @@ interface ReturnWizardProps {
 
 function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamages, canOverride }: ReturnWizardProps) {
   const router = useRouter()
-  const [step, setStep] = useState(0)
+  // Resume at the first incomplete step after a refresh. "Return
+  // details" has no field of its own to persist, so its only signal is
+  // whether a return inspection draft already existed when this page
+  // loaded (meaning a previous visit got at least that far); "Damage" is
+  // optional and never blocks resuming further in.
+  const [step, setStep] = useState(() =>
+    resolveInitialStep([
+      Boolean(reservation.returnInspection),
+      Boolean(
+        reservation.returnInspection?.odometerKm != null &&
+          reservation.returnInspection?.fuelLevel &&
+          reservation.returnInspection?.cleanliness &&
+          reservation.returnInspection?.overallCondition
+      ),
+      true,
+      reservation.payment.remainingMad <= 0,
+      false,
+    ])
+  )
+  const stepContainerRef = useStepFocus<HTMLDivElement>(step)
   const [isPending, startTransition] = useTransition()
   const [stepError, setStepError] = useState<string | null>(null)
 
@@ -326,10 +350,29 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
     setStep((s) => Math.max(0, s - 1))
   }
 
+  const requirementItems: RequirementItem[] = [
+    {
+      label: "Inspection completed",
+      done: Boolean(odometerKm && fuelLevel && cleanliness && overallCondition),
+    },
+    { label: "Balance settled", done: payment.remainingMad <= 0 },
+    {
+      label: "Deposit resolved",
+      done:
+        (deposit?.collectedMad ?? 0) === 0 ||
+        (deposit?.returnedMad ?? 0) + (deposit?.retainedMad ?? 0) >= (deposit?.collectedMad ?? 0),
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-6 pb-24">
+      <div aria-live="polite" className="sr-only">
+        {STEPS[step].label} — step {step + 1} of {STEPS.length}
+      </div>
       <WizardProgress steps={STEPS} currentStep={step} />
+      <RequirementsSummary items={requirementItems} />
 
+      <div ref={stepContainerRef} className="flex flex-col gap-6">
       {step === 0 && (
         <Card>
           <CardHeader>
@@ -687,41 +730,16 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
           {stepError}
         </p>
       )}
-
-      <div className="sticky bottom-4 flex justify-between gap-2 rounded-3xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur-sm">
-        <Button type="button" variant="outline" onClick={back} disabled={step === 0}>
-          Back
-        </Button>
-        {step === 0 && (
-          <Button type="button" onClick={next}>
-            Continue
-          </Button>
-        )}
-        {step === 1 && (
-          <Button
-            type="button"
-            onClick={() => startTransition(saveInspectionStep)}
-            disabled={isPending || odometerBelowPickup}
-          >
-            {isPending && <Loader2 className="animate-spin" />}
-            Continue
-          </Button>
-        )}
-        {(step === 2 || step === 3) && (
-          <Button type="button" onClick={next}>
-            Continue
-          </Button>
-        )}
       </div>
-    </div>
-  )
-}
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-0.5 rounded-2xl bg-muted px-3 py-2">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-sm font-medium text-foreground">{value}</span>
+      <WizardFooter
+        onBack={back}
+        backDisabled={step === 0}
+        hideContinue={step === 4}
+        onContinue={step === 1 ? () => startTransition(saveInspectionStep) : next}
+        continuePending={step === 1 && isPending}
+        continueDisabled={step === 1 && (isPending || odometerBelowPickup)}
+      />
     </div>
   )
 }

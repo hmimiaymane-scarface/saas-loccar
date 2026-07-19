@@ -21,7 +21,6 @@ import type {
   ReservationDetail,
 } from "@/types/rental"
 import { formatMad, formatDate } from "@/lib/format"
-import { cn } from "@/lib/utils"
 import {
   startInspection,
   saveInspectionFields,
@@ -32,6 +31,8 @@ import {
 import { activateRentalAction } from "@/app/(dashboard)/reservations/actions"
 import { collectDeposit, recordPayment } from "@/app/(dashboard)/payments/actions"
 import { createDamage } from "@/app/(dashboard)/damages/actions"
+import { resolveInitialStep, type RequirementItem } from "@/lib/workflow/steps"
+import { useStepFocus } from "@/hooks/use-step-focus"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -39,6 +40,9 @@ import { NativeSelect } from "@/components/ui/native-select"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { WizardProgress } from "@/components/domain/wizard-progress"
+import { WizardFooter } from "@/components/domain/wizard-footer"
+import { SummaryRow } from "@/components/domain/summary-row"
+import { RequirementsSummary } from "@/components/domain/requirements-summary"
 import { SegmentedSelector } from "@/components/domain/inspections/segmented-selector"
 import { ChecklistSection } from "@/components/domain/inspections/checklist-section"
 import { PhotoUploadGrid, type UploadedPhoto } from "@/components/domain/photo-upload-grid"
@@ -99,7 +103,24 @@ interface PickupWizardProps {
 
 function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamages, canOverride }: PickupWizardProps) {
   const router = useRouter()
-  const [step, setStep] = useState(0)
+  // Resume at the first incomplete step after a refresh — computed once
+  // from what was already saved server-side, never re-evaluated as the
+  // user navigates manually within this session.
+  const [step, setStep] = useState(() =>
+    resolveInitialStep([
+      Boolean(reservation.vehicle),
+      DOCUMENT_SLOTS.every((slot) => reservation.documents.some((d) => d.category === slot.category)),
+      reservation.payment.remainingMad <= 0,
+      Boolean(
+        reservation.pickupInspection?.odometerKm != null &&
+          reservation.pickupInspection?.fuelLevel &&
+          reservation.pickupInspection?.cleanliness &&
+          reservation.pickupInspection?.overallCondition
+      ),
+      false,
+    ])
+  )
+  const stepContainerRef = useStepFocus<HTMLDivElement>(step)
   const [isPending, startTransition] = useTransition()
   const [stepError, setStepError] = useState<string | null>(null)
 
@@ -313,10 +334,28 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
     setStep((s) => Math.max(0, s - 1))
   }
 
+  const requirementItems: RequirementItem[] = [
+    { label: "Vehicle assigned", done: Boolean(reservation.vehicle) },
+    {
+      label: "Documents uploaded",
+      done: DOCUMENT_SLOTS.every((slot) => documents.some((d) => d.category === slot.category)),
+    },
+    { label: "Balance settled", done: payment.remainingMad <= 0 },
+    {
+      label: "Inspection completed",
+      done: Boolean(odometerKm && fuelLevel && cleanliness && overallCondition),
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-6 pb-24">
+      <div aria-live="polite" className="sr-only">
+        {STEPS[step].label} — step {step + 1} of {STEPS.length}
+      </div>
       <WizardProgress steps={STEPS} currentStep={step} />
+      <RequirementsSummary items={requirementItems} />
 
+      <div ref={stepContainerRef} className="flex flex-col gap-6">
       {step === 0 && (
         <Card>
           <CardHeader>
@@ -658,33 +697,17 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
           {stepError}
         </p>
       )}
-
-      {/* Sticky mobile-friendly footer nav */}
-      <div className="sticky bottom-4 flex justify-between gap-2 rounded-3xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur-sm">
-        <Button type="button" variant="outline" onClick={back} disabled={step === 0}>
-          Back
-        </Button>
-        {step < 3 && (
-          <Button type="button" onClick={next}>
-            Continue
-          </Button>
-        )}
-        {step === 3 && (
-          <Button type="button" onClick={() => startTransition(saveInspectionStep)} disabled={isPending}>
-            {isPending && <Loader2 className="animate-spin" />}
-            Continue to review
-          </Button>
-        )}
       </div>
-    </div>
-  )
-}
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-0.5 rounded-2xl bg-muted px-3 py-2">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className={cn("text-sm font-medium text-foreground")}>{value}</span>
+      <WizardFooter
+        onBack={back}
+        backDisabled={step === 0}
+        hideContinue={step === 4}
+        onContinue={step < 3 ? next : () => startTransition(saveInspectionStep)}
+        continueLabel={step === 3 ? "Continue to review" : "Continue"}
+        continuePending={step === 3 && isPending}
+        continueDisabled={step === 3 && isPending}
+      />
     </div>
   )
 }

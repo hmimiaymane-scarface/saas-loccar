@@ -1,6 +1,7 @@
 "use client"
 
-import { useActionState, useEffect, useMemo, useState, useTransition } from "react"
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import Link from "next/link"
 import { Loader2, Search, UserRound, AlertTriangle, CheckCircle2 } from "lucide-react"
 
 import type { Branch, Customer, ReservationSource, Vehicle, VehicleCategory, BookingStatus } from "@/types/rental"
@@ -10,12 +11,14 @@ import { calculatePricing } from "@/lib/pricing"
 import { zonedTimeToUtcIso, utcIsoToZonedLocal } from "@/lib/timezone"
 import { formatMad } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { shouldAutoSelectSingleOption } from "@/lib/workflow/steps"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { SummaryRow } from "@/components/domain/summary-row"
 
 const CATEGORY_OPTIONS: { value: VehicleCategory; label: string }[] = [
   { value: "economy", label: "Economy" },
@@ -64,6 +67,10 @@ interface ReservationFormProps {
   defaultDailyRate?: number
   defaultPickupDate?: string
   initial?: ReservationFormInitial
+  /** A customer who was just created through the standalone "Add
+   * customer" flow (reached via a returnTo link from here) and should
+   * come back pre-selected instead of making the user search again. */
+  preselectedCustomer?: Customer
 }
 
 const initialState: ReservationActionState = {}
@@ -89,15 +96,24 @@ function ReservationForm({
   defaultDailyRate,
   defaultPickupDate,
   initial,
+  preselectedCustomer,
 }: ReservationFormProps) {
   const [state, formAction, isPending] = useActionState(action, initialState)
   const isEdit = Boolean(initial)
+
+  // Auto-focus the first field on mount — the natural start of the
+  // progression, without fighting the user once they're typing.
+  const pickupRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (!isEdit) pickupRef.current?.focus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
+  }, [])
 
   // Customer -----------------------------------------------------------
   const [customerMode, setCustomerMode] = useState<"search" | "new">("search")
   const [customerQuery, setCustomerQuery] = useState("")
   const [customerResults, setCustomerResults] = useState<Customer[]>([])
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(preselectedCustomer ?? null)
   const [quickName, setQuickName] = useState("")
   const [quickPhone, setQuickPhone] = useState("")
   const [duplicateCustomer, setDuplicateCustomer] = useState<Customer | null>(null)
@@ -178,12 +194,33 @@ function ReservationForm({
   // Pricing ----------------------------------------------------------------
   const [dailyRate, setDailyRate] = useState<number>(initial?.dailyRateMad ?? defaultDailyRate ?? 0)
   const [discountMad, setDiscountMad] = useState<number>(initial?.discountMad ?? 0)
+  const pricingRef = useRef<HTMLDivElement>(null)
+  const didMountVehicleSelect = useRef(false)
 
-  function onSelectVehicle(v: Vehicle) {
+  function onSelectVehicle(v: Vehicle, opts: { scroll?: boolean } = {}) {
     setVehicleId(v.id)
     setUnassigned(false)
     setDailyRate(v.dailyRateMad)
+    if (opts.scroll !== false) {
+      pricingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
   }
+
+  // When exactly one vehicle is available, pre-select it — but still show
+  // it visibly selected in the grid, never hide the choice. Never applies
+  // with more than one option, and never overrides an existing selection.
+  useEffect(() => {
+    if (!shouldAutoSelectSingleOption(availableVehicles.length, Boolean(vehicleId) || unassigned)) return
+    const vehicle = availableVehicles[0]
+    // Skip the scroll-into-view on the very first resolution (e.g. when
+    // arriving here already knowing the vehicle) — only scroll for
+    // selections that happen after the user is already looking at the form.
+    const scroll = didMountVehicleSelect.current
+    didMountVehicleSelect.current = true
+    const timeout = setTimeout(() => onSelectVehicle(vehicle, { scroll }), 0)
+    return () => clearTimeout(timeout)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when the candidate list changes
+  }, [availableVehicles])
 
   // Payments and deposits are recorded separately (reservation detail page
   // and the pickup/return workflow), never edited directly here — this
@@ -326,6 +363,13 @@ function ReservationForm({
                     </Button>
                   </div>
                 )}
+                <p className="text-xs text-muted-foreground">
+                  Just name and phone is enough for now.{" "}
+                  <Link href="/customers/new?returnTo=/reservations/new" className="text-foreground underline underline-offset-2">
+                    Add a full customer record instead
+                  </Link>
+                  .
+                </p>
               </div>
             )}
           </CardContent>
@@ -360,6 +404,7 @@ function ReservationForm({
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="pickupLocal">Pickup</Label>
             <Input
+              ref={pickupRef}
               id="pickupLocal"
               type="datetime-local"
               value={pickupLocal}
@@ -443,12 +488,27 @@ function ReservationForm({
           {!unassigned && (
             <>
               {vehiclesLoading ? (
-                <p className="text-sm text-muted-foreground">Checking availability…</p>
-              ) : !periodValid ? null : availableVehicles.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No vehicles available for this period{category ? " in this category" : ""}. Try different dates,
-                  another category, or leave the reservation unassigned.
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Checking availability…
                 </p>
+              ) : !periodValid ? null : availableVehicles.length === 0 ? (
+                <div className="flex flex-col gap-2 rounded-2xl bg-muted/50 px-3 py-2.5">
+                  <p className="text-sm text-muted-foreground">
+                    No vehicles available for this period{category ? " in this category" : ""}. Try different
+                    dates, another category, or leave the reservation unassigned for now.
+                  </p>
+                  <div className="flex gap-2">
+                    {category && (
+                      <Button type="button" variant="outline" size="sm" onClick={() => setCategory("")}>
+                        Clear category
+                      </Button>
+                    )}
+                    <Button type="button" variant="outline" size="sm" onClick={() => setUnassigned(true)}>
+                      Leave unassigned
+                    </Button>
+                  </div>
+                </div>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2">
                   {availableVehicles.map((v) => (
@@ -484,7 +544,7 @@ function ReservationForm({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card ref={pricingRef}>
         <CardHeader>
           <CardTitle>Pricing</CardTitle>
         </CardHeader>
@@ -594,6 +654,38 @@ function ReservationForm({
           </div>
         </CardContent>
       </Card>
+
+      {canSubmit && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Review</CardTitle>
+            <CardDescription>Check the details before {isEdit ? "saving" : "creating the reservation"}.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            <SummaryRow
+              label="Customer"
+              value={
+                isEdit
+                  ? (initial?.customer.fullName ?? "—")
+                  : (selectedCustomer?.fullName || quickName || "Not selected")
+              }
+            />
+            <SummaryRow
+              label="Vehicle"
+              value={
+                vehicleId
+                  ? (availableVehicles.find((v) => v.id === vehicleId)?.make
+                      ? `${availableVehicles.find((v) => v.id === vehicleId)?.make} ${availableVehicles.find((v) => v.id === vehicleId)?.model}`
+                      : (initial?.vehicleLabel ?? "Selected"))
+                  : `Unassigned${category ? ` (${category})` : ""}`
+              }
+            />
+            <SummaryRow label="Pickup" value={pickupLocal ? pickupLocal.replace("T", " ") : "—"} />
+            <SummaryRow label="Return" value={returnLocal ? returnLocal.replace("T", " ") : "—"} />
+            {pricing && <SummaryRow label="Total price" value={formatMad(pricing.totalMad)} />}
+          </CardContent>
+        </Card>
+      )}
 
       {state.error && (
         <p className="text-sm text-destructive" role="alert">

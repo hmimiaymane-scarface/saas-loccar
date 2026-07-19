@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
-import { Users } from "lucide-react"
+import Link from "next/link"
+import { Users, UserPlus } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
 import { getCustomers } from "@/lib/data"
@@ -8,6 +9,7 @@ import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
 import { CustomerSearch } from "@/components/domain/customers/customer-search"
 import { CustomerListItem } from "@/components/domain/customers/customer-list-item"
 import { ExportButton } from "@/components/domain/export-button"
+import { Button } from "@/components/ui/button"
 
 export default async function CustomersPage({
   searchParams,
@@ -31,7 +33,17 @@ export default async function CustomersPage({
       <SectionHeader
         title="Customers"
         description={`${filtered.length} customer${filtered.length === 1 ? "" : "s"}`}
-        actions={<ExportButton resource="customers" />}
+        actions={
+          <div className="flex gap-2">
+            <ExportButton resource="customers" />
+            <Button size="sm" asChild>
+              <Link href="/customers/new">
+                <UserPlus />
+                Add customer
+              </Link>
+            </Button>
+          </div>
+        }
       />
 
       <CustomerSearch />

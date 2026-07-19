@@ -5,7 +5,14 @@ import { revalidatePath } from "next/cache"
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { requiredString, optionalString, optionalNumber, requiredEnum } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
-import type { MaintenancePriority, MaintenanceRecordStatus, MaintenanceType, VehicleStatus } from "@/types/rental"
+import { getUpcomingReservationConflicts } from "@/lib/data"
+import type {
+  MaintenancePriority,
+  MaintenanceRecordStatus,
+  MaintenanceType,
+  ReservationConflict,
+  VehicleStatus,
+} from "@/types/rental"
 
 const MAINTENANCE_ROLES = ["owner", "manager"] as const
 
@@ -227,6 +234,15 @@ export async function cancelMaintenanceAction(
     if (err instanceof ActionError) return { error: err.message }
     throw err
   }
+}
+
+/** Surfaced live in the create form once a vehicle is chosen, so the
+ * person scheduling maintenance sees what it might affect before
+ * confirming — never used to silently touch a reservation. */
+export async function fetchVehicleConflicts(vehicleId: string): Promise<ReservationConflict[]> {
+  if (!vehicleId) return []
+  const session = await requireSession()
+  return getUpcomingReservationConflicts(session.company.id, vehicleId)
 }
 
 export async function attachMaintenanceReceipt(
