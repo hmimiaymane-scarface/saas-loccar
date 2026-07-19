@@ -671,6 +671,14 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
           <CardContent className="flex flex-col gap-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <SummaryRow label="Distance driven" value={distanceDrivenKm != null ? `${distanceDrivenKm.toLocaleString()} km` : "—"} />
+              <SummaryRow
+                label="Fuel"
+                value={
+                  pickup?.fuelLevel && fuelLevel
+                    ? `${pickup.fuelLevel.replace("_", " ")} → ${fuelLevel.replace("_", " ")}`
+                    : (fuelLevel?.replace("_", " ") ?? "Not set")
+                }
+              />
               <SummaryRow label="Checklist issues" value={checklistIssues > 0 ? `${checklistIssues} flagged` : "None"} />
               <SummaryRow label="New damage" value={newDamages.length > 0 ? `${newDamages.length} recorded` : "None"} />
               <SummaryRow label="Balance" value={`${formatMad(payment.remainingMad)} remaining`} />
