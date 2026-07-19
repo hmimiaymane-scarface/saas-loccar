@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { requiredString, optionalString, requiredNumber, requiredEnum } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
-import { logActivity } from "@/lib/activity-log"
+import { recordEvent } from "@/lib/activity-log"
 import { computeDepositStatus, exceedsCollected } from "@/lib/deposits"
 import type { PaymentMethod, PaymentTransactionType } from "@/types/rental"
 
@@ -64,15 +64,16 @@ export async function recordPayment(
 
     if (error) return { error: friendlyDbError(error) }
 
-    await logActivity(
-      supabase,
+    await recordEvent(supabase, {
       companyId,
-      session.userId,
-      "payment_recorded",
-      `${transactionType.replace("_", " ")} recorded`,
-      reference ? `Ref. ${reference}` : null,
-      reservationId ? { reservation_id: reservationId } : undefined
-    )
+      actorId: session.userId,
+      type: transactionType === "refund" ? "payment_refunded" : "payment_recorded",
+      entityType: reservationId ? "reservation" : "customer",
+      entityId: reservationId ?? customerId,
+      title: `${transactionType.replace("_", " ")} recorded`,
+      description: reference ? `Ref. ${reference}` : null,
+      metadata: reservationId ? { reservation_id: reservationId, customer_id: customerId } : { customer_id: customerId },
+    })
 
     if (reservationId) revalidatePath(`/reservations/${reservationId}`)
     revalidatePath("/payments")
@@ -190,8 +191,14 @@ export async function collectDeposit(
     })
     if (paymentError) return { error: friendlyDbError(paymentError) }
 
-    await logActivity(supabase, companyId, session.userId, "deposit_collected", "Deposit collected", null, {
-      reservation_id: reservationId,
+    await recordEvent(supabase, {
+      companyId,
+      actorId: session.userId,
+      type: "deposit_collected",
+      entityType: "reservation",
+      entityId: reservationId,
+      title: "Deposit collected",
+      metadata: { reservation_id: reservationId },
     })
 
     revalidatePath(`/reservations/${reservationId}`)
@@ -254,8 +261,15 @@ export async function returnDeposit(
     })
     if (paymentError) return { error: friendlyDbError(paymentError) }
 
-    await logActivity(supabase, companyId, session.userId, "deposit_returned", "Deposit returned", notes ?? null, {
-      reservation_id: reservationId,
+    await recordEvent(supabase, {
+      companyId,
+      actorId: session.userId,
+      type: "deposit_returned",
+      entityType: "reservation",
+      entityId: reservationId,
+      title: "Deposit returned",
+      description: notes ?? null,
+      metadata: { reservation_id: reservationId },
     })
 
     revalidatePath(`/reservations/${reservationId}`)
@@ -298,8 +312,15 @@ export async function retainDeposit(
 
     if (error) return { error: friendlyDbError(error) }
 
-    await logActivity(supabase, companyId, session.userId, "deposit_retained", "Deposit partially retained", notes, {
-      reservation_id: reservationId,
+    await recordEvent(supabase, {
+      companyId,
+      actorId: session.userId,
+      type: "deposit_retained",
+      entityType: "reservation",
+      entityId: reservationId,
+      title: "Deposit partially retained",
+      description: notes,
+      metadata: { reservation_id: reservationId },
     })
 
     revalidatePath(`/reservations/${reservationId}`)

@@ -15,7 +15,7 @@ import {
 import { createClient } from "@/lib/supabase/server"
 import { calculatePricing } from "@/lib/pricing"
 import { findCustomerByPhone, getAvailableVehicles, searchCustomers } from "@/lib/data"
-import { logActivity } from "@/lib/activity-log"
+import { recordEvent } from "@/lib/activity-log"
 import { isEditableStatus } from "@/lib/reservations/status"
 import type { BookingStatus, Customer, ReservationSource, Vehicle, VehicleCategory } from "@/types/rental"
 
@@ -109,14 +109,15 @@ export async function createReservation(
       if (customerError) throw new ActionError(friendlyDbError(customerError))
       customerId = newCustomer.id as string
 
-      await logActivity(
-        supabase,
+      await recordEvent(supabase, {
         companyId,
-        session.userId,
-        "customer_created",
-        "Customer added",
-        `${quickCustomerName} added while creating a reservation`
-      )
+        actorId: session.userId,
+        type: "customer_created",
+        entityType: "customer",
+        entityId: customerId,
+        title: "Customer added",
+        description: `${quickCustomerName} added while creating a reservation`,
+      })
     }
 
     const shared = readSharedFields(formData, session.company.timezone)
@@ -157,15 +158,16 @@ export async function createReservation(
       return { error: friendlyDbError(insertError) }
     }
 
-    await logActivity(
-      supabase,
+    await recordEvent(supabase, {
       companyId,
-      session.userId,
-      "reservation_requested",
-      `Reservation ${reference} created`,
-      `${shared.pricing.numDays}-day booking for ${quickCustomerName ?? "an existing customer"}`,
-      { reservation_id: reservation.id }
-    )
+      actorId: session.userId,
+      type: "reservation_requested",
+      entityType: "reservation",
+      entityId: reservation.id,
+      title: `Reservation ${reference} created`,
+      description: `${shared.pricing.numDays}-day booking for ${quickCustomerName ?? "an existing customer"}`,
+      metadata: { reservation_id: reservation.id },
+    })
 
     revalidatePath("/reservations")
     revalidatePath("/calendar")
@@ -227,15 +229,15 @@ export async function updateReservation(
       return { error: friendlyDbError(updateError) }
     }
 
-    await logActivity(
-      supabase,
+    await recordEvent(supabase, {
       companyId,
-      session.userId,
-      "reservation_updated",
-      "Reservation updated",
-      null,
-      { reservation_id: reservationId }
-    )
+      actorId: session.userId,
+      type: "reservation_updated",
+      entityType: "reservation",
+      entityId: reservationId,
+      title: "Reservation updated",
+      metadata: { reservation_id: reservationId },
+    })
 
     revalidatePath(`/reservations/${reservationId}`)
     revalidatePath("/reservations")

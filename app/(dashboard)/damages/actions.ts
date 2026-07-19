@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { requiredString, optionalString, optionalNumber, requiredEnum } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
-import { logActivity } from "@/lib/activity-log"
+import { recordEvent } from "@/lib/activity-log"
 import type { DamageCategory, DamageSeverity, DamageStatus } from "@/types/rental"
 
 const DAMAGE_ROLES = ["owner", "manager", "agent"] as const
@@ -61,15 +61,16 @@ export async function createDamage(
 
     if (error) return { error: friendlyDbError(error) }
 
-    await logActivity(
-      supabase,
+    await recordEvent(supabase, {
       companyId,
-      session.userId,
-      "damage_recorded",
-      `Damage recorded: ${vehicleArea}`,
+      actorId: session.userId,
+      type: "damage_recorded",
+      entityType: "damage",
+      entityId: data.id,
+      title: `Damage recorded: ${vehicleArea}`,
       description,
-      { reservation_id: reservationId, damage_id: data.id }
-    )
+      metadata: { reservation_id: reservationId, damage_id: data.id, vehicle_id: vehicleId },
+    })
 
     if (reservationId) revalidatePath(`/reservations/${reservationId}`)
     revalidatePath(`/fleet/${vehicleId}`)
@@ -140,15 +141,15 @@ export async function resolveDamage(
 
     if (updateError) return { error: friendlyDbError(updateError) }
 
-    await logActivity(
-      supabase,
+    await recordEvent(supabase, {
       companyId,
-      session.userId,
-      "damage_resolved",
-      `Damage ${nextStatus.replace("_", " ")}: ${damage.vehicle_area}`,
-      null,
-      { reservation_id: damage.reservation_id, damage_id: damageId }
-    )
+      actorId: session.userId,
+      type: "damage_resolved",
+      entityType: "damage",
+      entityId: damageId,
+      title: `Damage ${nextStatus.replace("_", " ")}: ${damage.vehicle_area}`,
+      metadata: { reservation_id: damage.reservation_id, damage_id: damageId, vehicle_id: damage.vehicle_id },
+    })
 
     revalidatePath(`/damages/${damageId}`)
     if (damage.reservation_id) revalidatePath(`/reservations/${damage.reservation_id}`)

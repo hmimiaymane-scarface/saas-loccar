@@ -23,6 +23,11 @@ import {
   UserX,
   UserCheck2,
   UserMinus,
+  RotateCcw,
+  UserCog,
+  CalendarPlus,
+  FileSignature,
+  FileCheck2,
   type LucideIcon,
 } from "lucide-react"
 
@@ -35,12 +40,15 @@ const activityIcon: Record<ActivityType, LucideIcon> = {
   reservation_confirmed: CheckCircle2,
   reservation_status_changed: RefreshCcw,
   reservation_updated: ClipboardList,
+  reservation_cancelled: Ban,
   payment_recorded: Wallet,
+  payment_refunded: RotateCcw,
   vehicle_picked_up: ArrowUpRight,
   vehicle_returned: ArrowDownLeft,
   vehicle_status_changed: RefreshCcw,
   maintenance_completed: Wrench,
   customer_created: UserPlus,
+  customer_updated: UserCog,
   document_uploaded: FileText,
   member_invited: UserRoundPlus,
   pickup_started: ClipboardEdit,
@@ -60,6 +68,12 @@ const activityIcon: Record<ActivityType, LucideIcon> = {
   user_reactivated: UserCheck2,
   user_removed: UserMinus,
   invitation_accepted: UserRoundPlus,
+  // Reserved types — no mutation emits these yet (see
+  // supabase/migrations/20260723090000_event_backbone.sql), but the icon
+  // map must stay exhaustive over ActivityType.
+  rental_extended: CalendarPlus,
+  contract_generated: FileSignature,
+  contract_signed: FileCheck2,
 }
 
 function ActivityFeedCard({ items }: { items: ActivityItem[] }) {

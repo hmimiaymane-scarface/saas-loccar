@@ -12,7 +12,7 @@ import {
   requiredEnum,
 } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
-import { logActivity } from "@/lib/activity-log"
+import { recordEvent } from "@/lib/activity-log"
 import type { FuelType, Transmission, VehicleCategory, VehicleStatus } from "@/types/rental"
 
 export interface VehicleActionState {
@@ -105,14 +105,15 @@ export async function createVehicle(
     if (error) return { error: friendlyDbError(error) }
     vehicleId = data.id as string
 
-    await logActivity(
-      supabase,
+    await recordEvent(supabase, {
       companyId,
-      session.userId,
-      "vehicle_status_changed",
-      `Vehicle added: ${fields.make} ${fields.model}`,
-      `${fields.registrationNumber} added to the fleet`
-    )
+      actorId: session.userId,
+      type: "vehicle_status_changed",
+      entityType: "vehicle",
+      entityId: vehicleId,
+      title: `Vehicle added: ${fields.make} ${fields.model}`,
+      description: `${fields.registrationNumber} added to the fleet`,
+    })
 
     revalidatePath("/fleet")
     revalidatePath("/overview")
@@ -217,14 +218,14 @@ export async function updateVehicleStatus(
 
     if (error) return { error: friendlyDbError(error) }
 
-    await logActivity(
-      supabase,
+    await recordEvent(supabase, {
       companyId,
-      session.userId,
-      "vehicle_status_changed",
-      `Vehicle marked ${nextStatus}`,
-      null
-    )
+      actorId: session.userId,
+      type: "vehicle_status_changed",
+      entityType: "vehicle",
+      entityId: vehicleId,
+      title: `Vehicle marked ${nextStatus}`,
+    })
 
     revalidatePath(`/fleet/${vehicleId}`)
     revalidatePath("/fleet")

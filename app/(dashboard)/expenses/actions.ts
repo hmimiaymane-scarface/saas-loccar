@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { requiredString, optionalString, requiredNumber, requiredEnum } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
-import { logActivity } from "@/lib/activity-log"
+import { recordEvent } from "@/lib/activity-log"
 import type { EmployeeRole, ExpenseCategory, PaymentMethod } from "@/types/rental"
 
 const EXPENSE_MANAGE_ROLES = ["owner", "manager"] as const
@@ -97,15 +97,16 @@ export async function createExpense(
 
     if (error) return { error: friendlyDbError(error) }
 
-    await logActivity(
-      supabase,
+    await recordEvent(supabase, {
       companyId,
-      session.userId,
-      "expense_recorded",
-      `${category.replace("_", " ")} expense recorded`,
+      actorId: session.userId,
+      type: "expense_recorded",
+      entityType: "expense",
+      entityId: data.id,
+      title: `${category.replace("_", " ")} expense recorded`,
       description,
-      vehicleId ? { vehicle_id: vehicleId } : undefined
-    )
+      metadata: vehicleId ? { vehicle_id: vehicleId, expense_id: data.id } : { expense_id: data.id },
+    })
 
     revalidatePath("/expenses")
     if (vehicleId) revalidatePath(`/fleet/${vehicleId}`)

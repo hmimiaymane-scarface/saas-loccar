@@ -78,37 +78,72 @@ export type ReservationSource =
   | "partner"
   | "other"
 
-// Mirrors the `activity_log.type` check constraint.
-export type ActivityType =
-  | "reservation_requested"
-  | "reservation_confirmed"
-  | "reservation_status_changed"
-  | "reservation_updated"
-  | "payment_recorded"
-  | "vehicle_picked_up"
-  | "vehicle_returned"
-  | "vehicle_status_changed"
-  | "maintenance_completed"
-  | "customer_created"
-  | "document_uploaded"
-  | "member_invited"
-  | "pickup_started"
-  | "return_started"
-  | "inspection_completed"
-  | "inspection_corrected"
-  | "damage_recorded"
-  | "damage_resolved"
-  | "deposit_collected"
-  | "deposit_returned"
-  | "deposit_retained"
-  | "maintenance_scheduled"
-  | "vehicle_entered_maintenance"
-  | "maintenance_cancelled"
-  | "expense_recorded"
-  | "user_suspended"
-  | "user_reactivated"
-  | "user_removed"
-  | "invitation_accepted"
+// Single source of truth for both TS and (by cross-reference — see the
+// test that guards against drift) the `activity_log.type` check
+// constraint in supabase/migrations/20260723090000_event_backbone.sql.
+// `rental_extended`, `contract_generated`, and `contract_signed` are
+// reserved vocabulary: the DB constraint accepts them, but no mutation
+// emits them yet because the features they belong to (rental extension;
+// the Dynamic Contract Engine, roadmap phases 10-11) don't exist yet.
+export const ACTIVITY_TYPES = [
+  "reservation_requested",
+  "reservation_confirmed",
+  "reservation_status_changed",
+  "reservation_updated",
+  "reservation_cancelled",
+  "payment_recorded",
+  "payment_refunded",
+  "vehicle_picked_up",
+  "vehicle_returned",
+  "vehicle_status_changed",
+  "maintenance_completed",
+  "customer_created",
+  "customer_updated",
+  "document_uploaded",
+  "member_invited",
+  "pickup_started",
+  "return_started",
+  "inspection_completed",
+  "inspection_corrected",
+  "damage_recorded",
+  "damage_resolved",
+  "deposit_collected",
+  "deposit_returned",
+  "deposit_retained",
+  "maintenance_scheduled",
+  "vehicle_entered_maintenance",
+  "maintenance_cancelled",
+  "expense_recorded",
+  "user_suspended",
+  "user_reactivated",
+  "user_removed",
+  "invitation_accepted",
+  "rental_extended",
+  "contract_generated",
+  "contract_signed",
+] as const
+
+export type ActivityType = (typeof ACTIVITY_TYPES)[number]
+
+// Mirrors the `activity_log.entity_type` check constraint — the primary
+// business entity an event is about. Nullable at the DB level (some
+// historical rows predate this column and can't be backfilled honestly),
+// but every new event should set one.
+export const ENTITY_TYPES = [
+  "customer",
+  "vehicle",
+  "reservation",
+  "inspection",
+  "damage",
+  "maintenance",
+  "expense",
+  "document",
+  "invitation",
+  "membership",
+  "contract",
+] as const
+
+export type EntityType = (typeof ENTITY_TYPES)[number]
 
 export type EmployeeRole = "owner" | "manager" | "agent" | "accountant" | "driver"
 

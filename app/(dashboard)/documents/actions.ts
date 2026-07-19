@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { createClient } from "@/lib/supabase/server"
-import { logActivity } from "@/lib/activity-log"
+import { recordEvent } from "@/lib/activity-log"
 import { STORAGE_BUCKET } from "@/lib/storage"
 import type { DocumentCategory } from "@/types/rental"
 
@@ -57,15 +57,19 @@ export async function createDocumentRecord(
 
     if (error) return { error: friendlyDbError(error) }
 
-    await logActivity(
-      supabase,
+    await recordEvent(supabase, {
       companyId,
-      session.userId,
-      "document_uploaded",
-      `Document uploaded: ${input.originalFilename}`,
-      null,
-      input.reservationId ? { reservation_id: input.reservationId } : undefined
-    )
+      actorId: session.userId,
+      type: "document_uploaded",
+      entityType: "document",
+      entityId: data.id,
+      title: `Document uploaded: ${input.originalFilename}`,
+      metadata: {
+        ...(input.reservationId ? { reservation_id: input.reservationId } : {}),
+        ...(input.customerId ? { customer_id: input.customerId } : {}),
+        ...(input.vehicleId ? { vehicle_id: input.vehicleId } : {}),
+      },
+    })
 
     if (input.reservationId) revalidatePath(`/reservations/${input.reservationId}`)
     if (input.customerId) revalidatePath(`/customers/${input.customerId}`)

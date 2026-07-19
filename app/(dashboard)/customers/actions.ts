@@ -6,6 +6,7 @@ import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib
 import { requiredString, optionalString } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
 import { findCustomerByPhone } from "@/lib/data"
+import { recordEvent } from "@/lib/activity-log"
 
 const CUSTOMER_ROLES = ["owner", "manager", "agent"] as const
 const CUSTOMER_STATUS_ROLES = ["owner", "manager"] as const
@@ -70,6 +71,15 @@ export async function createCustomer(
 
     if (error) return { error: friendlyDbError(error) }
 
+    await recordEvent(supabase, {
+      companyId,
+      actorId: session.userId,
+      type: "customer_created",
+      entityType: "customer",
+      entityId: data.id as string,
+      title: "Customer added",
+    })
+
     revalidatePath("/customers")
     return { customerId: data.id as string }
   } catch (err) {
@@ -99,6 +109,16 @@ export async function updateCustomerProfile(
     const address = optionalString(formData, "address")
     const notes = optionalString(formData, "notes")
 
+    const { data: existing, error: fetchError } = await supabase
+      .from("customers")
+      .select("full_name, phone, email, nationality, id_document_number, license_number, license_expires_on, address, notes")
+      .eq("id", customerId)
+      .eq("company_id", companyId)
+      .maybeSingle()
+
+    if (fetchError) throw new ActionError(friendlyDbError(fetchError))
+    if (!existing) throw new ActionError("Customer not found.")
+
     const { error } = await supabase
       .from("customers")
       .update({
@@ -116,6 +136,29 @@ export async function updateCustomerProfile(
       .eq("company_id", companyId)
 
     if (error) return { error: friendlyDbError(error) }
+
+    await recordEvent(supabase, {
+      companyId,
+      actorId: session.userId,
+      type: "customer_updated",
+      entityType: "customer",
+      entityId: customerId,
+      title: "Customer profile updated",
+      metadata: {
+        before: existing,
+        after: {
+          full_name: fullName,
+          phone,
+          email,
+          nationality,
+          id_document_number: idDocumentNumber,
+          license_number: licenseNumber,
+          license_expires_on: licenseExpiresOn,
+          address,
+          notes,
+        },
+      },
+    })
 
     revalidatePath(`/customers/${customerId}`)
     revalidatePath("/customers")
@@ -141,6 +184,16 @@ export async function setCustomerStatus(
 
     if (!STATUSES.includes(status)) throw new ActionError("Invalid status.")
 
+    const { data: existing, error: fetchError } = await supabase
+      .from("customers")
+      .select("status")
+      .eq("id", customerId)
+      .eq("company_id", companyId)
+      .maybeSingle()
+
+    if (fetchError) return { error: friendlyDbError(fetchError) }
+    if (!existing) throw new ActionError("Customer not found.")
+
     const { error } = await supabase
       .from("customers")
       .update({ status })
@@ -148,6 +201,16 @@ export async function setCustomerStatus(
       .eq("company_id", companyId)
 
     if (error) return { error: friendlyDbError(error) }
+
+    await recordEvent(supabase, {
+      companyId,
+      actorId: session.userId,
+      type: "customer_updated",
+      entityType: "customer",
+      entityId: customerId,
+      title: `Customer marked ${status}`,
+      metadata: { before: { status: existing.status }, after: { status } },
+    })
 
     revalidatePath(`/customers/${customerId}`)
     revalidatePath("/customers")

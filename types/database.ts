@@ -551,20 +551,28 @@ export type Database = {
           id: string
           company_id: string
           actor_id: string | null
+          actor_type: string
           type: string
+          entity_type: string | null
+          entity_id: string | null
           title: string
           description: string | null
           metadata: Record<string, unknown> | null
+          source: string
           created_at: Timestamp
         }
         Insert: {
           id?: string
           company_id: string
           actor_id?: string | null
+          actor_type?: string
           type: string
+          entity_type?: string | null
+          entity_id?: string | null
           title: string
           description?: string | null
           metadata?: Record<string, unknown> | null
+          source?: string
           created_at?: Timestamp
         }
         Update: Partial<Database["public"]["Tables"]["activity_log"]["Insert"]>

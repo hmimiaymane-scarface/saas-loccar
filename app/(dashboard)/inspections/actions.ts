@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { createClient } from "@/lib/supabase/server"
-import { logActivity } from "@/lib/activity-log"
+import { recordEvent } from "@/lib/activity-log"
 import type {
   Cleanliness,
   FuelLevel,
@@ -81,15 +81,15 @@ export async function startInspection(
 
     if (insertError) return { error: friendlyDbError(insertError) }
 
-    await logActivity(
-      supabase,
+    await recordEvent(supabase, {
       companyId,
-      session.userId,
-      type === "pickup" ? "pickup_started" : "return_started",
-      `${type === "pickup" ? "Pickup" : "Return"} started`,
-      null,
-      { reservation_id: reservationId, inspection_id: inspection.id }
-    )
+      actorId: session.userId,
+      type: type === "pickup" ? "pickup_started" : "return_started",
+      entityType: "inspection",
+      entityId: inspection.id,
+      title: `${type === "pickup" ? "Pickup" : "Return"} started`,
+      metadata: { reservation_id: reservationId, inspection_id: inspection.id },
+    })
 
     revalidatePath(`/reservations/${reservationId}`)
     return { inspectionId: inspection.id }
