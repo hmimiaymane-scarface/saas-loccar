@@ -1,0 +1,81 @@
+/** Platform-owner (SaaS admin) domain types — entirely separate from
+ * types/rental.ts, which is the tenant-facing domain. Nothing here is
+ * ever shown inside the rental-company dashboard. */
+
+export type SubscriptionStatus = "trial" | "active" | "suspended" | "cancelled"
+
+export const SUBSCRIPTION_STATUSES: SubscriptionStatus[] = ["trial", "active", "suspended", "cancelled"]
+
+export interface PlatformOverview {
+  totalCompanies: number
+  activeSubscriptions: number
+  activeTrials: number
+  trialsEndingSoon: number
+  suspendedCompanies: number
+  companiesActiveRecently: number
+  totalVehicles: number
+  reservationsCreatedRecently: number
+  /** A proxy for "document extraction usage" — this app doesn't have an
+   * automated extraction/OCR pipeline yet, so this counts document
+   * uploads instead. See the UI label, which says so explicitly. */
+  documentsUploadedThisMonth: number
+}
+
+export interface PlatformCompanyRow {
+  companyId: string
+  name: string
+  city: string | null
+  ownerEmail: string | null
+  subscriptionStatus: SubscriptionStatus | null
+  planLabel: string | null
+  trialOrRenewalDate: string | null
+  vehicleCount: number
+  reservationCount: number
+  lastActivityAt: string | null
+  createdAt: string
+}
+
+export interface PlatformCompanyListFilters {
+  search?: string
+  status?: SubscriptionStatus
+  sort?: "activity" | "created_at"
+}
+
+export interface PlatformCompanySummary {
+  companyId: string
+  name: string
+  city: string | null
+  ownerEmail: string | null
+  ownerFullName: string | null
+  createdAt: string
+  userCount: number
+  branchCount: number
+  vehicleCount: number
+  customerCount: number
+  reservationCount: number
+  activeRentalCount: number
+  documentCount: number
+  documentsThisMonthCount: number
+  lastActivityAt: string | null
+  subscription: {
+    status: SubscriptionStatus
+    planLabel: string
+    trialStartsOn: string | null
+    trialEndsOn: string | null
+    subscriptionStartsOn: string | null
+    subscriptionEndsOn: string | null
+    monthlyPriceMad: number | null
+    currency: string
+    notes: string | null
+    notesUpdatedAt: string | null
+    notesUpdatedByEmail: string | null
+  }
+}
+
+export interface PlatformAuditEvent {
+  id: string
+  adminEmail: string | null
+  action: string
+  description: string | null
+  createdAt: string
+}

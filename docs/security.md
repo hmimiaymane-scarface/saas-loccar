@@ -151,6 +151,45 @@ event feed is never visible to (or editable by) another.
   same filtered `lib/data.ts` query functions the corresponding list page
   uses — an export can never see more than the page it's exported from.
 
+## Platform-owner (SaaS admin) boundary
+
+A second, entirely separate authorization tier sits above every tenant
+company: `platform_admins` (see
+`supabase/migrations/20260721090000_platform_admins.sql`). A tenant
+`owner`/`manager` role grants nothing here — the two are unrelated.
+
+- `platform_admins` has row level security enabled with **zero
+  policies**, meaning no role can read or write it directly, not even
+  the user who owns a given row. The only way in is
+  `is_platform_admin()`, a `SECURITY DEFINER` function that bypasses RLS
+  by running as the table owner. Platform-admin status can only be
+  granted by a direct database write as the migration/service role — see
+  `docs/supabase.md` §4b. No app code path can self-assign or grant it.
+- `company_subscriptions` (manual trial/active/suspended/cancelled
+  status, plan, price, internal notes) has a SELECT policy scoped to
+  `is_platform_admin()` and no INSERT/UPDATE/DELETE policy at all —
+  every mutation goes through one of the `platform_*` `SECURITY DEFINER`
+  functions in `20260721090300_platform_mutations.sql`, each of which
+  re-checks `is_platform_admin()` itself and writes an audit row via
+  `log_platform_action()`.
+- Tenant code never queries `company_subscriptions` directly. The one
+  fact a tenant's own session needs — "is my company suspended?" — is
+  exposed through `is_company_suspended(company_id)`, a narrow boolean
+  function, not table access. `lib/supabase/middleware.ts` calls it to
+  redirect a suspended company's users to `/account-suspended`; their
+  membership rows, and all of their operational data, are untouched.
+- Every platform dashboard read (`platform_get_overview`,
+  `platform_list_companies`, `platform_get_company_summary`,
+  `platform_get_company_events`) is a narrow, purpose-built function
+  that returns only aggregate counts and the specific summary fields the
+  dashboard needs — never raw customer records, documents, licences,
+  contracts, or a tenant's full `activity_log`. Platform admins do not
+  gain a general escape hatch around tenant RLS; they gain exactly these
+  functions.
+- `platform_audit_log` is separate from the tenant-facing `activity_log`
+  on purpose, and is likewise SELECT-restricted to platform admins with
+  no direct write policy.
+
 ## Known limitations (intentional, for a future phase)
 
 - No per-branch access restriction (e.g. an agent scoped to one branch) —

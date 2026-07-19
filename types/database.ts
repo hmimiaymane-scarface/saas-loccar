@@ -884,6 +884,111 @@ export type Database = {
         Args: { p_user_ids: string[] }
         Returns: { user_id: string; email: string }[]
       }
+      is_platform_admin: {
+        Args: Record<string, never>
+        Returns: boolean
+      }
+      is_company_suspended: {
+        Args: { target_company_id: string }
+        Returns: boolean
+      }
+      platform_set_subscription_status: {
+        Args: { p_company_id: string; p_status: string; p_reason?: string | null }
+        Returns: undefined
+      }
+      platform_start_or_extend_trial: {
+        Args: { p_company_id: string; p_trial_ends_on: string; p_trial_starts_on?: string | null }
+        Returns: undefined
+      }
+      platform_update_subscription_dates: {
+        Args: { p_company_id: string; p_subscription_starts_on: string | null; p_subscription_ends_on: string | null }
+        Returns: undefined
+      }
+      platform_update_plan: {
+        Args: { p_company_id: string; p_plan_label: string; p_monthly_price_mad: number | null; p_currency?: string }
+        Returns: undefined
+      }
+      platform_update_notes: {
+        Args: { p_company_id: string; p_notes: string | null }
+        Returns: undefined
+      }
+      platform_get_overview: {
+        Args: Record<string, never>
+        Returns: {
+          total_companies: number
+          active_subscriptions: number
+          active_trials: number
+          trials_ending_soon: number
+          suspended_companies: number
+          companies_active_recently: number
+          total_vehicles: number
+          reservations_created_recently: number
+          documents_uploaded_this_month: number
+        }[]
+      }
+      platform_list_companies: {
+        Args: {
+          p_search?: string | null
+          p_status?: string | null
+          p_sort?: string
+          p_page?: number
+          p_page_size?: number
+        }
+        Returns: {
+          company_id: string
+          name: string
+          city: string | null
+          owner_email: string | null
+          subscription_status: string | null
+          plan_label: string | null
+          trial_or_renewal_date: string | null
+          vehicle_count: number
+          reservation_count: number
+          last_activity_at: string | null
+          created_at: string
+          total_count: number
+        }[]
+      }
+      platform_get_company_summary: {
+        Args: { p_company_id: string }
+        Returns: {
+          name: string
+          city: string | null
+          owner_email: string | null
+          owner_full_name: string | null
+          created_at: string
+          user_count: number
+          branch_count: number
+          vehicle_count: number
+          customer_count: number
+          reservation_count: number
+          active_rental_count: number
+          document_count: number
+          documents_this_month_count: number
+          last_activity_at: string | null
+          subscription_status: string | null
+          plan_label: string | null
+          trial_starts_on: string | null
+          trial_ends_on: string | null
+          subscription_starts_on: string | null
+          subscription_ends_on: string | null
+          monthly_price_mad: number | null
+          currency: string | null
+          notes: string | null
+          notes_updated_at: string | null
+          notes_updated_by_email: string | null
+        }[]
+      }
+      platform_get_company_events: {
+        Args: { p_company_id: string; p_limit?: number }
+        Returns: {
+          id: string
+          admin_email: string | null
+          action: string
+          description: string | null
+          created_at: string
+        }[]
+      }
     }
     Enums: Record<string, never>
   }

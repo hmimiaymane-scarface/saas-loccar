@@ -71,6 +71,31 @@ On a hosted project, seed data isn't applied automatically — either run
 hardcoded user id with a real signed-up user's id) or just sign up through
 the app and use the onboarding flow.
 
+## 4b. Platform-owner (SaaS admin) access
+
+`platform_admins` has no INSERT/UPDATE/DELETE policy at all — the only
+way to grant platform-admin status is a direct database write as the
+migration/service role, never through the app. This is deliberate: it
+means no authenticated user, including an existing platform admin acting
+through the app UI, can grant themselves or anyone else this status.
+
+**Local development**: `supabase/seed.sql` already creates
+`platform-admin@example.com` / `Password123!` as a platform admin with no
+company membership — sign in with that account and visit `/platform`. To
+promote a different local user instead, sign up normally, find their id
+in Studio → Authentication → Users, then:
+
+```sql
+insert into public.platform_admins (user_id, label) values ('<their-uuid>', 'local dev');
+```
+
+**Production**: after the person has signed up normally through the app
+(so they have a real `auth.users` row), run the same insert against the
+hosted project — via the Supabase SQL editor, or `psql
+"$DATABASE_URL" -c "insert into public.platform_admins (user_id, label) values ('<uuid>', '<name>');"`.
+Do not commit that command with a real user id anywhere in the repo.
+There is intentionally no self-service or UI-driven way to do this.
+
 ## 5. Run locally
 
 ```

@@ -388,3 +388,93 @@ values
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'member_invited', 'Team member invited', 'Sara Benkirane invited as manager'),
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000009', 'invitation_accepted', 'Invitation accepted', 'Sara Benkirane joined as manager'),
   ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'member_invited', 'Team member invited', 'hamid.accountant@example.com invited as accountant');
+
+-- ---------------------------------------------------------------------
+-- Part 3: platform-owner (SaaS admin) dashboard
+-- ---------------------------------------------------------------------
+-- A dedicated platform-admin user, deliberately NOT a member of any
+-- rental company — this is what actually proves the separation the
+-- phase brief asks for: a tenant owner (owner@atlasrentcar.ma above) is
+-- NOT a platform admin, and a platform admin has no tenant access of
+-- their own. Sign in as platform-admin@example.com to see /platform;
+-- sign in as owner@atlasrentcar.ma and confirm /platform redirects away.
+--
+-- Seeded login: platform-admin@example.com / Password123!
+
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, last_sign_in_at,
+  raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at,
+  confirmation_token, email_change, email_change_token_new, recovery_token
+) values (
+  '00000000-0000-0000-0000-000000000000',
+  'a0000000-0000-0000-0000-00000000000a',
+  'authenticated', 'authenticated',
+  'platform-admin@example.com',
+  crypt('Password123!', gen_salt('bf')),
+  now(), now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"full_name":"Platform Admin"}',
+  now(), now(),
+  '', '', '', ''
+)
+on conflict (id) do nothing;
+
+insert into auth.identities (
+  id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at
+) values (
+  gen_random_uuid(),
+  'a0000000-0000-0000-0000-00000000000a',
+  format('{"sub":"%s","email":"%s"}', 'a0000000-0000-0000-0000-00000000000a', 'platform-admin@example.com')::jsonb,
+  'email',
+  'a0000000-0000-0000-0000-00000000000a',
+  now(), now(), now()
+)
+on conflict do nothing;
+
+insert into public.platform_admins (user_id, label)
+values ('a0000000-0000-0000-0000-00000000000a', 'Local dev seed')
+on conflict (user_id) do nothing;
+
+-- A few more companies purely to give the platform Companies list and
+-- Overview something to show beyond Atlas Rent Car — no fleet,
+-- customers or reservations of their own, since the platform dashboard
+-- never needs their operational detail, only the aggregate counts. Each
+-- gets a company_subscriptions row automatically via the
+-- provision_default_subscription trigger; the updates below adjust that
+-- default into the specific demo scenario.
+
+insert into public.companies (id, name, slug, city, country, currency, timezone, default_language, status)
+values
+  ('b0000000-0000-0000-0000-000000000001', 'Sahara Wheels', 'sahara-wheels', 'Agadir', 'Morocco', 'MAD', 'Africa/Casablanca', 'fr', 'trial'),
+  ('b0000000-0000-0000-0000-000000000002', 'Ocean Drive Rentals', 'ocean-drive-rentals', 'Casablanca', 'Morocco', 'MAD', 'Africa/Casablanca', 'fr', 'suspended'),
+  ('b0000000-0000-0000-0000-000000000003', 'Najma Cars', 'najma-cars', 'Rabat', 'Morocco', 'MAD', 'Africa/Casablanca', 'fr', 'active')
+on conflict (id) do nothing;
+
+-- Sahara Wheels: trial ending in 3 days -> "trials ending soon" on the
+-- platform overview.
+update public.company_subscriptions
+set trial_ends_on = current_date + interval '3 days'
+where company_id = 'b0000000-0000-0000-0000-000000000001';
+
+-- Ocean Drive: suspended, with an internal note only the platform owner
+-- ever sees.
+update public.company_subscriptions
+set status = 'suspended', plan_label = 'Standard', monthly_price_mad = 899,
+    notes = 'Overdue invoice — contacted by phone 2026-06-28, promised payment by end of month.',
+    updated_by = 'a0000000-0000-0000-0000-00000000000a'
+where company_id = 'b0000000-0000-0000-0000-000000000002';
+
+-- Najma Cars: paid and active, on a custom plan.
+update public.company_subscriptions
+set status = 'active', plan_label = 'Custom', monthly_price_mad = 1400,
+    subscription_starts_on = current_date - interval '90 days',
+    subscription_ends_on = current_date + interval '30 days',
+    updated_by = 'a0000000-0000-0000-0000-00000000000a'
+where company_id = 'b0000000-0000-0000-0000-000000000003';
+
+insert into public.platform_audit_log (admin_id, company_id, action, description)
+values
+  ('a0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-000000000002', 'company_suspended', 'Overdue invoice, contacted by phone first'),
+  ('a0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-000000000003', 'subscription_activated', null);
