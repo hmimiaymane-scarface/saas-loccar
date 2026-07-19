@@ -190,6 +190,39 @@ company: `platform_admins` (see
   on purpose, and is likewise SELECT-restricted to platform admins with
   no direct write policy.
 
+## AI assistant boundary
+
+The assistant (`app/(dashboard)/ai-assistant`) adds no new privilege on
+top of everything above — it is a client of the same session, the same
+RLS, and the same server actions as the rest of the app.
+
+- Every "write" tool (`propose_create_reservation`, `propose_record_payment`,
+  `propose_cancel_reservation`, `propose_schedule_maintenance`) only ever
+  inserts a row into `ai_proposed_actions` — it never touches an
+  operational table. Nothing changes until a human clicks Confirm.
+- Confirming a proposal calls the exact same server action a human
+  clicking the equivalent button elsewhere in the app would call
+  (`createReservation`, `recordPayment`, `updateReservationStatus`,
+  `createMaintenance`), with the exact same `requireSession()`/
+  `requireRole()` checks. A role that couldn't create a reservation by
+  hand can't do it by confirming an AI proposal either — the confirm
+  step routes through the same gate, not around it.
+- Every "read" tool runs on the current user's own session-bound
+  Supabase client, so RLS scopes results exactly as it would for any
+  other page — a tool call can never see another company's data, and
+  never sees more than the signed-in user's role already permits.
+- `ai_conversations`/`ai_messages`/`ai_proposed_actions` are private to
+  the user having the conversation (owner/manager get read-only
+  oversight, matching the rest of the app's "coarse RLS" pattern) — see
+  `supabase/migrations/20260722090000_ai_assistant.sql`.
+- The system prompt explicitly instructs the model to treat any
+  customer-supplied text (names, notes) as data, never as instructions —
+  defense in depth on top of the structural fact that a prompt-injected
+  tool call still can't do anything without a human confirming it.
+- A simple per-user rate limit (12 messages/minute) on the chat route
+  guards against a runaway loop or accidental resubmission storm; no
+  external rate-limit service is used.
+
 ## Known limitations (intentional, for a future phase)
 
 - No per-branch access restriction (e.g. an agent scoped to one branch) —

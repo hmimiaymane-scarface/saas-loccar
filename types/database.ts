@@ -173,6 +173,84 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["notifications"]["Insert"]>
         Relationships: []
       }
+      ai_conversations: {
+        Row: {
+          id: string
+          company_id: string
+          user_id: string
+          title: string | null
+          provider: string
+          created_at: Timestamp
+          updated_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          user_id: string
+          title?: string | null
+          provider?: string
+          created_at?: Timestamp
+          updated_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["ai_conversations"]["Insert"]>
+        Relationships: []
+      }
+      ai_messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          role: string
+          content: string | null
+          tool_calls: unknown | null
+          tool_name: string | null
+          tool_result: unknown | null
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          role: string
+          content?: string | null
+          tool_calls?: unknown | null
+          tool_name?: string | null
+          tool_result?: unknown | null
+          created_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["ai_messages"]["Insert"]>
+        Relationships: []
+      }
+      ai_proposed_actions: {
+        Row: {
+          id: string
+          company_id: string
+          conversation_id: string
+          message_id: string | null
+          action_type: string
+          summary: string
+          payload: unknown
+          status: string
+          created_at: Timestamp
+          resolved_at: Timestamp | null
+          resolved_by: string | null
+          result_id: string | null
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          conversation_id: string
+          message_id?: string | null
+          action_type: string
+          summary: string
+          payload: unknown
+          status?: string
+          created_at?: Timestamp
+          resolved_at?: Timestamp | null
+          resolved_by?: string | null
+          result_id?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["ai_proposed_actions"]["Insert"]>
+        Relationships: []
+      }
       branches: {
         Row: {
           id: string
