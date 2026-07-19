@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Card } from "@/components/ui/card"
+import { AnimatedNumber } from "@/components/domain/animated-number"
 
 interface StatCardProps {
   label: string
@@ -10,6 +11,12 @@ interface StatCardProps {
   tone?: "default" | "warning" | "danger"
   hint?: string
   className?: string
+  /** When provided alongside `formatter`, the value counts up on
+   * mount/change instead of just appearing — `value` is still required
+   * as the server-rendered fallback shown before hydration. `formatter`
+   * is a named key, never a function — see AnimatedNumber for why. */
+  numericValue?: number
+  formatter?: "mad" | "integer"
 }
 
 const toneStyles: Record<NonNullable<StatCardProps["tone"]>, string> = {
@@ -30,6 +37,8 @@ function StatCard({
   tone = "default",
   hint,
   className,
+  numericValue,
+  formatter,
 }: StatCardProps) {
   return (
     <Card className={cn("gap-4", className)}>
@@ -46,7 +55,7 @@ function StatCard({
       </div>
       <div className="flex flex-col gap-1 px-(--card-spacing)">
         <p className="font-heading text-3xl font-semibold tracking-tight text-foreground">
-          {value}
+          {numericValue != null && formatter ? <AnimatedNumber value={numericValue} formatter={formatter} /> : value}
         </p>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </div>

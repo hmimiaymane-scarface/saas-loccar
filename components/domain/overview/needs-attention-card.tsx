@@ -1,5 +1,8 @@
+"use client"
+
 import Link from "next/link"
 import { CheckCircle2, AlertTriangle, Clock } from "lucide-react"
+import { motion } from "motion/react"
 
 import type { LiveAlert } from "@/types/rental"
 import { cn } from "@/lib/utils"
@@ -32,8 +35,15 @@ function NeedsAttentionCard({ alerts }: { alerts: LiveAlert[] }) {
       <CardContent>
         {alerts.length === 0 ? (
           <div className="flex items-center gap-2.5 py-4 text-sm text-muted-foreground">
-            <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
-            Nothing needs your attention right now.
+            <motion.div
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 15 }}
+              className="flex size-6 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
+            >
+              <CheckCircle2 className="size-4" />
+            </motion.div>
+            All caught up — nothing needs your attention right now.
           </div>
         ) : (
           <div className="flex flex-col divide-y divide-border">

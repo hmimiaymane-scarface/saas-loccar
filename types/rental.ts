@@ -287,6 +287,35 @@ export interface OverviewMetrics {
   todayReturnsCount: number
 }
 
+export interface TodayTimelineEntry {
+  id: string
+  type: "pickup" | "return"
+  reference: string
+  customerName: string
+  vehicleLabel: string | null
+  atIso: string
+  /** Whether this pickup/return has actually happened yet (reservation
+   * status has moved past it), not just whether it's scheduled for today —
+   * drives both the timeline marker style and the day-progress ring. */
+  done: boolean
+}
+
+export type FleetOverviewContext =
+  | { kind: "available" }
+  | { kind: "unavailable" }
+  | { kind: "rented"; reservationId: string; customerName: string; returnAtIso: string }
+  | { kind: "reserved"; reservationId: string; customerName: string; pickupAtIso: string }
+  | { kind: "maintenance"; maintenanceId: string; typeLabel: string; scheduledOn: string | null }
+
+export interface FleetOverviewVehicle {
+  id: string
+  make: string
+  model: string
+  plate: string
+  status: VehicleStatus
+  context: FleetOverviewContext
+}
+
 // ---------------------------------------------------------------------
 // Documents
 // ---------------------------------------------------------------------

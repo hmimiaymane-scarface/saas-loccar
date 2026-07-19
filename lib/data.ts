@@ -99,6 +99,8 @@ import type {
   MediaFile,
   OverallCondition,
   OverviewMetrics,
+  TodayTimelineEntry,
+  FleetOverviewVehicle,
   PaymentDirection,
   PaymentMethod,
   PaymentTransaction,
@@ -1516,6 +1518,270 @@ export async function getOverviewMetrics(companyId: string): Promise<OverviewMet
     todayPickupsCount: todayPickups.length,
     todayReturnsCount: todayReturns.length,
   }
+}
+
+/** Today's pickups and returns as a single time-ordered list with actual
+ * clock times, for the Overview page's timeline strip — a different shape
+ * from getTodayPickups/getTodayReturns (whose Booking.startDate/endDate
+ * are date-only) because a timeline needs the time-of-day. `done`
+ * reflects whether the reservation has actually moved past this step
+ * (status), not just whether it's scheduled for today. */
+export async function getTodayTimeline(companyId: string): Promise<TodayTimelineEntry[]> {
+  if (isMockMode()) {
+    const TODAY = "2026-07-18"
+    const entries: TodayTimelineEntry[] = []
+    mockBookings
+      .filter((b) => b.startDate === TODAY && b.status !== "cancelled")
+      .forEach((b, i) => {
+        entries.push({
+          id: `${b.id}-pickup`,
+          type: "pickup",
+          reference: b.reference,
+          customerName: b.customer.fullName,
+          vehicleLabel: b.vehicle ? `${b.vehicle.make} ${b.vehicle.model}` : null,
+          atIso: `${TODAY}T${String(9 + i).padStart(2, "0")}:00:00+01:00`,
+          done: ["active", "completed"].includes(b.status),
+        })
+      })
+    mockBookings
+      .filter((b) => b.endDate === TODAY && b.status === "active")
+      .forEach((b, i) => {
+        entries.push({
+          id: `${b.id}-return`,
+          type: "return",
+          reference: b.reference,
+          customerName: b.customer.fullName,
+          vehicleLabel: b.vehicle ? `${b.vehicle.make} ${b.vehicle.model}` : null,
+          atIso: `${TODAY}T${String(11 + i).padStart(2, "0")}:30:00+01:00`,
+          done: false,
+        })
+      })
+    return entries.sort((a, b) => a.atIso.localeCompare(b.atIso))
+  }
+
+  const supabase = await createClient()
+  const { startIso, endIso } = todayRange()
+
+  const [pickupRows, returnRows] = await Promise.all([
+    supabase
+      .from("reservations")
+      .select("id, reference, pickup_at, status, customer:customers(full_name), vehicle:vehicles(make, model)")
+      .eq("company_id", companyId)
+      .gte("pickup_at", startIso)
+      .lt("pickup_at", endIso)
+      .neq("status", "cancelled"),
+    supabase
+      .from("reservations")
+      .select("id, reference, return_at, status, customer:customers(full_name), vehicle:vehicles(make, model)")
+      .eq("company_id", companyId)
+      .gte("return_at", startIso)
+      .lt("return_at", endIso)
+      .in("status", ["active", "completed"]),
+  ])
+
+  if (pickupRows.error) throw pickupRows.error
+  if (returnRows.error) throw returnRows.error
+
+  type PickupRow = { id: string; reference: string; pickup_at: string; status: string; customer: { full_name: string } | null; vehicle: { make: string; model: string } | null }
+  type ReturnRow = { id: string; reference: string; return_at: string; status: string; customer: { full_name: string } | null; vehicle: { make: string; model: string } | null }
+
+  const entries: TodayTimelineEntry[] = [
+    ...((pickupRows.data ?? []) as unknown as PickupRow[]).map((r) => ({
+      id: `${r.id}-pickup`,
+      type: "pickup" as const,
+      reference: r.reference,
+      customerName: r.customer?.full_name ?? "Unknown customer",
+      vehicleLabel: r.vehicle ? `${r.vehicle.make} ${r.vehicle.model}` : null,
+      atIso: r.pickup_at,
+      done: ["active", "completed"].includes(r.status),
+    })),
+    ...((returnRows.data ?? []) as unknown as ReturnRow[]).map((r) => ({
+      id: `${r.id}-return`,
+      type: "return" as const,
+      reference: r.reference,
+      customerName: r.customer?.full_name ?? "Unknown customer",
+      vehicleLabel: r.vehicle ? `${r.vehicle.make} ${r.vehicle.model}` : null,
+      atIso: r.return_at,
+      done: r.status === "completed",
+    })),
+  ]
+
+  return entries.sort((a, b) => a.atIso.localeCompare(b.atIso))
+}
+
+/** Every vehicle with just enough live context (current renter, next
+ * reservation, or active maintenance reason) to render the Overview
+ * fleet grid's popovers — batched into a handful of queries rather than
+ * one per vehicle. */
+export async function getFleetOverview(companyId: string): Promise<FleetOverviewVehicle[]> {
+  if (isMockMode()) {
+    const now = new Date("2026-07-18T10:00:00+01:00")
+    return mockVehicles.map((v): FleetOverviewVehicle => {
+      if (v.status === "rented") {
+        const active = mockBookings.find((b) => b.vehicle?.id === v.id && b.status === "active")
+        if (active) {
+          return {
+            id: v.id,
+            make: v.make,
+            model: v.model,
+            plate: v.plate,
+            status: v.status,
+            context: {
+              kind: "rented",
+              reservationId: active.id,
+              customerName: active.customer.fullName,
+              returnAtIso: active.endDate,
+            },
+          }
+        }
+      }
+      if (v.status === "reserved") {
+        const upcoming = mockBookings
+          .filter(
+            (b) =>
+              b.vehicle?.id === v.id &&
+              ["confirmed", "pending", "request"].includes(b.status) &&
+              new Date(b.startDate) >= now
+          )
+          .sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
+        if (upcoming) {
+          return {
+            id: v.id,
+            make: v.make,
+            model: v.model,
+            plate: v.plate,
+            status: v.status,
+            context: {
+              kind: "reserved",
+              reservationId: upcoming.id,
+              customerName: upcoming.customer.fullName,
+              pickupAtIso: upcoming.startDate,
+            },
+          }
+        }
+      }
+      if (v.status === "maintenance") {
+        const record = mockMaintenanceRecords.find(
+          (m) => m.vehicleId === v.id && (m.status === "in_progress" || m.status === "waiting_for_parts")
+        )
+        if (record) {
+          return {
+            id: v.id,
+            make: v.make,
+            model: v.model,
+            plate: v.plate,
+            status: v.status,
+            context: {
+              kind: "maintenance",
+              maintenanceId: record.id,
+              typeLabel: MAINTENANCE_TYPE_LABELS[record.type] ?? record.type,
+              scheduledOn: record.scheduledOn,
+            },
+          }
+        }
+      }
+      return {
+        id: v.id,
+        make: v.make,
+        model: v.model,
+        plate: v.plate,
+        status: v.status,
+        context: { kind: v.status === "available" ? "available" : "unavailable" },
+      }
+    })
+  }
+
+  const supabase = await createClient()
+  const nowIso = new Date().toISOString()
+
+  const [vehicleRows, rentedRows, reservedRows, maintenanceRows] = await Promise.all([
+    supabase
+      .from("vehicles")
+      .select("id, make, model, registration_number, status")
+      .eq("company_id", companyId)
+      .order("make"),
+    supabase
+      .from("reservations")
+      .select("id, vehicle_id, return_at, customer:customers(full_name)")
+      .eq("company_id", companyId)
+      .eq("status", "active")
+      .not("vehicle_id", "is", null),
+    supabase
+      .from("reservations")
+      .select("id, vehicle_id, pickup_at, customer:customers(full_name)")
+      .eq("company_id", companyId)
+      .in("status", ["confirmed", "pending", "request"])
+      .not("vehicle_id", "is", null)
+      .gte("pickup_at", nowIso)
+      .order("pickup_at"),
+    supabase
+      .from("maintenance_records")
+      .select("id, vehicle_id, type, scheduled_on")
+      .eq("company_id", companyId)
+      .in("status", ["in_progress", "waiting_for_parts"]),
+  ])
+
+  if (vehicleRows.error) throw vehicleRows.error
+  if (rentedRows.error) throw rentedRows.error
+  if (reservedRows.error) throw reservedRows.error
+  if (maintenanceRows.error) throw maintenanceRows.error
+
+  type RentedRow = { id: string; vehicle_id: string; return_at: string; customer: { full_name: string } | null }
+  type ReservedRow = { id: string; vehicle_id: string; pickup_at: string; customer: { full_name: string } | null }
+  type MaintenanceRow = { id: string; vehicle_id: string; type: string; scheduled_on: string | null }
+
+  const rentedByVehicle = new Map<string, RentedRow>()
+  for (const r of (rentedRows.data ?? []) as unknown as RentedRow[]) rentedByVehicle.set(r.vehicle_id, r)
+
+  // Reserved rows are already ordered by pickup_at ascending, so the
+  // first one seen per vehicle is the soonest upcoming reservation.
+  const reservedByVehicle = new Map<string, ReservedRow>()
+  for (const r of (reservedRows.data ?? []) as unknown as ReservedRow[]) {
+    if (!reservedByVehicle.has(r.vehicle_id)) reservedByVehicle.set(r.vehicle_id, r)
+  }
+
+  const maintenanceByVehicle = new Map<string, MaintenanceRow>()
+  for (const m of (maintenanceRows.data ?? []) as unknown as MaintenanceRow[]) maintenanceByVehicle.set(m.vehicle_id, m)
+
+  return ((vehicleRows.data ?? []) as { id: string; make: string; model: string; registration_number: string; status: string }[]).map(
+    (v): FleetOverviewVehicle => {
+      const base = { id: v.id, make: v.make, model: v.model, plate: v.registration_number, status: v.status as VehicleStatus }
+
+      if (v.status === "rented") {
+        const r = rentedByVehicle.get(v.id)
+        if (r) {
+          return {
+            ...base,
+            context: { kind: "rented", reservationId: r.id, customerName: r.customer?.full_name ?? "Unknown customer", returnAtIso: r.return_at },
+          }
+        }
+      }
+      if (v.status === "reserved") {
+        const r = reservedByVehicle.get(v.id)
+        if (r) {
+          return {
+            ...base,
+            context: { kind: "reserved", reservationId: r.id, customerName: r.customer?.full_name ?? "Unknown customer", pickupAtIso: r.pickup_at },
+          }
+        }
+      }
+      if (v.status === "maintenance") {
+        const m = maintenanceByVehicle.get(v.id)
+        if (m) {
+          return {
+            ...base,
+            context: {
+              kind: "maintenance",
+              maintenanceId: m.id,
+              typeLabel: MAINTENANCE_TYPE_LABELS[m.type as keyof typeof MAINTENANCE_TYPE_LABELS] ?? m.type,
+              scheduledOn: m.scheduled_on,
+            },
+          }
+        }
+      }
+      return { ...base, context: { kind: v.status === "available" ? "available" : "unavailable" } }
+    }
+  )
 }
 
 // ---------------------------------------------------------------------
