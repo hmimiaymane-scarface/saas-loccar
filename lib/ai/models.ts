@@ -27,3 +27,11 @@ export function isConfigured(provider: AiProvider): boolean {
   if (provider === "anthropic") return Boolean(process.env.ANTHROPIC_API_KEY)
   return Boolean(process.env.OPENAI_API_KEY)
 }
+
+/** For server-side callers with no user-facing provider picker (e.g.
+ * document extraction) — picks whichever provider is actually
+ * configured, anthropic first. Returns null if neither key is set. */
+export function resolveAvailableProvider(): AiProvider | null {
+  const preferenceOrder: AiProvider[] = ["anthropic", "openai"]
+  return preferenceOrder.find(isConfigured) ?? null
+}
