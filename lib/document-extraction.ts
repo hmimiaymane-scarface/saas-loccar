@@ -168,7 +168,7 @@ export type ClassificationResult =
 /** Only image formats a vision model call can reliably read today —
  * PDF and HEIC are accepted for upload elsewhere in the app but not
  * supported here yet (see docs/documents.md's known limitations). */
-const SUPPORTED_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"]
+export const SUPPORTED_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"]
 
 export type ExtractedFields = Record<string, { value: unknown; confidence: number }>
 
@@ -184,6 +184,34 @@ export type ExtractionResult =
   | { ok: false; error: ExtractionErrorCode; message: string }
 
 type DocumentRow = { id: string; category: string; storage_path: string; mime_type: string }
+
+type ResolvedVisionModel =
+  | { ok: true; model: Awaited<ReturnType<typeof resolveModel>>; modelId: string }
+  | { ok: false; error: ExtractionErrorCode; message: string }
+
+/** The one piece extractDocument/classifyDocument (already-uploaded, by
+ * documentId) and extractBytes/classifyBytes (raw bytes, no document row
+ * yet — roadmap phase 14's onboarding intake) both need and share no
+ * other state for: picking an available provider and resolving its
+ * model. Split out so neither path duplicates provider-resolution logic. */
+function resolveVisionModel(): ResolvedVisionModel {
+  const provider = resolveAvailableProvider()
+  if (!provider) {
+    return {
+      ok: false,
+      error: "provider_not_configured",
+      message: "No AI provider is configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.",
+    }
+  }
+
+  const model = resolveModel(provider)
+  // LanguageModel is `string | LanguageModelV2` (the AI SDK Gateway
+  // allows a bare model-id string) — resolveModel() in this codebase
+  // always returns a provider object, never a bare string, but the
+  // type itself doesn't guarantee that.
+  const modelId = typeof model === "string" ? model : model.modelId
+  return { ok: true, model, modelId }
+}
 
 type PreparedVisionCall =
   | { ok: true; document: DocumentRow; model: Awaited<ReturnType<typeof resolveModel>>; modelId: string; fileBytes: Buffer }
@@ -223,14 +251,8 @@ async function prepareVisionCall(
     }
   }
 
-  const provider = resolveAvailableProvider()
-  if (!provider) {
-    return {
-      ok: false,
-      error: "provider_not_configured",
-      message: "No AI provider is configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.",
-    }
-  }
+  const resolved = resolveVisionModel()
+  if (!resolved.ok) return resolved
 
   const { data: fileBlob, error: downloadError } = await supabase.storage
     .from(STORAGE_BUCKET)
@@ -240,15 +262,9 @@ async function prepareVisionCall(
     return { ok: false, error: "provider_error", message: "Could not read the uploaded file from storage." }
   }
 
-  const model = resolveModel(provider)
-  // LanguageModel is `string | LanguageModelV2` (the AI SDK Gateway
-  // allows a bare model-id string) — resolveModel() in this codebase
-  // always returns a provider object, never a bare string, but the
-  // type itself doesn't guarantee that.
-  const modelId = typeof model === "string" ? model : model.modelId
   const fileBytes = Buffer.from(await fileBlob.arrayBuffer())
 
-  return { ok: true, document, model, modelId, fileBytes }
+  return { ok: true, document, model: resolved.model, modelId: resolved.modelId, fileBytes }
 }
 
 /**
@@ -417,6 +433,143 @@ export async function classifyAndExtractDocument(
 
   const extraction = isSupportedCategory(classification.category)
     ? await extractDocument(supabase, companyId, documentId, { category: classification.category })
+    : null
+
+  return {
+    ok: true,
+    category: classification.category,
+    classificationConfidence: classification.confidence,
+    extraction,
+  }
+}
+
+// ---------------------------------------------------------------------
+// Bytes-based variants (roadmap phase 14 — "Guided Customer Onboarding:
+// Camera-First Document Intake"). A customer doesn't exist yet while an
+// employee is scanning their ID/licence, and documents.createDocumentRecord
+// requires a reservation/customer/vehicle link — so onboarding can't
+// persist a `documents` row (what extractDocument/classifyDocument need)
+// until the customer record itself has been created. These three
+// functions run the exact same vision calls directly against
+// in-memory file bytes instead, with no Supabase dependency and nothing
+// persisted — the caller (an onboarding wizard) holds the result in
+// React state and, once the customer is actually created, uploads the
+// same File to Storage and calls createDocumentRecord itself, exactly
+// like any other document upload elsewhere in the app.
+// ---------------------------------------------------------------------
+
+export type BytesExtractionResult =
+  | { ok: true; category: SupportedDocumentCategory; fields: ExtractedFields }
+  | { ok: false; error: ExtractionErrorCode; message: string }
+
+export type BytesClassifyAndExtractResult =
+  | { ok: true; category: DocumentCategory; classificationConfidence: number; extraction: BytesExtractionResult | null }
+  | { ok: false; error: ExtractionErrorCode; message: string }
+
+/** Same guess-the-category call as classifyDocument, against raw bytes
+ * instead of an already-uploaded document row. */
+export async function classifyBytes(fileBytes: Buffer, mimeType: string): Promise<ClassificationResult> {
+  if (!SUPPORTED_IMAGE_MIME_TYPES.includes(mimeType)) {
+    return {
+      ok: false,
+      error: "unsupported_file_type",
+      message: "Only JPEG, PNG, or WEBP images can be read automatically right now — PDF and HEIC aren't supported yet.",
+    }
+  }
+
+  const resolved = resolveVisionModel()
+  if (!resolved.ok) return resolved
+
+  try {
+    const { object } = await generateObject({
+      model: resolved.model,
+      schema: classificationSchema,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: buildClassificationPrompt() },
+            { type: "file", data: fileBytes, mediaType: mimeType },
+          ],
+        },
+      ],
+    })
+
+    return { ok: true, category: object.category, confidence: object.confidence }
+  } catch {
+    return {
+      ok: false,
+      error: "provider_error",
+      message: "We couldn't classify that document automatically. Try a clearer photo, or choose the category by hand.",
+    }
+  }
+}
+
+/** Same structured-field extraction as extractDocument, against raw
+ * bytes instead of an already-uploaded document row — nothing is
+ * persisted (no document_extractions row, since there is no document_id
+ * yet), the caller keeps the result in memory. */
+export async function extractBytes(
+  fileBytes: Buffer,
+  mimeType: string,
+  category: DocumentCategory
+): Promise<BytesExtractionResult> {
+  const schema = schemaForCategory(category)
+  if (!schema || !isSupportedCategory(category)) {
+    return {
+      ok: false,
+      error: "unsupported_category",
+      message: `Automatic extraction isn't available for "${category}" documents yet.`,
+    }
+  }
+
+  if (!SUPPORTED_IMAGE_MIME_TYPES.includes(mimeType)) {
+    return {
+      ok: false,
+      error: "unsupported_file_type",
+      message: "Only JPEG, PNG, or WEBP images can be read automatically right now — PDF and HEIC aren't supported yet.",
+    }
+  }
+
+  const resolved = resolveVisionModel()
+  if (!resolved.ok) return resolved
+
+  try {
+    const { object } = await generateObject({
+      model: resolved.model,
+      schema,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: buildExtractionPrompt(category) },
+            { type: "file", data: fileBytes, mediaType: mimeType },
+          ],
+        },
+      ],
+    })
+
+    return { ok: true, category, fields: object as ExtractedFields }
+  } catch {
+    return {
+      ok: false,
+      error: "provider_error",
+      message: "We couldn't read that document automatically. Try a clearer photo, or enter the details by hand.",
+    }
+  }
+}
+
+/** The bytes-based end-to-end flow onboarding actually calls: classify
+ * first (the employee doesn't pick a category up front — they just
+ * point the camera at whatever document they're holding), then extract
+ * only when the guessed category has a schema. Mirrors
+ * classifyAndExtractDocument's shape exactly, minus persistence. */
+export async function classifyAndExtractBytes(fileBytes: Buffer, mimeType: string): Promise<BytesClassifyAndExtractResult> {
+  const classification = await classifyBytes(fileBytes, mimeType)
+  if (!classification.ok) return classification
+
+  const extraction = isSupportedCategory(classification.category)
+    ? await extractBytes(fileBytes, mimeType, classification.category)
     : null
 
   return {

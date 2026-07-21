@@ -7,7 +7,10 @@ import { requiredString, optionalString } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
 import { findDuplicateCandidates } from "@/lib/data"
 import { recordEvent } from "@/lib/activity-log"
+import { validateFile, ACCEPTED_SCAN_MIME_TYPES } from "@/lib/storage"
+import { classifyAndExtractBytes, type ExtractedFields } from "@/lib/document-extraction"
 import type { DuplicateMatch } from "@/lib/customer-matching"
+import type { DocumentCategory } from "@/types/rental"
 
 const CUSTOMER_ROLES = ["owner", "manager", "agent"] as const
 const CUSTOMER_STATUS_ROLES = ["owner", "manager"] as const
@@ -95,6 +98,62 @@ export async function createCustomer(
 
     revalidatePath("/customers")
     return { customerId: data.id as string }
+  } catch (err) {
+    if (err instanceof ActionError) return { error: err.message }
+    throw err
+  }
+}
+
+export interface OnboardingExtractionResult {
+  /** Set on a hard failure — bad file, no provider configured. */
+  error?: string
+  category?: DocumentCategory
+  classificationConfidence?: number
+  /** Populated fields for a supported, extractable category. Explicitly
+   * null (not just absent) for a recognized category with no extraction
+   * schema (e.g. a proof-of-address scanned by mistake) — distinct from
+   * `extractionMessage`, which means extraction was attempted and failed
+   * (a blurry photo, a provider error) rather than never attempted. */
+  fields?: ExtractedFields | null
+  extractionMessage?: string
+}
+
+/** Roadmap phase 14 — runs classification+extraction against a freshly
+ * captured photo before any customer record exists yet (see
+ * lib/document-extraction.ts's "Bytes-based variants" section for why).
+ * Auth-gated the same as every other document-intelligence caller, even
+ * though nothing here is company-scoped data — this exists purely to
+ * keep the AI provider call behind a signed-in staff session. */
+export async function extractOnboardingDocument(formData: FormData): Promise<OnboardingExtractionResult> {
+  try {
+    const session = await requireSession()
+    requireRole(session, [...CUSTOMER_ROLES])
+
+    const file = formData.get("file")
+    if (!(file instanceof File)) throw new ActionError("No file provided.")
+
+    const validationError = validateFile(file, ACCEPTED_SCAN_MIME_TYPES)
+    if (validationError) throw new ActionError(validationError)
+
+    const fileBytes = Buffer.from(await file.arrayBuffer())
+    const result = await classifyAndExtractBytes(fileBytes, file.type)
+
+    if (!result.ok) return { error: result.message }
+    if (!result.extraction) {
+      return { category: result.category, classificationConfidence: result.classificationConfidence, fields: null }
+    }
+    if (!result.extraction.ok) {
+      return {
+        category: result.category,
+        classificationConfidence: result.classificationConfidence,
+        extractionMessage: result.extraction.message,
+      }
+    }
+    return {
+      category: result.category,
+      classificationConfidence: result.classificationConfidence,
+      fields: result.extraction.fields,
+    }
   } catch (err) {
     if (err instanceof ActionError) return { error: err.message }
     throw err

@@ -18,6 +18,13 @@ export const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024 // 15MB — generous for a p
 export const ACCEPTED_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/heic", "image/webp"]
 export const ACCEPTED_DOCUMENT_MIME_TYPES = [...ACCEPTED_IMAGE_MIME_TYPES, "application/pdf"]
 
+/** The subset of ACCEPTED_IMAGE_MIME_TYPES a vision model call can
+ * actually read (lib/document-extraction.ts's SUPPORTED_IMAGE_MIME_TYPES,
+ * duplicated here rather than imported so client components can validate
+ * a camera capture without pulling in a server-only module — no HEIC,
+ * since most phone cameras that produce it don't when `capture` is set). */
+export const ACCEPTED_SCAN_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"]
+
 /** Strips anything that isn't a safe filename character and caps length —
  * the original name is kept for display (`original_filename` in the DB),
  * this is only used to build the storage path itself. */

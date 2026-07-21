@@ -19,6 +19,9 @@ import {
   classifyDocument,
   classifyAndExtractDocument,
   fieldsContainText,
+  classifyBytes,
+  extractBytes,
+  classifyAndExtractBytes,
 } from "@/lib/document-extraction"
 
 describe("schemaForCategory", () => {
@@ -269,6 +272,119 @@ describe("classifyAndExtractDocument", () => {
 
     expect(result).toEqual({ ok: false, error: "provider_not_configured", message: expect.any(String) })
     expect(updates).toHaveLength(0)
+  })
+})
+
+const FAKE_BYTES = Buffer.from("fake-image-bytes")
+
+describe("classifyBytes", () => {
+  it("returns the guessed category and confidence, with nothing persisted (no Supabase call at all)", async () => {
+    modelsMock.resolveAvailableProvider.mockReturnValue("anthropic")
+    modelsMock.resolveModel.mockReturnValue({ modelId: "claude-sonnet-5" })
+    aiMock.generateObject.mockResolvedValue({ object: { category: "identity_document", confidence: 93 } })
+
+    const result = await classifyBytes(FAKE_BYTES, "image/jpeg")
+
+    expect(result).toEqual({ ok: true, category: "identity_document", confidence: 93 })
+  })
+
+  it("returns unsupported_file_type for HEIC without ever calling the provider", async () => {
+    const result = await classifyBytes(FAKE_BYTES, "image/heic")
+    expect(result).toEqual({ ok: false, error: "unsupported_file_type", message: expect.any(String) })
+    expect(aiMock.generateObject).not.toHaveBeenCalled()
+  })
+
+  it("returns provider_not_configured when no AI provider is available", async () => {
+    modelsMock.resolveAvailableProvider.mockReturnValue(null)
+    const result = await classifyBytes(FAKE_BYTES, "image/jpeg")
+    expect(result).toEqual({ ok: false, error: "provider_not_configured", message: expect.any(String) })
+    expect(aiMock.generateObject).not.toHaveBeenCalled()
+  })
+
+  it("returns a typed error when the provider throws (e.g. a blurry/unreadable photo)", async () => {
+    modelsMock.resolveAvailableProvider.mockReturnValue("anthropic")
+    modelsMock.resolveModel.mockReturnValue({ modelId: "claude-sonnet-5" })
+    aiMock.generateObject.mockRejectedValue(new Error("model timeout"))
+
+    const result = await classifyBytes(FAKE_BYTES, "image/jpeg")
+    expect(result).toEqual({ ok: false, error: "provider_error", message: expect.any(String) })
+  })
+})
+
+describe("extractBytes", () => {
+  it("extracts fields for a supported category with nothing persisted", async () => {
+    modelsMock.resolveAvailableProvider.mockReturnValue("anthropic")
+    modelsMock.resolveModel.mockReturnValue({ modelId: "claude-sonnet-5" })
+    aiMock.generateObject.mockResolvedValue({
+      object: { fullName: { value: "Youssef El Amrani", confidence: 97 } },
+    })
+
+    const result = await extractBytes(FAKE_BYTES, "image/jpeg", "identity_document")
+
+    expect(result).toEqual({
+      ok: true,
+      category: "identity_document",
+      fields: { fullName: { value: "Youssef El Amrani", confidence: 97 } },
+    })
+  })
+
+  it("returns unsupported_category without ever calling the provider (cost control)", async () => {
+    const result = await extractBytes(FAKE_BYTES, "image/jpeg", "proof_of_address")
+    expect(result).toEqual({ ok: false, error: "unsupported_category", message: expect.any(String) })
+    expect(aiMock.generateObject).not.toHaveBeenCalled()
+  })
+
+  it("returns unsupported_file_type for a PDF without ever calling the provider", async () => {
+    const result = await extractBytes(FAKE_BYTES, "application/pdf", "identity_document")
+    expect(result).toEqual({ ok: false, error: "unsupported_file_type", message: expect.any(String) })
+    expect(aiMock.generateObject).not.toHaveBeenCalled()
+  })
+
+  it("returns a typed error when the provider throws", async () => {
+    modelsMock.resolveAvailableProvider.mockReturnValue("anthropic")
+    modelsMock.resolveModel.mockReturnValue({ modelId: "claude-sonnet-5" })
+    aiMock.generateObject.mockRejectedValue(new Error("model timeout"))
+
+    const result = await extractBytes(FAKE_BYTES, "image/jpeg", "identity_document")
+    expect(result).toEqual({ ok: false, error: "provider_error", message: expect.any(String) })
+  })
+})
+
+describe("classifyAndExtractBytes", () => {
+  it("classifies then extracts when the guessed category has a schema", async () => {
+    modelsMock.resolveAvailableProvider.mockReturnValue("anthropic")
+    modelsMock.resolveModel.mockReturnValue({ modelId: "claude-sonnet-5" })
+    aiMock.generateObject
+      .mockResolvedValueOnce({ object: { category: "driving_licence", confidence: 90 } })
+      .mockResolvedValueOnce({ object: { licenceNumber: { value: "B-99887", confidence: 85 } } })
+
+    const result = await classifyAndExtractBytes(FAKE_BYTES, "image/jpeg")
+
+    expect(result).toEqual({
+      ok: true,
+      category: "driving_licence",
+      classificationConfidence: 90,
+      extraction: { ok: true, category: "driving_licence", fields: { licenceNumber: { value: "B-99887", confidence: 85 } } },
+    })
+    expect(aiMock.generateObject).toHaveBeenCalledTimes(2)
+  })
+
+  it("catches the wrong-document case: scanning a licence during ID intake still classifies correctly, not forced into the caller's expected category", async () => {
+    modelsMock.resolveAvailableProvider.mockReturnValue("anthropic")
+    modelsMock.resolveModel.mockReturnValue({ modelId: "claude-sonnet-5" })
+    aiMock.generateObject.mockResolvedValueOnce({ object: { category: "proof_of_address", confidence: 80 } })
+
+    const result = await classifyAndExtractBytes(FAKE_BYTES, "image/jpeg")
+
+    expect(result).toEqual({ ok: true, category: "proof_of_address", classificationConfidence: 80, extraction: null })
+    expect(aiMock.generateObject).toHaveBeenCalledTimes(1)
+  })
+
+  it("stops at the classification error without attempting extraction", async () => {
+    modelsMock.resolveAvailableProvider.mockReturnValue(null)
+    const result = await classifyAndExtractBytes(FAKE_BYTES, "image/jpeg")
+    expect(result).toEqual({ ok: false, error: "provider_not_configured", message: expect.any(String) })
+    expect(aiMock.generateObject).not.toHaveBeenCalled()
   })
 })
 
