@@ -1,5 +1,12 @@
-import { occupancyRate, downtimeDays as downtimeDaysFn } from "@/lib/reports"
-import type { DamageStatus, DamageSeverity, MaintenanceRecordStatus, OverallCondition, Cleanliness } from "@/types/rental"
+import { occupancyRate, downtimeDays as downtimeDaysFn, rentalDaysFor } from "@/lib/reports"
+import type {
+  DamageStatus,
+  DamageSeverity,
+  MaintenanceRecordStatus,
+  OverallCondition,
+  Cleanliness,
+  ExpenseCategory,
+} from "@/types/rental"
 
 /**
  * Pure vehicle scoring (roadmap phase 06 — the bible's Pillar One,
@@ -337,4 +344,120 @@ export function splitWeekdayWeekend(dateRanges: { startIso: string; endIso: stri
   }
 
   return { weekdayDays, weekendDays }
+}
+
+// ---------------------------------------------------------------------
+// Raw-data assembly — bridges what lib/vehicle-intelligence-store.ts
+// fetches from the database into the three compute functions' inputs.
+// Pure (no Supabase dependency) specifically so this mapping is
+// unit-testable against hand-built fixtures without mocking a database
+// — see lib/__tests__/vehicle-intelligence.test.ts's
+// "buildVehicleIntelligenceInputs" suite, which is what satisfies the
+// phase brief's "given a vehicle with known maintenance/damage/
+// reservation history in test fixtures, the calculations produce
+// correct, testable numbers."
+// ---------------------------------------------------------------------
+
+export interface VehicleRawData {
+  year: number
+  odometerKm: number
+  dailyRateMad: number
+  /** Null when not recorded — falls back to the earliest counted
+   * reservation's pickup date, then to "yesterday" as a last resort
+   * (see buildVehicleIntelligenceInputs) so totalDays is never 0. */
+  acquiredOn: string | null
+  insuranceExpiresOn: string | null
+  registrationExpiresOn: string | null
+  inspectionExpiresOn: string | null
+  maintenanceRecords: { status: MaintenanceRecordStatus; scheduledOn: string | null }[]
+  damages: {
+    status: DamageStatus
+    severity: DamageSeverity
+    preExisting: boolean
+    actualCostMad: number | null
+    estimatedCostMad: number | null
+  }[]
+  /** Most recent first. */
+  inspections: { overallCondition: OverallCondition | null; cleanliness: Cleanliness | null }[]
+  /** Only active/completed reservations belong here — the caller
+   * filters at the query layer (cancelled/no_show/request/pending
+   * reservations never occupied the vehicle). */
+  countedReservations: { pickupAt: string; returnAt: string }[]
+  /** Sum of recorded rental_payment transactions for this vehicle —
+   * same definition as lib/data.ts#getFleetPerformanceReport's
+   * `recordedRevenueMad`, so this and the reports feature never
+   * disagree about what "this vehicle's revenue" means. */
+  rentalIncomeMad: number
+  expensesByCategory: Partial<Record<ExpenseCategory, number>>
+}
+
+export interface VehicleIntelligenceInputs {
+  health: VehicleHealthInput
+  profitability: VehicleProfitabilityInput
+  utilization: VehicleUtilizationInput
+}
+
+const EXPENSE_CATEGORIES_ALREADY_BROKEN_OUT: ExpenseCategory[] = ["maintenance", "insurance", "cleaning"]
+
+/** Assembles the three compute functions' inputs from one bundle of raw
+ * (already-fetched) vehicle data. `now` defaults to the real current
+ * time but is overridable for deterministic tests. */
+export function buildVehicleIntelligenceInputs(raw: VehicleRawData, now: Date = new Date()): VehicleIntelligenceInputs {
+  const ageYears = now.getUTCFullYear() - raw.year
+
+  const rentedDays = raw.countedReservations.reduce((sum, r) => sum + rentalDaysFor(r.pickupAt, r.returnAt), 0)
+
+  const acquiredOn = raw.acquiredOn ? new Date(raw.acquiredOn) : null
+  const earliestPickupMs =
+    raw.countedReservations.length > 0 ? Math.min(...raw.countedReservations.map((r) => new Date(r.pickupAt).getTime())) : null
+  const trackedSince = acquiredOn ?? (earliestPickupMs != null ? new Date(earliestPickupMs) : new Date(now.getTime() - 86_400_000))
+  const totalDaysTracked = Math.max(1, Math.round((now.getTime() - trackedSince.getTime()) / 86_400_000))
+
+  const idleDays = downtimeDaysFn(totalDaysTracked, rentedDays)
+
+  const maintenanceCostMad = raw.expensesByCategory.maintenance ?? 0
+  const insuranceCostMad = raw.expensesByCategory.insurance ?? 0
+  const cleaningCostMad = raw.expensesByCategory.cleaning ?? 0
+  const otherExpensesMad = (Object.entries(raw.expensesByCategory) as [ExpenseCategory, number][])
+    .filter(([category]) => !EXPENSE_CATEGORIES_ALREADY_BROKEN_OUT.includes(category))
+    .reduce((sum, [, amount]) => sum + amount, 0)
+
+  const damageCostMad = raw.damages.reduce((sum, d) => sum + (d.actualCostMad ?? d.estimatedCostMad ?? 0), 0)
+
+  const weekdayVsWeekend =
+    raw.countedReservations.length > 0
+      ? splitWeekdayWeekend(raw.countedReservations.map((r) => ({ startIso: r.pickupAt, endIso: r.returnAt })))
+      : undefined
+
+  return {
+    health: {
+      ageYears,
+      mileageKm: raw.odometerKm,
+      maintenanceRecords: raw.maintenanceRecords,
+      damages: raw.damages.map(({ status, severity, preExisting }) => ({ status, severity, preExisting })),
+      inspections: raw.inspections,
+      insuranceExpiresOn: raw.insuranceExpiresOn,
+      registrationExpiresOn: raw.registrationExpiresOn,
+      inspectionExpiresOn: raw.inspectionExpiresOn,
+      downtimeDays: idleDays,
+      totalDays: totalDaysTracked,
+      now,
+    },
+    profitability: {
+      rentalIncomeMad: raw.rentalIncomeMad,
+      maintenanceCostMad,
+      damageCostMad,
+      insuranceCostMad,
+      cleaningCostMad,
+      otherExpensesMad,
+      downtimeCostMad: Math.round(idleDays * raw.dailyRateMad * 100) / 100,
+    },
+    utilization: {
+      rentedDays,
+      totalDaysTracked,
+      reservationCount: raw.countedReservations.length,
+      revenueMad: raw.rentalIncomeMad,
+      weekdayVsWeekend,
+    },
+  }
 }

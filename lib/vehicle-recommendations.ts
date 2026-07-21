@@ -68,10 +68,15 @@ function buildVehicleRecommendationPrompt(
 }
 
 /** Generates up to 4 grounded recommendations from an already-computed
- * health/profitability/utilization snapshot. Owner/manager only —
- * pricing and retirement decisions are a strategic call, not an
- * operational one an agent role makes day to day (matches this
- * codebase's existing role split, e.g. CUSTOMER_STATUS_ROLES). */
+ * health/profitability/utilization snapshot. Allowed for owner/manager/
+ * agent — the same role set already gated to trigger a recompute in the
+ * first place (completing a rental/maintenance/recording a damage —
+ * see RESERVATION_ROLES/MAINTENANCE_ROLES/DAMAGE_ROLES). Restricting
+ * this further would mean an agent's own action silently fails to
+ * produce recommendations while everything else about it succeeds —
+ * and the underlying health/profitability/utilization data isn't
+ * role-restricted anywhere else in this codebase either, so there's
+ * nothing this gate would actually be protecting. */
 export async function generateVehicleRecommendations(
   supabase: SupabaseServerClient,
   session: SessionContext,
@@ -84,6 +89,6 @@ export async function generateVehicleRecommendations(
     purpose: "vehicle.recommend",
     prompt: buildVehicleRecommendationPrompt(vehicleLabel, health, profitability, utilization),
     schema: vehicleRecommendationSchema,
-    allowedRoles: ["owner", "manager"],
+    allowedRoles: ["owner", "manager", "agent"],
   })
 }

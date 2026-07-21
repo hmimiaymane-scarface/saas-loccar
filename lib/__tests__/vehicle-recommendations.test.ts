@@ -77,7 +77,7 @@ describe("generateVehicleRecommendations", () => {
     expect(askAiMock.askAI).toHaveBeenCalledTimes(1)
     const call = askAiMock.askAI.mock.calls[0][2]
     expect(call.purpose).toBe("vehicle.recommend")
-    expect(call.allowedRoles).toEqual(["owner", "manager"])
+    expect(call.allowedRoles).toEqual(["owner", "manager", "agent"])
     expect(call.prompt).toContain("Dacia Duster (12345-A-6)")
     expect(call.prompt).toContain("42/100 (fair)")
     expect(call.prompt).toContain("Damage history: 70/100 (weight 25)")

@@ -6,8 +6,10 @@ import {
   computeVehicleProfitability,
   computeVehicleUtilization,
   splitWeekdayWeekend,
+  buildVehicleIntelligenceInputs,
   HEALTH_FACTOR_WEIGHTS,
   type VehicleHealthInput,
+  type VehicleRawData,
 } from "@/lib/vehicle-intelligence"
 
 describe("HEALTH_FACTOR_WEIGHTS", () => {
@@ -274,5 +276,83 @@ describe("splitWeekdayWeekend", () => {
 
   it("returns zero counts for an empty input", () => {
     expect(splitWeekdayWeekend([])).toEqual({ weekdayDays: 0, weekendDays: 0 })
+  })
+})
+
+describe("buildVehicleIntelligenceInputs", () => {
+  const now = new Date("2024-01-31T00:00:00.000Z")
+
+  const baseRaw: VehicleRawData = {
+    year: 2020,
+    odometerKm: 50_000,
+    dailyRateMad: 300,
+    acquiredOn: "2024-01-01",
+    insuranceExpiresOn: "2027-01-01",
+    registrationExpiresOn: "2027-01-01",
+    inspectionExpiresOn: "2027-01-01",
+    maintenanceRecords: [],
+    damages: [{ status: "repaired", severity: "minor", preExisting: false, actualCostMad: 200, estimatedCostMad: 150 }],
+    inspections: [{ overallCondition: "good", cleanliness: "clean" }],
+    countedReservations: [{ pickupAt: "2024-01-01T00:00:00.000Z", returnAt: "2024-01-06T00:00:00.000Z" }],
+    rentalIncomeMad: 1_500,
+    expensesByCategory: { maintenance: 500, insurance: 300, cleaning: 100, fuel: 50 },
+  }
+
+  it("assembles all three compute inputs correctly from raw fixture data (hand-computed)", () => {
+    const result = buildVehicleIntelligenceInputs(baseRaw, now)
+
+    // ageYears = 2024 - 2020 = 4; rentedDays = ceil(5 days) = 5;
+    // totalDaysTracked = (Jan 31 - Jan 1) = 30; idleDays = 30 - 5 = 25.
+    expect(result.health).toEqual({
+      ageYears: 4,
+      mileageKm: 50_000,
+      maintenanceRecords: [],
+      damages: [{ status: "repaired", severity: "minor", preExisting: false }],
+      inspections: [{ overallCondition: "good", cleanliness: "clean" }],
+      insuranceExpiresOn: "2027-01-01",
+      registrationExpiresOn: "2027-01-01",
+      inspectionExpiresOn: "2027-01-01",
+      downtimeDays: 25,
+      totalDays: 30,
+      now,
+    })
+
+    // damageCostMad prefers actual (200) over estimated (150);
+    // otherExpensesMad = fuel (50) only, maintenance/insurance/cleaning
+    // are broken out separately; downtimeCostMad = 25 idle days * 300.
+    expect(result.profitability).toEqual({
+      rentalIncomeMad: 1_500,
+      maintenanceCostMad: 500,
+      damageCostMad: 200,
+      insuranceCostMad: 300,
+      cleaningCostMad: 100,
+      otherExpensesMad: 50,
+      downtimeCostMad: 7_500,
+    })
+
+    // 2024-01-01 is a Monday: Jan 1-5 (the reservation's 5 rented days)
+    // are all weekdays.
+    expect(result.utilization).toEqual({
+      rentedDays: 5,
+      totalDaysTracked: 30,
+      reservationCount: 1,
+      revenueMad: 1_500,
+      weekdayVsWeekend: { weekdayDays: 5, weekendDays: 0 },
+    })
+  })
+
+  it("falls back to the earliest reservation's pickup date when acquiredOn is unknown", () => {
+    const result = buildVehicleIntelligenceInputs({ ...baseRaw, acquiredOn: null }, now)
+    // Earliest (only) reservation pickup is 2024-01-01 -> same 30 days.
+    expect(result.health.totalDays).toBe(30)
+  })
+
+  it("falls back to a 1-day window when there's no acquiredOn and no reservation history", () => {
+    const result = buildVehicleIntelligenceInputs(
+      { ...baseRaw, acquiredOn: null, countedReservations: [], rentalIncomeMad: 0 },
+      now
+    )
+    expect(result.health.totalDays).toBe(1)
+    expect(result.utilization.weekdayVsWeekend).toBeUndefined()
   })
 })
