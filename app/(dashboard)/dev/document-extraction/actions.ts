@@ -38,6 +38,9 @@ export async function checkDuplicateCandidatesAction(input: {
   fullName: string
   idDocumentNumber?: string
   licenseNumber?: string
+  phone?: string
+  email?: string
+  dateOfBirth?: string
 }): Promise<DuplicateMatch[]> {
   const session = await requireSession()
   requireRole(session, [...EXTRACT_ROLES])

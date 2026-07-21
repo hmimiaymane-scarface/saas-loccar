@@ -8,15 +8,21 @@ import { Label } from "@/components/ui/label"
 import { checkDuplicateCandidatesAction } from "./actions"
 import type { DuplicateMatch } from "@/lib/customer-matching"
 
-/** Roadmap phase 04 requirement 5 demo. The one panel on this page that
- * actually produces a result without a live Supabase project —
- * findDuplicateCandidates is mock-mode-aware, so this scores against the
- * fixture customers in lib/mock/customers.ts. Try "Ahmed Tazi" +
- * licence "MA-204471" for an obvious hit. */
+/** Roadmap phase 04 requirement 5 demo, extended by phase 08
+ * requirement 3's phone/email/birth-date factors. The one panel on
+ * this page that actually produces a result without a live Supabase
+ * project — findDuplicateCandidates is mock-mode-aware, so this scores
+ * against the fixture customers in lib/mock/customers.ts. Try "Ahmed
+ * Tazi" + licence "MA-204471" for a likely-duplicate hit, or just a
+ * phone/email matching a fixture customer's with a different name for
+ * a lower-confidence "review" hit that never crosses "likely." */
 function DuplicateCheckPanel() {
   const [fullName, setFullName] = useState("")
   const [licenseNumber, setLicenseNumber] = useState("")
   const [idDocumentNumber, setIdDocumentNumber] = useState("")
+  const [phone, setPhone] = useState("")
+  const [email, setEmail] = useState("")
+  const [dateOfBirth, setDateOfBirth] = useState("")
   const [results, setResults] = useState<DuplicateMatch[] | null>(null)
   const [pending, startTransition] = useTransition()
 
@@ -40,6 +46,23 @@ function DuplicateCheckPanel() {
           <Label htmlFor="dup-id">ID document number</Label>
           <Input id="dup-id" value={idDocumentNumber} onChange={(e) => setIdDocumentNumber(e.target.value)} placeholder="Optional" />
         </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="dup-phone">Phone</Label>
+          <Input
+            id="dup-phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Optional, e.g. +212 661-234567"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="dup-email">Email</Label>
+          <Input id="dup-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Optional" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="dup-dob">Date of birth</Label>
+          <Input id="dup-dob" type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
+        </div>
       </div>
       <div>
         <Button
@@ -53,6 +76,9 @@ function DuplicateCheckPanel() {
                   fullName,
                   licenseNumber: licenseNumber || undefined,
                   idDocumentNumber: idDocumentNumber || undefined,
+                  phone: phone || undefined,
+                  email: email || undefined,
+                  dateOfBirth: dateOfBirth || undefined,
                 })
               )
             )
