@@ -59,25 +59,35 @@ function makeFakeSupabase() {
     contract_templates: [],
     contract_template_versions: [],
     contracts: [],
+    contract_signatures: [],
+    contract_amendments: [],
     reservations: [],
     deposits: [],
+    documents: [],
     companies: [],
   }
   let nextId = 1
+  let nextContractNumber = 1000
   const storageUploads: { path: string; bytes: unknown }[] = []
 
   function matchesFilters(row: Record<string, unknown>, filters: [string, unknown][]) {
-    return filters.every(([key, value]) => row[key] === value)
+    return filters.every(([key, value]) => (Array.isArray(value) ? value.includes(row[key]) : row[key] === value))
   }
 
   function queryBuilder(table: string) {
+    if (!tables[table]) tables[table] = []
     const filters: [string, unknown][] = []
     let orderKey: string | null = null
     let orderAsc = true
     let limitCount: number | null = null
+    let ilikeFilter: [string, string] | null = null
 
     function rows() {
       let result = tables[table].filter((r) => matchesFilters(r, filters))
+      if (ilikeFilter) {
+        const [key, needle] = ilikeFilter
+        result = result.filter((r) => String(r[key] ?? "").toLowerCase().includes(needle.toLowerCase()))
+      }
       if (orderKey) {
         const key = orderKey
         result = [...result].sort((a, b) => (a[key] as number | string) < (b[key] as number | string) ? (orderAsc ? -1 : 1) : orderAsc ? 1 : -1)
@@ -92,6 +102,14 @@ function makeFakeSupabase() {
         return builder
       },
       not() {
+        return builder
+      },
+      ilike(key: string, pattern: string) {
+        ilikeFilter = [key, pattern.replace(/%/g, "")]
+        return builder
+      },
+      in(key: string, values: unknown[]) {
+        filters.push([key, values])
         return builder
       },
       order(key: string, opts?: { ascending?: boolean }) {
@@ -139,8 +157,9 @@ function makeFakeSupabase() {
         }
         return updateBuilder
       },
-      then(resolve: (v: { data: unknown[]; error: null }) => void) {
-        resolve({ data: rows(), error: null })
+      then(resolve: (v: { data: unknown[]; error: null; count: number }) => void) {
+        const result = rows()
+        resolve({ data: result, error: null, count: result.length })
       },
     }
     return builder
@@ -148,6 +167,12 @@ function makeFakeSupabase() {
 
   const client = {
     from: (table: string) => queryBuilder(table),
+    rpc: (fn: string) => {
+      if (fn === "next_contract_reference") {
+        return Promise.resolve({ data: `CT-${nextContractNumber++}`, error: null })
+      }
+      return Promise.resolve({ data: null, error: { message: `Unmocked rpc: ${fn}` } })
+    },
     storage: {
       from: () => ({
         download: () => Promise.resolve({ data: new Blob(["fake pdf bytes"]), error: null }),
@@ -155,6 +180,7 @@ function makeFakeSupabase() {
           storageUploads.push({ path, bytes })
           return Promise.resolve({ error: null })
         },
+        createSignedUrl: () => Promise.resolve({ data: { signedUrl: "https://example.test/signed" }, error: null }),
       }),
     },
   }
@@ -340,12 +366,15 @@ describe("generateContract", () => {
     })
     tables.deposits.push({ company_id: "co_1", reservation_id: "res_1", expected_amount: 3000, collected_amount: 3000 })
     tables.companies.push({ id: "co_1", name: "Atlas Rent Car", address: "45 Av. Mohammed V", city: "Marrakech", country: "Morocco", tax_id: "123", business_register: "RC-1" })
+    tables.documents.push({ company_id: "co_1", customer_id: "cus_1", status: "active", category: "identity_document", expires_on: "2029-01-01" })
 
     const result = await generateContract(client, session, { reservationId: "res_1" })
     expect(result.ok).toBe(true)
     if (!result.ok) return
 
     const contract = tables.contracts.find((c) => c.id === result.contractId)!
+    expect(contract.status).toBe("draft")
+    expect(contract.contract_number).toMatch(/^CT-\d+$/)
     const context = contract.resolved_context as Record<string, string>
     expect(context["customer.fullName"]).toBe("Ahmed Tazi")
     expect(context["vehicle.plate"]).toBe("12345-A-6")
@@ -362,5 +391,55 @@ describe("generateContract", () => {
       client,
       expect.objectContaining({ type: "contract_generated", entityType: "contract" })
     )
+  })
+
+  it("blocks generation with a specific error when the customer has no identity document on file", async () => {
+    const { client, tables } = makeFakeSupabase()
+    tables.contract_templates.push({ id: "tpl_1", company_id: "co_1", name: "Standard", language: "fr", active_version_id: "v1" })
+    tables.contract_template_versions.push({
+      id: "v1",
+      template_id: "tpl_1",
+      company_id: "co_1",
+      version_number: 1,
+      status: "active",
+      sections: [{ id: "s1", title: "Renter", bodyText: "{{customer.fullName}}", condition: null }],
+      variable_mappings: [],
+      legal_footer_text: null,
+      created_at: "2026-01-01T00:00:00Z",
+    })
+    tables.reservations.push({
+      id: "res_1",
+      company_id: "co_1",
+      reference: "RB-3391",
+      pickup_at: "2026-07-15T10:00:00Z",
+      return_at: "2026-07-19T10:00:00Z",
+      pickup_location: "Airport",
+      return_location: "Airport",
+      daily_rate: 380,
+      discount_amount: 0,
+      total_amount: 1520,
+      customer: {
+        id: "cus_1",
+        full_name: "Ahmed Tazi",
+        phone: "+212 662-897431",
+        email: null,
+        address: null,
+        nationality: null,
+        license_number: "MA-1",
+        license_expires_on: "2028-01-01",
+        id_document_number: null,
+        date_of_birth: "1990-01-01",
+      },
+      vehicle: null,
+    })
+    tables.companies.push({ id: "co_1", name: "Atlas Rent Car", address: null, city: null, country: "Morocco", tax_id: null, business_register: null })
+    // No identity document, and no vehicle assigned — both should surface.
+
+    const result = await generateContract(client, makeSession(), { reservationId: "res_1" })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toContain("no identity document on file")
+    expect(result.error).toContain("no vehicle assigned")
+    expect(tables.contracts).toHaveLength(0) // nothing was persisted, not even a draft
   })
 })

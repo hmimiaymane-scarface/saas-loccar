@@ -19,6 +19,12 @@ import type { RenderedSection } from "@/lib/contracts/template-engine"
  * `lib/contracts/template-store.ts` calls this again from the
  * contract's already-stored `resolved_context`/`rendered_sections`
  * rather than ever needing the original upload again.
+ *
+ * Roadmap phase 11 requirement 6 extends this with a contract number
+ * and embedded PDF metadata linking back to the contract's own id —
+ * "fast, consistent, versioned, immutable" was already true from
+ * phase 10; this phase adds the "metadata linking back to the
+ * structured contract record" half.
  */
 
 export interface ContractPdfBranding {
@@ -35,6 +41,13 @@ export interface ContractPdfInput {
   sections: RenderedSection[]
   legalFooterText: string | null
   generatedAtLabel: string
+  /** Roadmap phase 11 requirement 6 — "metadata linking back to the
+   * structured contract record": embedded into the PDF's own document
+   * metadata (Title/Subject/Keywords), not just printed as visible
+   * text, so the file itself carries a durable link back to its
+   * database row even outside this app. */
+  contractId: string
+  contractNumber: string
 }
 
 const PAGE_WIDTH = 595.28 // A4 at 72dpi
@@ -64,6 +77,10 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
 
 export async function renderContractPdf(input: ContractPdfInput): Promise<Uint8Array> {
   const doc = await PDFDocument.create()
+  doc.setTitle(`Rental Agreement ${input.contractNumber}`)
+  doc.setSubject(`contract:${input.contractId}`)
+  doc.setKeywords([input.contractNumber, input.contractId])
+  doc.setProducer("RentalOS")
   const regular = await doc.embedFont(StandardFonts.Helvetica)
   const bold = await doc.embedFont(StandardFonts.HelveticaBold)
 
@@ -96,7 +113,7 @@ export async function renderContractPdf(input: ContractPdfInput): Promise<Uint8A
   if (input.branding.companyTaxId) drawLine(`Tax ID: ${input.branding.companyTaxId}`, regular, BODY_SIZE)
   cursorY -= 10
 
-  drawLine(`Rental Agreement — ${input.reservationReference}`, bold, 13, 2)
+  drawLine(`Rental Agreement ${input.contractNumber} — ${input.reservationReference}`, bold, 13, 2)
   drawLine(`Generated ${input.generatedAtLabel}`, regular, 9, 14)
 
   for (const section of input.sections) {
