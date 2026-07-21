@@ -2,10 +2,11 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { Loader2, Search, UserRound, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { Loader2, Search, UserRound, AlertTriangle, CheckCircle2, Sparkles } from "lucide-react"
 
 import type { Branch, Customer, ReservationSource, Vehicle, VehicleCategory, BookingStatus } from "@/types/rental"
 import type { ReservationActionState } from "@/app/(dashboard)/reservations/actions"
+import type { ReturningCustomerReadiness } from "@/lib/customer-readiness"
 import { fetchCustomers, fetchAvailableVehicles, checkCustomerByPhone } from "@/app/(dashboard)/reservations/actions"
 import { calculatePricing } from "@/lib/pricing"
 import { zonedTimeToUtcIso, utcIsoToZonedLocal } from "@/lib/timezone"
@@ -66,11 +67,24 @@ interface ReservationFormProps {
   defaultVehicleId?: string
   defaultDailyRate?: number
   defaultPickupDate?: string
+  /** Roadmap phase 09's Returning-Customer Fast Path — this customer's
+   * most-rented category (phase 08's CLV `preferredCategory`), applied
+   * as the initial category filter only when there's a preselected
+   * customer and no explicit vehicle already chosen. */
+  defaultCategory?: VehicleCategory
   initial?: ReservationFormInitial
   /** A customer who was just created through the standalone "Add
-   * customer" flow (reached via a returnTo link from here) and should
-   * come back pre-selected instead of making the user search again. */
+   * customer" flow (reached via a returnTo link from here), or who was
+   * reached via the Customer Command Center's "Start rental" button,
+   * and should come back pre-selected instead of making the user
+   * search again. */
   preselectedCustomer?: Customer
+  /** Set only alongside preselectedCustomer — the same fast-path
+   * readiness check shown on the Customer Command Center, repeated
+   * here so an interrupted case (expired/missing document) is visible
+   * at the moment it actually matters, without blocking the form:
+   * advisory only, same as every other AI/derived signal in this app. */
+  returningCustomerReadiness?: ReturningCustomerReadiness
 }
 
 const initialState: ReservationActionState = {}
@@ -95,8 +109,10 @@ function ReservationForm({
   defaultVehicleId,
   defaultDailyRate,
   defaultPickupDate,
+  defaultCategory,
   initial,
   preselectedCustomer,
+  returningCustomerReadiness,
 }: ReservationFormProps) {
   const [state, formAction, isPending] = useActionState(action, initialState)
   const isEdit = Boolean(initial)
@@ -165,7 +181,7 @@ function ReservationForm({
   const periodValid = Boolean(pickupIso && returnIso && new Date(returnIso) > new Date(pickupIso))
 
   // Vehicle --------------------------------------------------------------
-  const [category, setCategory] = useState<string>(initial?.requestedCategory ?? "")
+  const [category, setCategory] = useState<string>(initial?.requestedCategory ?? defaultCategory ?? "")
   const [vehicleId, setVehicleId] = useState<string | null>(
     initial?.vehicleId ?? defaultVehicleId ?? null
   )
@@ -374,6 +390,53 @@ function ReservationForm({
             )}
           </CardContent>
         </Card>
+      )}
+
+      {!isEdit && preselectedCustomer && returningCustomerReadiness && selectedCustomer?.id === preselectedCustomer.id && (
+        <div
+          className={cn(
+            "flex items-start gap-2.5 rounded-2xl px-4 py-3 text-sm",
+            returningCustomerReadiness.ready
+              ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
+              : "bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"
+          )}
+        >
+          {returningCustomerReadiness.ready ? (
+            <Sparkles className="mt-0.5 size-4 shrink-0" />
+          ) : (
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          )}
+          <div className="flex flex-col gap-0.5">
+            {returningCustomerReadiness.ready ? (
+              <span>Returning customer, fast path — licence and ID are on file and valid.</span>
+            ) : (
+              <>
+                <span>Returning customer — one thing needs attention before pickup:</span>
+                <span>
+                  {returningCustomerReadiness.issues
+                    .map((issue) => {
+                      switch (issue.type) {
+                        case "licence_missing":
+                          return "no driving licence expiry on file"
+                        case "licence_expired":
+                          return "driving licence has expired"
+                        case "identity_missing":
+                          return "no identity document on file"
+                        case "identity_expired":
+                          return "identity document has expired"
+                      }
+                    })
+                    .join(" · ")}
+                  {" — see "}
+                  <Link href={`/customers/${preselectedCustomer.id}`} className="underline underline-offset-2">
+                    the customer&apos;s profile
+                  </Link>
+                  {" to fix it. This doesn't block creating the reservation."}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {isEdit && initial && (
