@@ -1,4 +1,5 @@
 import type { FuelLevel } from "@/types/rental"
+import { REQUIRED_PHOTO_SLOT_KEYS } from "@/lib/inspections/photo-slots"
 
 /**
  * Pure mirrors of the cross-field checks enforced by complete_inspection()
@@ -23,4 +24,14 @@ export function hasRequiredFieldsToComplete(fields: {
 export function isValidReturnOdometer(returnOdometerKm: number, pickupOdometerKm: number | null): boolean {
   if (pickupOdometerKm == null) return true
   return returnOdometerKm >= pickupOdometerKm
+}
+
+/** Mirrors the required-photo check added to complete_inspection() in
+ * 20260802090000_inspection_photo_completeness.sql (roadmap phase 15,
+ * requirement 1/5) — lets the wizard show a specific "you're missing
+ * the rear and odometer photos" message before ever calling the RPC,
+ * rather than only finding out from a raised exception after the fact. */
+export function missingRequiredPhotoSlots(capturedSlotKeys: string[]): string[] {
+  const captured = new Set(capturedSlotKeys)
+  return REQUIRED_PHOTO_SLOT_KEYS.filter((key) => !captured.has(key))
 }

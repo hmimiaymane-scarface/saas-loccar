@@ -27,7 +27,8 @@ import {
 import { completeRentalAction } from "@/app/(dashboard)/reservations/actions"
 import { recordPayment, returnDeposit, retainDeposit } from "@/app/(dashboard)/payments/actions"
 import { createDamage } from "@/app/(dashboard)/damages/actions"
-import { isValidReturnOdometer } from "@/lib/inspections/rules"
+import { isValidReturnOdometer, missingRequiredPhotoSlots } from "@/lib/inspections/rules"
+import { PHOTO_SLOTS } from "@/lib/inspections/photo-slots"
 import { resolveInitialStep, type RequirementItem } from "@/lib/workflow/steps"
 import { useStepFocus } from "@/hooks/use-step-focus"
 import { Button } from "@/components/ui/button"
@@ -71,16 +72,6 @@ const CONDITION_OPTIONS: { value: OverallCondition; label: string }[] = [
   { value: "good", label: "Good" },
   { value: "fair", label: "Fair" },
   { value: "poor", label: "Poor" },
-]
-
-const PHOTO_SLOTS = [
-  { key: "front", label: "Front" },
-  { key: "rear", label: "Rear" },
-  { key: "driver_side", label: "Driver side" },
-  { key: "passenger_side", label: "Passenger side" },
-  { key: "interior", label: "Interior" },
-  { key: "dashboard_odometer", label: "Odometer" },
-  { key: "fuel_gauge", label: "Fuel gauge" },
 ]
 
 const OUTCOME_OPTIONS: { value: VehicleOutcome; label: string }[] = [
@@ -209,6 +200,8 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
         createdByName: null,
         createdAt: new Date().toISOString(),
         media: [],
+        source: "manual",
+        aiConfidence: null,
       },
       ...prev,
     ])
@@ -320,6 +313,13 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
   async function complete(reason?: string) {
     if (!inspectionId) return
     setStepError(null)
+
+    const missingSlots = missingRequiredPhotoSlots(photos.map((p) => p.key))
+    if (missingSlots.length > 0 && !reason) {
+      const labels = missingSlots.map((key) => PHOTO_SLOTS.find((s) => s.key === key)?.label ?? key)
+      setStepError(`Missing required photos: ${labels.join(", ")}.`)
+      return
+    }
 
     const completeResult = await completeInspectionAction(inspectionId, reservation.id)
     if (completeResult.error && !reason) {

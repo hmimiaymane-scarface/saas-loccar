@@ -15,6 +15,7 @@ const DAMAGE_RESOLVE_ROLES = ["owner", "manager"] as const
 
 const CATEGORIES: DamageCategory[] = ["bodywork", "glass", "interior", "mechanical", "tyre", "electrical", "other"]
 const SEVERITIES: DamageSeverity[] = ["minor", "moderate", "severe"]
+const SOURCES = ["manual", "ai_detected"] as const
 
 export interface DamageActionState {
   error?: string
@@ -42,6 +43,15 @@ export async function createDamage(
     const estimatedCost = optionalNumber(formData, "estimatedCost")
     if (estimatedCost != null && estimatedCost < 0) throw new ActionError("Estimated cost can't be negative.")
 
+    // Roadmap phase 15 — set only when this damage started life as an
+    // AI pickup/return photo comparison suggestion the employee
+    // confirmed (see detectReturnDamage in inspections/actions.ts and
+    // return-wizard.tsx's Damage step). Every other caller omits both,
+    // which defaults to a plain 'manual' record exactly as before.
+    const sourceRaw = formData.get("source")
+    const source = sourceRaw && (SOURCES as readonly string[]).includes(String(sourceRaw)) ? (sourceRaw as (typeof SOURCES)[number]) : "manual"
+    const aiConfidence = optionalNumber(formData, "aiConfidence")
+
     const { data, error } = await supabase
       .from("damages")
       .insert({
@@ -57,6 +67,8 @@ export async function createDamage(
         pre_existing: preExisting,
         estimated_cost: estimatedCost,
         created_by: session.userId,
+        source,
+        ai_confidence: source === "ai_detected" ? aiConfidence : null,
       })
       .select("id")
       .single()

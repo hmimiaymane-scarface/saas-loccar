@@ -19,6 +19,8 @@ export const damages: Damage[] = [
     createdByName: "Hamza Berrada",
     createdAt: "2026-07-18T09:05:00+01:00",
     media: [],
+    source: "manual",
+    aiConfidence: null,
   },
   {
     id: "dam_2",
@@ -38,5 +40,7 @@ export const damages: Damage[] = [
     createdByName: "Youssef El Amrani",
     createdAt: "2026-06-20T11:00:00+01:00",
     media: [],
+    source: "manual",
+    aiConfidence: null,
   },
 ]

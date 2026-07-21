@@ -343,6 +343,8 @@ function mapDamageRow(row: {
   actual_cost: string | null
   created_by: string | null
   created_at: string
+  source?: string | null
+  ai_confidence?: string | null
   vehicle: { make: string; model: string } | null
   reservation: { reference: string } | null
 }): Omit<Damage, "createdByName"> & { createdBy: string | null } {
@@ -364,6 +366,8 @@ function mapDamageRow(row: {
     createdBy: row.created_by,
     createdAt: row.created_at,
     media: [],
+    source: (row.source as "manual" | "ai_detected" | undefined) ?? "manual",
+    aiConfidence: row.ai_confidence != null ? Number(row.ai_confidence) : null,
   }
 }
 
@@ -678,7 +682,7 @@ export async function getVehicleDetail(
   const [damageRows, inspectionRows, documentRows] = await Promise.all([
     supabase
       .from("damages")
-      .select("id, vehicle_id, reservation_id, discovered_in_inspection_id, status, category, vehicle_area, severity, description, pre_existing, estimated_cost, actual_cost, created_by, created_at, vehicle:vehicles(make, model), reservation:reservations(reference)")
+      .select("id, vehicle_id, reservation_id, discovered_in_inspection_id, status, category, vehicle_area, severity, description, pre_existing, estimated_cost, actual_cost, created_by, created_at, source, ai_confidence, vehicle:vehicles(make, model), reservation:reservations(reference)")
       .eq("company_id", companyId)
       .eq("vehicle_id", vehicleId)
       .order("created_at", { ascending: false }),
@@ -1120,7 +1124,7 @@ export async function getReservationDetail(
         .order("created_at", { ascending: false }),
       supabase
         .from("damages")
-        .select("id, vehicle_id, reservation_id, discovered_in_inspection_id, status, category, vehicle_area, severity, description, pre_existing, estimated_cost, actual_cost, created_by, created_at, vehicle:vehicles(make, model), reservation:reservations(reference)")
+        .select("id, vehicle_id, reservation_id, discovered_in_inspection_id, status, category, vehicle_area, severity, description, pre_existing, estimated_cost, actual_cost, created_by, created_at, source, ai_confidence, vehicle:vehicles(make, model), reservation:reservations(reference)")
         .eq("company_id", companyId)
         .eq("reservation_id", reservationId)
         .order("created_at", { ascending: false }),
@@ -2054,7 +2058,7 @@ export async function getInspectionsForReservation(
 // ---------------------------------------------------------------------
 
 const DAMAGE_SELECT =
-  "id, vehicle_id, reservation_id, discovered_in_inspection_id, status, category, vehicle_area, severity, description, pre_existing, estimated_cost, actual_cost, created_by, created_at, vehicle:vehicles(make, model), reservation:reservations(reference)"
+  "id, vehicle_id, reservation_id, discovered_in_inspection_id, status, category, vehicle_area, severity, description, pre_existing, estimated_cost, actual_cost, created_by, created_at, source, ai_confidence, vehicle:vehicles(make, model), reservation:reservations(reference)"
 
 export interface DamageListFilters {
   vehicleId?: string

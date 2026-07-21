@@ -1052,6 +1052,8 @@ export type Database = {
           estimated_cost: string | null
           actual_cost: string | null
           created_by: string | null
+          source: string
+          ai_confidence: string | null
 
           created_at: Timestamp
           updated_at: Timestamp
@@ -1071,6 +1073,8 @@ export type Database = {
           estimated_cost?: number | string | null
           actual_cost?: number | string | null
           created_by?: string | null
+          source?: string
+          ai_confidence?: number | string | null
         }
         Update: Partial<Database["public"]["Tables"]["damages"]["Insert"]>
         Relationships: []

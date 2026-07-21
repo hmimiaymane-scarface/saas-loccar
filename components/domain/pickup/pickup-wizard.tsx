@@ -32,6 +32,8 @@ import { activateRentalAction } from "@/app/(dashboard)/reservations/actions"
 import { collectDeposit, recordPayment } from "@/app/(dashboard)/payments/actions"
 import { createDamage } from "@/app/(dashboard)/damages/actions"
 import { resolveInitialStep, type RequirementItem } from "@/lib/workflow/steps"
+import { missingRequiredPhotoSlots } from "@/lib/inspections/rules"
+import { PHOTO_SLOTS } from "@/lib/inspections/photo-slots"
 import { useStepFocus } from "@/hooks/use-step-focus"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -81,16 +83,6 @@ const DOCUMENT_SLOTS: DocumentSlotDef[] = [
   { category: "rental_contract", label: "Rental contract" },
   { category: "identity_document", label: "Identity document" },
   { category: "driving_licence", label: "Driving licence" },
-]
-
-const PHOTO_SLOTS = [
-  { key: "front", label: "Front" },
-  { key: "rear", label: "Rear" },
-  { key: "driver_side", label: "Driver side" },
-  { key: "passenger_side", label: "Passenger side" },
-  { key: "interior", label: "Interior" },
-  { key: "dashboard_odometer", label: "Odometer" },
-  { key: "fuel_gauge", label: "Fuel gauge" },
 ]
 
 interface PickupWizardProps {
@@ -265,6 +257,8 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
         createdByName: null,
         createdAt: new Date().toISOString(),
         media: [],
+        source: "manual",
+        aiConfidence: null,
       },
       ...prev,
     ])
@@ -302,6 +296,18 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
   async function activate(reason?: string) {
     if (!inspectionId) return
     setStepError(null)
+
+    // Bible Chapter 4 §16 — a specific "you forgot the rear photo"
+    // message, not a generic failure, and checked before the RPC call
+    // (which enforces the same rule server-side, see
+    // 20260802090000_inspection_photo_completeness.sql) so this doesn't
+    // cost a round trip for the common case of a genuinely missing photo.
+    const missingSlots = missingRequiredPhotoSlots(photos.map((p) => p.key))
+    if (missingSlots.length > 0 && !reason) {
+      const labels = missingSlots.map((key) => PHOTO_SLOTS.find((s) => s.key === key)?.label ?? key)
+      setStepError(`Missing required photos: ${labels.join(", ")}.`)
+      return
+    }
 
     const completeResult = await completeInspectionAction(inspectionId, reservation.id)
     if (completeResult.error && !reason) {

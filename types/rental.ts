@@ -499,6 +499,12 @@ export interface Damage {
   createdByName: string | null
   createdAt: string
   media: MediaFile[]
+  /** Roadmap phase 15 — 'ai_detected' when an employee confirmed an AI
+   * pickup/return photo comparison suggestion rather than typing the
+   * damage in from scratch. Defaults to 'manual' for every damage ever
+   * recorded before this phase. */
+  source: "manual" | "ai_detected"
+  aiConfidence: number | null
 }
 
 export interface MediaFile {
