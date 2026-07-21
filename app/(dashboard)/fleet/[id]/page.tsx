@@ -2,11 +2,14 @@ import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { Pencil, Plus, Gauge, MapPin, AlertTriangle, Wrench } from "lucide-react"
 
-import { getSessionContext } from "@/lib/auth/session"
+import { getSessionContext, type SessionContext } from "@/lib/auth/session"
 import { getVehicleDetail, getVehicleMaintenanceHistory, getVehicleEconomics } from "@/lib/data"
 import { formatMad, formatDate, formatDateTime } from "@/lib/format"
 import { vehicleStatusConfig, damageStatusConfig, maintenanceRecordStatusConfig, MAINTENANCE_TYPE_LABELS } from "@/lib/status"
 import { resolveReportPeriod, type ReportPeriod } from "@/lib/reports"
+import { isSupabaseConfigured } from "@/lib/env"
+import { createClient } from "@/lib/supabase/server"
+import { getVehicleIntelligence } from "@/lib/vehicle-intelligence-store"
 import { StatusBadge } from "@/components/domain/status-badge"
 import { SectionHeader } from "@/components/domain/section-header"
 import { Button } from "@/components/ui/button"
@@ -16,6 +19,23 @@ import { ReservationRow } from "@/components/domain/reservations/reservation-row
 import { VehicleStatusActions } from "@/components/domain/fleet/vehicle-status-actions"
 import { DocumentListItem } from "@/components/domain/documents/document-list-item"
 import { VehicleEconomicsCard } from "@/components/domain/fleet/vehicle-economics-card"
+import { VehicleIntelligenceCard } from "@/components/domain/fleet/vehicle-intelligence-card"
+
+/** Skipped entirely in mock mode (no createClient() to make) — matches
+ * how the rest of this page already behaves via lib/data.ts's
+ * isMockMode(). Any other failure (e.g. the vehicle_intelligence
+ * migration not yet applied) degrades to "no card" rather than
+ * crashing an otherwise-working page — this is presentation of an
+ * advisory feature, not core vehicle data. */
+async function loadVehicleIntelligence(session: SessionContext, vehicleId: string) {
+  if (!isSupabaseConfigured) return null
+  try {
+    const supabase = await createClient()
+    return await getVehicleIntelligence(supabase, session, vehicleId)
+  } catch {
+    return null
+  }
+}
 
 function daysUntil(date: string, nowMs: number): number {
   return Math.floor((new Date(date).getTime() - nowMs) / 86400000)
@@ -66,10 +86,11 @@ export default async function VehicleDetailPage({
   const today = new Date().toISOString().slice(0, 10)
   const range = resolveReportPeriod(period, session.company.timezone, { from: query.from ?? today, to: query.to ?? today })
 
-  const [vehicle, maintenanceHistory, economics] = await Promise.all([
+  const [vehicle, maintenanceHistory, economics, intelligence] = await Promise.all([
     getVehicleDetail(session.company.id, id),
     getVehicleMaintenanceHistory(session.company.id, id),
     getVehicleEconomics(session.company.id, id, range),
+    loadVehicleIntelligence(session, id),
   ])
   if (!vehicle) notFound()
 
@@ -148,6 +169,8 @@ export default async function VehicleDetailPage({
               </div>
             </CardContent>
           </Card>
+
+          {intelligence && <VehicleIntelligenceCard intelligence={intelligence} />}
 
           <VehicleEconomicsCard economics={economics} period={period} />
 
