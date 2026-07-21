@@ -1338,6 +1338,9 @@ export async function getActivityLogList(
     if (filters.type) items = items.filter((a) => a.type === filters.type)
     if (filters.dateFrom) items = items.filter((a) => a.timestamp >= filters.dateFrom!)
     if (filters.dateTo) items = items.filter((a) => a.timestamp <= filters.dateTo!)
+    if (filters.reservationId) items = items.filter((a) => a.reservationId === filters.reservationId)
+    if (filters.vehicleId) items = items.filter((a) => a.vehicleId === filters.vehicleId)
+    if (filters.actorId) items = items.filter((a) => a.actorId === filters.actorId)
     items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     const total = items.length
     const start = (page - 1) * pageSize
