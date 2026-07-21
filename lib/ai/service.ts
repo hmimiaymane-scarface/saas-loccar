@@ -42,6 +42,28 @@ export type AskAiResult<T> =
   | { ok: true; data: T; confidence: AskAiConfidence; modelId: string }
   | { ok: false; error: AskAiErrorCode; message: string }
 
+/**
+ * A background job (roadmap phase 12's operations-feed observers) has
+ * no signed-in user to build a real `SessionContext` from at all —
+ * `ai_usage_log.actor_id`/`.role` were deliberately designed for this
+ * from the start (see that table's own migration comment: "no human
+ * actor at all (role: 'system'/'ai')," and `askAI`'s own doc comment:
+ * "this runs from background jobs too"). Rather than fabricating a
+ * fake human role just to satisfy `allowedRoles`, a system caller
+ * skips that check entirely — the job itself already decided this
+ * call should happen; there's no human permission to gate. `role` is
+ * plain `text` on `ai_usage_log`, not FK'd/checked against
+ * `EmployeeRole`, so `"system"` is a legitimate, already-anticipated
+ * value there.
+ */
+export interface SystemCaller {
+  userId: null
+  role: "system"
+  company: { id: string }
+}
+
+export type AskAiCaller = SessionContext | SystemCaller
+
 export interface AskAiInput<TSchema extends z.ZodTypeAny> {
   /** Which module/feature is asking, conventionally "domain.action" —
    * e.g. "vehicle.summarize", "customer.trust_score". Free-form (no DB
@@ -95,7 +117,7 @@ function classifyError(err: unknown): { error: AskAiErrorCode; message: string }
  * result (already computed above) is what gets returned, never this. */
 async function logUsage(
   supabase: SupabaseServerClient,
-  session: SessionContext,
+  session: AskAiCaller,
   purpose: string,
   provider: AiProvider,
   modelId: string,
@@ -127,10 +149,10 @@ async function logUsage(
  */
 export async function askAI<TSchema extends z.ZodTypeAny>(
   supabase: SupabaseServerClient,
-  session: SessionContext,
+  session: AskAiCaller,
   input: AskAiInput<TSchema>
 ): Promise<AskAiResult<z.infer<TSchema>>> {
-  if (!input.allowedRoles.includes(session.role)) {
+  if (session.role !== "system" && !input.allowedRoles.includes(session.role)) {
     return { ok: false, error: "permission_denied", message: "Your role doesn't have access to this AI capability." }
   }
 
