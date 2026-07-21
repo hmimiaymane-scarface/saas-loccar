@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 
 import { getSessionContext } from "@/lib/auth/session"
 import { SectionHeader } from "@/components/domain/section-header"
-import { CustomerForm } from "@/components/domain/customers/customer-form"
+import { CustomerOnboardingWizard } from "@/components/domain/customers/customer-onboarding-wizard"
 
 export default async function NewCustomerPage({
   searchParams,
@@ -19,8 +19,8 @@ export default async function NewCustomerPage({
 
   return (
     <>
-      <SectionHeader title="Add customer" description="Full profile — for a quick add during booking, use the reservation form instead." />
-      <CustomerForm returnTo={returnTo} />
+      <SectionHeader title="Add customer" description="Scan an ID and licence, or enter details by hand — for a quick add during booking, use the reservation form instead." />
+      <CustomerOnboardingWizard companyId={session.company.id} returnTo={returnTo} />
     </>
   )
 }
