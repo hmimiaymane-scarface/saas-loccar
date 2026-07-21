@@ -51,6 +51,21 @@ export async function createDamage(
     const sourceRaw = formData.get("source")
     const source = sourceRaw && (SOURCES as readonly string[]).includes(String(sourceRaw)) ? (sourceRaw as (typeof SOURCES)[number]) : "manual"
     const aiConfidence = optionalNumber(formData, "aiConfidence")
+    // Set only by the offline sync engine (roadmap phase 16,
+    // lib/offline/sync.ts) replaying a queued damage report — a repeat
+    // call with the same key returns the already-created row instead
+    // of inserting a duplicate.
+    const idempotencyKey = optionalString(formData, "idempotencyKey")
+
+    if (idempotencyKey) {
+      const { data: existing } = await supabase
+        .from("damages")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("idempotency_key", idempotencyKey)
+        .maybeSingle()
+      if (existing) return { damageId: existing.id }
+    }
 
     const { data, error } = await supabase
       .from("damages")
@@ -69,6 +84,7 @@ export async function createDamage(
         created_by: session.userId,
         source,
         ai_confidence: source === "ai_detected" ? aiConfidence : null,
+        idempotency_key: idempotencyKey ?? null,
       })
       .select("id")
       .single()

@@ -175,19 +175,38 @@ export async function saveChecklistResponse(
   }
 }
 
+/**
+ * `idempotencyKey` (roadmap phase 16) is set only by the offline sync
+ * engine (lib/offline/sync.ts) replaying a queued photo upload whose
+ * server response may have been lost — a repeat call with the same key
+ * returns the already-created row instead of inserting a duplicate
+ * `media` record. Every other caller omits it and behaves exactly as
+ * before (a plain insert, `media.idempotency_key` stays null).
+ */
 export async function attachInspectionMedia(
   inspectionId: string,
   storagePath: string,
   originalFilename: string,
   mimeType: string,
   fileSizeBytes: number,
-  caption?: string
+  caption?: string,
+  idempotencyKey?: string
 ): Promise<{ error?: string; mediaId?: string }> {
   try {
     const session = await requireSession()
     requireRole(session, [...INSPECTION_ROLES])
     const companyId = session.company.id
     const supabase = await createClient()
+
+    if (idempotencyKey) {
+      const { data: existing } = await supabase
+        .from("media")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("idempotency_key", idempotencyKey)
+        .maybeSingle()
+      if (existing) return { mediaId: existing.id }
+    }
 
     const { data, error } = await supabase
       .from("media")
@@ -201,6 +220,7 @@ export async function attachInspectionMedia(
         file_size_bytes: fileSizeBytes,
         caption: caption ?? null,
         uploaded_by: session.userId,
+        idempotency_key: idempotencyKey ?? null,
       })
       .select("id")
       .single()

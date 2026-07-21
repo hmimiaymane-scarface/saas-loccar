@@ -22,6 +22,11 @@ export interface CreateDocumentInput {
   vehicleId?: string
   contractReference?: string
   notes?: string
+  /** Set only by the offline sync engine (roadmap phase 16,
+   * lib/offline/sync.ts) replaying a queued upload — a repeat call
+   * with the same key returns the already-created row instead of
+   * inserting a duplicate. Every other caller omits it. */
+  idempotencyKey?: string
 }
 
 export async function createDocumentRecord(
@@ -35,6 +40,16 @@ export async function createDocumentRecord(
 
     if (!input.reservationId && !input.customerId && !input.vehicleId) {
       throw new ActionError("A document must be linked to a reservation, customer or vehicle.")
+    }
+
+    if (input.idempotencyKey) {
+      const { data: existing } = await supabase
+        .from("documents")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("idempotency_key", input.idempotencyKey)
+        .maybeSingle()
+      if (existing) return { documentId: existing.id }
     }
 
     // Version chaining (roadmap phase 04 requirement 3): if this same
@@ -65,6 +80,7 @@ export async function createDocumentRecord(
         notes: input.notes ?? null,
         uploaded_by: session.userId,
         replaces_document_id: supersededId,
+        idempotency_key: input.idempotencyKey ?? null,
       })
       .select("id")
       .single()
