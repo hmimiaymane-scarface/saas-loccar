@@ -1,41 +1,47 @@
 "use client"
 
-import { useState } from "react"
-
 import type { RentalCompany, Employee, NotificationItem } from "@/types/rental"
-import { Sidebar } from "@/components/layout/sidebar"
-import { Header } from "@/components/layout/header"
+import { DesktopShell } from "@/components/layout/desktop-shell"
+import { MobileShell } from "@/components/layout/mobile-shell"
+import { CommandPalette, useCommandPalette } from "@/components/domain/search/command-palette"
 
-function AppShell({
-  company,
-  employee,
-  notifications,
-  unreadCount,
-  children,
-}: {
+interface ShellProps {
   company: RentalCompany
   employee: Employee
   notifications: NotificationItem[]
   unreadCount: number
   children: React.ReactNode
-}) {
-  const [collapsed, setCollapsed] = useState(false)
+}
+
+/**
+ * Roadmap phase 16 — real branching this component previously had none
+ * of. Both `DesktopShell` and `MobileShell` receive the identical
+ * server-fetched props from `app/(dashboard)/layout.tsx`; which one
+ * renders is chosen purely by viewport (Tailwind's `lg` breakpoint),
+ * never a JS/user-agent check — this is a CSS-driven fork, not a
+ * separate route or redirect, so the URL a user is on is unaffected by
+ * which shell wraps it. Both are mounted at once (one hidden via CSS)
+ * rather than conditionally rendered, matching this codebase's existing
+ * convention (the old `MobileNav` was always in the DOM too) and
+ * avoiding a hydration-timing flash of the wrong shell.
+ *
+ * The command palette's open/close state and its global Cmd/Ctrl+K
+ * listener (`useCommandPalette`) are owned here, once, and passed down
+ * as a single `onOpenSearch` callback — mounting both shells
+ * simultaneously means each previously ran its own instance of that
+ * hook, so a Cmd+K press opened two independent dialogs at once
+ * (harmless-looking since only one shell is visible per viewport, but
+ * a real bug: focus-trap/scroll-lock fighting between them).
+ */
+function AppShell(props: ShellProps) {
+  const { open, setOpen } = useCommandPalette()
 
   return (
-    <div className="flex min-h-svh w-full bg-muted/40">
-      <Sidebar
-        company={company}
-        role={employee.role}
-        collapsed={collapsed}
-        onToggleCollapse={() => setCollapsed((v) => !v)}
-      />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Header company={company} employee={employee} role={employee.role} notifications={notifications} unreadCount={unreadCount} />
-        <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6 lg:p-8">
-          {children}
-        </main>
-      </div>
-    </div>
+    <>
+      <DesktopShell {...props} onOpenSearch={() => setOpen(true)} />
+      <MobileShell {...props} onOpenSearch={() => setOpen(true)} />
+      <CommandPalette open={open} onOpenChange={setOpen} />
+    </>
   )
 }
 

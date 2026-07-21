@@ -11,7 +11,6 @@ import { Separator } from "@/components/ui/separator"
 import { MobileNav } from "@/components/layout/mobile-nav"
 import { UserMenu } from "@/components/layout/user-menu"
 import { NotificationBell } from "@/components/layout/notification-bell"
-import { CommandPalette, useCommandPalette } from "@/components/domain/search/command-palette"
 
 function useCurrentPageTitle() {
   const pathname = usePathname()
@@ -27,15 +26,16 @@ function Header({
   role,
   notifications,
   unreadCount,
+  onOpenSearch,
 }: {
   company: RentalCompany
   employee: Employee
   role: EmployeeRole
   notifications: NotificationItem[]
   unreadCount: number
+  onOpenSearch: () => void
 }) {
   const title = useCurrentPageTitle()
-  const { open, setOpen } = useCommandPalette()
 
   return (
     <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
@@ -49,7 +49,7 @@ function Header({
         <Button
           variant="outline"
           className="hidden w-64 justify-start gap-2 text-muted-foreground sm:flex"
-          onClick={() => setOpen(true)}
+          onClick={onOpenSearch}
         >
           <Search className="size-4" />
           <span className="flex-1 text-left">Search…</span>
@@ -58,10 +58,9 @@ function Header({
           </kbd>
         </Button>
 
-        <Button variant="ghost" size="icon" className="sm:hidden" aria-label="Search" onClick={() => setOpen(true)}>
+        <Button variant="ghost" size="icon" className="sm:hidden" aria-label="Search" onClick={onOpenSearch}>
           <Search className="size-[18px]" />
         </Button>
-        <CommandPalette open={open} onOpenChange={setOpen} />
 
         <NotificationBell notifications={notifications} unreadCount={unreadCount} />
 

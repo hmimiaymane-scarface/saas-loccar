@@ -16,6 +16,7 @@ import {
   Sparkles,
   Bell,
   Settings,
+  Home,
   type LucideIcon,
 } from "lucide-react"
 
@@ -159,7 +160,57 @@ export const secondaryNav: NavItem[] = [
   },
 ]
 
-export const allNavItems: NavItem[] = [...primaryNav, ...secondaryNav]
+/**
+ * Roadmap phase 16 — the mobile bottom tab bar's own primary
+ * navigation, deliberately a SEPARATE, shorter list from `primaryNav`
+ * rather than a filtered/reflowed version of it (bible: "never copy
+ * desktop layouts onto mobile devices" — the IA itself is different,
+ * not just the chrome). Exactly 5 destinations per requirement 4;
+ * "Home" points at the mission-feed page (/home), not desktop's
+ * business-command-center /overview — see app/(dashboard)/home.
+ * Settings/Website/Contract Templates/etc. deliberately have no mobile
+ * equivalent here — reachable from the profile screen instead, never
+ * competing for one of the 5 tabs.
+ */
+export const mobilePrimaryNav: NavItem[] = [
+  {
+    title: "Home",
+    href: "/home",
+    icon: Home,
+    description: "Today's assigned work",
+    roles: ALL_ROLES,
+  },
+  {
+    title: "Reservations",
+    href: "/reservations",
+    icon: ClipboardList,
+    description: "Booking requests and confirmed reservations",
+    roles: ["owner", "manager", "agent"],
+  },
+  {
+    title: "Fleet",
+    href: "/fleet",
+    icon: Car,
+    description: "Vehicles, status and daily rates",
+    roles: ["owner", "manager", "agent"],
+  },
+  {
+    title: "Customers",
+    href: "/customers",
+    icon: Users,
+    description: "Customer records, licences and documents",
+    roles: ["owner", "manager", "agent"],
+  },
+  {
+    title: "Inbox",
+    href: "/ai-assistant",
+    icon: Sparkles,
+    description: "AI assistant and proactive nudges",
+    roles: ALL_ROLES,
+  },
+]
+
+export const allNavItems: NavItem[] = [...primaryNav, ...secondaryNav, ...mobilePrimaryNav]
 
 export function navForRole(items: NavItem[], role: EmployeeRole): NavItem[] {
   return items.filter((item) => item.roles.includes(role))
