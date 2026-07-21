@@ -34,6 +34,7 @@ import { createDamage } from "@/app/(dashboard)/damages/actions"
 import { resolveInitialStep, type RequirementItem } from "@/lib/workflow/steps"
 import { missingRequiredPhotoSlots } from "@/lib/inspections/rules"
 import { PHOTO_SLOTS } from "@/lib/inspections/photo-slots"
+import { buildInlineNudges } from "@/lib/mobile/inline-nudges"
 import { useStepFocus } from "@/hooks/use-step-focus"
 import { useOfflineQueue } from "@/hooks/use-offline-queue"
 import { Button } from "@/components/ui/button"
@@ -44,6 +45,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { WizardProgress } from "@/components/domain/wizard-progress"
 import { OfflineStatusBanner } from "@/components/domain/offline-status-banner"
+import { InlineNudgeList } from "@/components/domain/mobile/inline-nudge-list"
 import { WizardFooter } from "@/components/domain/wizard-footer"
 import { SummaryRow } from "@/components/domain/summary-row"
 import { RequirementsSummary } from "@/components/domain/requirements-summary"
@@ -677,6 +679,8 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
               )}
             </CardContent>
           </Card>
+
+          <InlineNudgeList nudges={buildInlineNudges({ capturedPhotoSlots: photos.map((p) => p.key), vehicleDamageCount: localDamages.length })} />
 
           <Card>
             <CardHeader>
