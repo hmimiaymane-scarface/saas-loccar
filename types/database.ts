@@ -397,7 +397,8 @@ export type Database = {
           remaining_balance: string
           notes: string | null
           created_by: string | null
-        
+          assigned_employee_id: string | null
+
           created_at: Timestamp
           updated_at: Timestamp
         }
@@ -422,6 +423,7 @@ export type Database = {
           amount_paid?: number | string
           notes?: string | null
           created_by?: string | null
+          assigned_employee_id?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["reservations"]["Insert"]>
         Relationships: []
@@ -625,6 +627,7 @@ export type Database = {
           uploaded_by: string | null
           expires_on: string | null
           replaces_document_id: string | null
+          idempotency_key: string | null
 
           created_at: Timestamp
           updated_at: Timestamp
@@ -646,6 +649,7 @@ export type Database = {
           uploaded_by?: string | null
           expires_on?: string | null
           replaces_document_id?: string | null
+          idempotency_key?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["documents"]["Insert"]>
         Relationships: []
@@ -852,6 +856,7 @@ export type Database = {
           method: string
           device_info: string | null
           ip_address: string | null
+          signature_image_path: string | null
           signed_at: Timestamp
         }
         Insert: {
@@ -864,8 +869,35 @@ export type Database = {
           method?: string
           device_info?: string | null
           ip_address?: string | null
+          signature_image_path?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["contract_signatures"]["Insert"]>
+        Relationships: []
+      }
+      webauthn_credentials: {
+        Row: {
+          id: string
+          company_id: string
+          user_id: string
+          credential_id: string
+          public_key: string
+          counter: number
+          device_label: string | null
+          created_at: Timestamp
+          last_used_at: Timestamp | null
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          user_id: string
+          credential_id: string
+          public_key: string
+          counter?: number
+          device_label?: string | null
+          created_at?: Timestamp
+          last_used_at?: Timestamp | null
+        }
+        Update: Partial<Database["public"]["Tables"]["webauthn_credentials"]["Insert"]>
         Relationships: []
       }
       contract_amendments: {
@@ -1054,6 +1086,7 @@ export type Database = {
           created_by: string | null
           source: string
           ai_confidence: string | null
+          idempotency_key: string | null
 
           created_at: Timestamp
           updated_at: Timestamp
@@ -1075,6 +1108,7 @@ export type Database = {
           created_by?: string | null
           source?: string
           ai_confidence?: number | string | null
+          idempotency_key?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["damages"]["Insert"]>
         Relationships: []
@@ -1091,6 +1125,7 @@ export type Database = {
           file_size_bytes: number
           caption: string | null
           uploaded_by: string | null
+          idempotency_key: string | null
           created_at: Timestamp
         }
         Insert: {
@@ -1104,6 +1139,7 @@ export type Database = {
           file_size_bytes: number
           caption?: string | null
           uploaded_by?: string | null
+          idempotency_key?: string | null
           created_at?: Timestamp
         }
         Update: Partial<Database["public"]["Tables"]["media"]["Insert"]>
