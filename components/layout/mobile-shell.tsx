@@ -8,6 +8,7 @@ import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav"
 import { NotificationBell } from "@/components/layout/notification-bell"
 import { UserMenu } from "@/components/layout/user-menu"
 import { InstallPrompt } from "@/components/pwa/install-prompt"
+import { useIdleRedirect } from "@/hooks/use-idle-redirect"
 import { Button } from "@/components/ui/button"
 
 /**
@@ -36,6 +37,8 @@ function MobileShell({
   onOpenSearch: () => void
   children: React.ReactNode
 }) {
+  useIdleRedirect()
+
   return (
     <div className="flex min-h-svh w-full flex-col bg-muted/40 lg:hidden">
       <header

@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { LogOut, Settings, UserRound } from "lucide-react"
 
 import type { Employee } from "@/types/rental"
@@ -39,14 +40,20 @@ function UserMenu({ employee }: { employee: Employee }) {
           <span>{roleLabel[employee.role]}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <UserRound />
-          Profile
+        <DropdownMenuItem asChild>
+          <Link href="/profile">
+            <UserRound />
+            Profile
+          </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Settings />
-          Settings
-        </DropdownMenuItem>
+        {(employee.role === "owner" || employee.role === "manager") && (
+          <DropdownMenuItem asChild>
+            <Link href="/settings">
+              <Settings />
+              Settings
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"

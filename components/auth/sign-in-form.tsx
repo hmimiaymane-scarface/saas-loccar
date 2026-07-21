@@ -5,10 +5,12 @@ import Link from "next/link"
 import { Loader2 } from "lucide-react"
 
 import { signIn, type AuthActionState } from "@/app/(auth)/actions"
+import { PasskeySignInButton } from "@/components/auth/passkey-sign-in-button"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
 
 const initialState: AuthActionState = {}
 
@@ -59,6 +61,13 @@ function SignInForm({ next }: { next?: string }) {
             Sign in
           </Button>
         </form>
+
+        <div className="my-4 flex items-center gap-3">
+          <Separator className="flex-1" />
+          <span className="text-xs text-muted-foreground">or</span>
+          <Separator className="flex-1" />
+        </div>
+        <PasskeySignInButton next={next} />
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           New to Rental Office?{" "}

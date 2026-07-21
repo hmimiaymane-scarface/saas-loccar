@@ -19,13 +19,21 @@ import type { Database } from "@/types/database"
  * general-purpose escape hatch. Two rules, enforced by convention
  * since there's no way to enforce them at the type level:
  *   1. Import this ONLY from `app/api/cron/*` route handlers (or a
- *      module they call directly, like `lib/operations-feed/run.ts`)
- *      — never from a page, a client component, or a normal server
- *      action reachable by an ordinary signed-in request.
+ *      module they call directly, like `lib/operations-feed/run.ts`),
+ *      or from `app/api/webauthn/authenticate-verify/route.ts`
+ *      (roadmap phase 16) — the one other place in this app that, by
+ *      definition, has no signed-in session yet: a passkey sign-in
+ *      ceremony has to look up which user a credential belongs to and
+ *      mint their session, before any auth cookie exists to scope a
+ *      normal RLS-backed client. Never from a page, a client
+ *      component, or a normal server action reachable by an ordinary
+ *      signed-in request.
  *   2. Every write this client makes must be scoped by an explicit
  *      `company_id` the calling code determined itself (e.g. by
- *      iterating `companies` one row at a time) — RLS isn't there to
- *      catch a missing `.eq("company_id", ...)` anymore.
+ *      iterating `companies` one row at a time, or — for WebAuthn —
+ *      the `company_id` stored on the credential row itself) — RLS
+ *      isn't there to catch a missing `.eq("company_id", ...)`
+ *      anymore.
  *
  * `SUPABASE_SERVICE_ROLE_KEY` was already reserved in .env.example
  * before this phase (for a seed script that was never actually
