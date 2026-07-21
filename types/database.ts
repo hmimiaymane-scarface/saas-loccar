@@ -348,7 +348,9 @@ export type Database = {
           address: string | null
           notes: string | null
           status: string
-        
+          date_of_birth: string | null
+          marketing_consent: boolean
+
           created_at: Timestamp
           updated_at: Timestamp
         }
@@ -366,6 +368,8 @@ export type Database = {
           address?: string | null
           notes?: string | null
           status?: string
+          date_of_birth?: string | null
+          marketing_consent?: boolean
         }
         Update: Partial<Database["public"]["Tables"]["customers"]["Insert"]>
         Relationships: []
@@ -706,6 +710,42 @@ export type Database = {
           computed_at?: Timestamp
         }
         Update: Partial<Database["public"]["Tables"]["vehicle_intelligence"]["Insert"]>
+        Relationships: []
+      }
+      customer_intelligence: {
+        Row: {
+          id: string
+          company_id: string
+          customer_id: string
+          trust_score: number
+          trust_band: string
+          trust_factors: unknown
+          lifetime_revenue_mad: number
+          rental_frequency_per_year: number
+          average_reservation_mad: number
+          expected_future_value_mad: number
+          preferred_category: string | null
+          summary: string | null
+          computed_reason: string
+          computed_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          customer_id: string
+          trust_score: number
+          trust_band: string
+          trust_factors: unknown
+          lifetime_revenue_mad: number
+          rental_frequency_per_year: number
+          average_reservation_mad: number
+          expected_future_value_mad: number
+          preferred_category?: string | null
+          summary?: string | null
+          computed_reason: string
+          computed_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["customer_intelligence"]["Insert"]>
         Relationships: []
       }
       ai_usage_log: {
