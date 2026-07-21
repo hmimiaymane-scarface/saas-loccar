@@ -891,6 +891,50 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["contract_amendments"]["Insert"]>
         Relationships: []
       }
+      operations_feed_items: {
+        Row: {
+          id: string
+          company_id: string
+          observer_type: string
+          entity_type: string
+          entity_id: string
+          priority_tier: string
+          observation: string
+          reasoning: string
+          suggested_action: string
+          action_label: string
+          action_href: string
+          confidence: string
+          status: string
+          first_detected_at: Timestamp
+          last_seen_at: Timestamp
+          resolved_at: string | null
+          dismissed_at: string | null
+          dismissed_by: string | null
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          observer_type: string
+          entity_type: string
+          entity_id: string
+          priority_tier: string
+          observation: string
+          reasoning: string
+          suggested_action: string
+          action_label: string
+          action_href: string
+          confidence?: string
+          status?: string
+          first_detected_at?: Timestamp
+          last_seen_at?: Timestamp
+          resolved_at?: string | null
+          dismissed_at?: string | null
+          dismissed_by?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["operations_feed_items"]["Insert"]>
+        Relationships: []
+      }
       ai_usage_log: {
         Row: {
           id: string
