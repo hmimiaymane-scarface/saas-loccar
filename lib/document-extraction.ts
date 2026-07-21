@@ -4,22 +4,24 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { resolveModel, resolveAvailableProvider } from "@/lib/ai/models"
 import { STORAGE_BUCKET } from "@/lib/storage"
+import { CATEGORY_OPTIONS } from "@/lib/documents"
 import type { DocumentCategory } from "@/types/rental"
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 
 /**
  * Structured document extraction (roadmap phase 03 — "Document
- * Intelligence Engine: Ingestion & OCR"). Runs a vision-capable model
- * over an already-uploaded document's image and returns per-field
- * values with a confidence score each, so callers (currently just the
- * /dev test page; phases 04/10/14 are the real consumers) can decide
- * what to trust automatically and what needs human review — see
+ * Intelligence Engine: Ingestion & OCR") and automatic classification
+ * (roadmap phase 04 — "Classification, Expiry & Relationships"). Runs a
+ * vision-capable model over an already-uploaded document's image, either
+ * to guess what kind of document it is (classifyDocument) or to pull
+ * structured, per-field values with a confidence score each
+ * (extractDocument) — see
  * components/domain/intelligence/document-confidence-row.tsx (phase 02)
  * for the UI half of that contract.
  *
  * Deliberately NOT wired into the existing upload flow in
- * app/(dashboard)/documents/actions.ts — this is a standalone service,
+ * app/(dashboard)/documents/actions.ts — this stays a standalone service,
  * called explicitly. See docs/documents.md for why.
  */
 
@@ -28,7 +30,8 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 // categories on `documents.category` have an extraction schema; the
 // rest (rental_contract, proof_of_address, technical_inspection,
 // payment_receipt, other) are rejected before ever calling the model —
-// see schemaForCategory below.
+// see schemaForCategory below. Classification (below the extraction
+// schemas) is a separate, lighter call that covers all nine.
 // ---------------------------------------------------------------------
 
 export type SupportedDocumentCategory =
@@ -127,6 +130,38 @@ function buildExtractionPrompt(category: SupportedDocumentCategory): string {
 }
 
 // ---------------------------------------------------------------------
+// Classification (roadmap phase 04) — a separate, cheaper vision call
+// that guesses which of the nine DocumentCategory values an unlabeled
+// upload is, so the caller can route it to the right extraction schema
+// (or none, for the five categories without one) without asking a human.
+// ---------------------------------------------------------------------
+
+const ALL_CATEGORY_VALUES = CATEGORY_OPTIONS.map((o) => o.value) as [DocumentCategory, ...DocumentCategory[]]
+
+const classificationSchema = z.object({
+  category: z.enum(ALL_CATEGORY_VALUES),
+  confidence: z
+    .number()
+    .min(0)
+    .max(100)
+    .describe("0-100: how certain you are this is the correct category"),
+})
+
+function buildClassificationPrompt(): string {
+  const options = CATEGORY_OPTIONS.map((o) => `"${o.value}" (${o.label})`).join(", ")
+  return [
+    "Identify what kind of document this image shows.",
+    `Choose exactly one category from this list: ${options}.`,
+    "Provide a confidence score from 0 to 100 for how certain you are.",
+    'If the document genuinely does not match any specific category, choose "other".',
+  ].join(" ")
+}
+
+export type ClassificationResult =
+  | { ok: true; category: DocumentCategory; confidence: number }
+  | { ok: false; error: ExtractionErrorCode; message: string }
+
+// ---------------------------------------------------------------------
 // The service
 // ---------------------------------------------------------------------
 
@@ -147,6 +182,74 @@ export type ExtractionErrorCode =
 export type ExtractionResult =
   | { ok: true; extractionId: string; category: SupportedDocumentCategory; fields: ExtractedFields }
   | { ok: false; error: ExtractionErrorCode; message: string }
+
+type DocumentRow = { id: string; category: string; storage_path: string; mime_type: string }
+
+type PreparedVisionCall =
+  | { ok: true; document: DocumentRow; model: Awaited<ReturnType<typeof resolveModel>>; modelId: string; fileBytes: Buffer }
+  | { ok: false; error: ExtractionErrorCode; message: string }
+
+/**
+ * Everything extractDocument and classifyDocument both need before they
+ * can make a model call: the document row, the file's own bytes, and a
+ * resolved model — plus every failure mode they share (not found,
+ * unsupported file type, no provider configured, storage read failure).
+ * extractDocument re-fetches the row once more itself first, so it can
+ * reject an unsupported *category* (cost control) before ever reaching
+ * this — the two indexed reads by primary key that results in are not
+ * worth the extra complexity of threading an already-fetched row through.
+ */
+async function prepareVisionCall(
+  supabase: SupabaseServerClient,
+  companyId: string,
+  documentId: string
+): Promise<PreparedVisionCall> {
+  const { data: document, error: fetchError } = await supabase
+    .from("documents")
+    .select("id, category, storage_path, mime_type")
+    .eq("id", documentId)
+    .eq("company_id", companyId)
+    .maybeSingle()
+
+  if (fetchError || !document) {
+    return { ok: false, error: "not_found", message: "That document could not be found." }
+  }
+
+  if (!SUPPORTED_IMAGE_MIME_TYPES.includes(document.mime_type)) {
+    return {
+      ok: false,
+      error: "unsupported_file_type",
+      message: "Only JPEG, PNG, or WEBP images can be read automatically right now — PDF and HEIC aren't supported yet.",
+    }
+  }
+
+  const provider = resolveAvailableProvider()
+  if (!provider) {
+    return {
+      ok: false,
+      error: "provider_not_configured",
+      message: "No AI provider is configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.",
+    }
+  }
+
+  const { data: fileBlob, error: downloadError } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .download(document.storage_path)
+
+  if (downloadError || !fileBlob) {
+    return { ok: false, error: "provider_error", message: "Could not read the uploaded file from storage." }
+  }
+
+  const model = resolveModel(provider)
+  // LanguageModel is `string | LanguageModelV2` (the AI SDK Gateway
+  // allows a bare model-id string) — resolveModel() in this codebase
+  // always returns a provider object, never a bare string, but the
+  // type itself doesn't guarantee that.
+  const modelId = typeof model === "string" ? model : model.modelId
+  const fileBytes = Buffer.from(await fileBlob.arrayBuffer())
+
+  return { ok: true, document, model, modelId, fileBytes }
+}
 
 /**
  * Runs extraction for one already-uploaded document. Takes an
@@ -187,38 +290,9 @@ export async function extractDocument(
     }
   }
 
-  if (!SUPPORTED_IMAGE_MIME_TYPES.includes(document.mime_type)) {
-    return {
-      ok: false,
-      error: "unsupported_file_type",
-      message: "Only JPEG, PNG, or WEBP images can be read automatically right now — PDF and HEIC aren't supported yet.",
-    }
-  }
-
-  const provider = resolveAvailableProvider()
-  if (!provider) {
-    return {
-      ok: false,
-      error: "provider_not_configured",
-      message: "No AI provider is configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.",
-    }
-  }
-
-  const { data: fileBlob, error: downloadError } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .download(document.storage_path)
-
-  if (downloadError || !fileBlob) {
-    return { ok: false, error: "provider_error", message: "Could not read the uploaded file from storage." }
-  }
-
-  const model = resolveModel(provider)
-  // LanguageModel is `string | LanguageModelV2` (the AI SDK Gateway
-  // allows a bare model-id string) — resolveModel() in this codebase
-  // always returns a provider object, never a bare string, but the
-  // type itself doesn't guarantee that.
-  const modelId = typeof model === "string" ? model : model.modelId
-  const fileBytes = Buffer.from(await fileBlob.arrayBuffer())
+  const prepared = await prepareVisionCall(supabase, companyId, documentId)
+  if (!prepared.ok) return prepared
+  const { model, modelId, fileBytes } = prepared
 
   try {
     const { object } = await generateObject({
@@ -229,7 +303,7 @@ export async function extractDocument(
           role: "user",
           content: [
             { type: "text", text: buildExtractionPrompt(category) },
-            { type: "file", data: fileBytes, mediaType: document.mime_type },
+            { type: "file", data: fileBytes, mediaType: prepared.document.mime_type },
           ],
         },
       ],
@@ -271,4 +345,100 @@ export async function extractDocument(
       message: "We couldn't read that document automatically. Try a clearer photo, or enter the details by hand.",
     }
   }
+}
+
+/**
+ * Guesses which of the nine DocumentCategory values an already-uploaded
+ * document is, without assuming the caller (or the row's own stored
+ * `category`) already knows. Does not persist anything itself — see
+ * classifyAndExtractDocument for the combined "classify, save, then
+ * extract" flow that real callers actually want.
+ */
+export async function classifyDocument(
+  supabase: SupabaseServerClient,
+  companyId: string,
+  documentId: string
+): Promise<ClassificationResult> {
+  const prepared = await prepareVisionCall(supabase, companyId, documentId)
+  if (!prepared.ok) return prepared
+
+  try {
+    const { object } = await generateObject({
+      model: prepared.model,
+      schema: classificationSchema,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: buildClassificationPrompt() },
+            { type: "file", data: prepared.fileBytes, mediaType: prepared.document.mime_type },
+          ],
+        },
+      ],
+    })
+
+    return { ok: true, category: object.category, confidence: object.confidence }
+  } catch {
+    return {
+      ok: false,
+      error: "provider_error",
+      message: "We couldn't classify that document automatically. Try a clearer photo, or choose the category by hand.",
+    }
+  }
+}
+
+export type ClassifyAndExtractResult =
+  | { ok: true; category: DocumentCategory; classificationConfidence: number; extraction: ExtractionResult | null }
+  | { ok: false; error: ExtractionErrorCode; message: string }
+
+/**
+ * The real end-to-end automatic-classification flow (requirement 1 of
+ * roadmap phase 04): classify the document, persist the detected
+ * category onto the row (so every other reader of `documents.category`
+ * sees the correction), then — only for the four categories with an
+ * extraction schema — run extraction against that same category.
+ * `extraction` is null (not an error) for the five categories phase 03
+ * never built a schema for; classification alone still routed the
+ * document correctly, which is what requirement 1 actually asks for.
+ */
+export async function classifyAndExtractDocument(
+  supabase: SupabaseServerClient,
+  companyId: string,
+  documentId: string
+): Promise<ClassifyAndExtractResult> {
+  const classification = await classifyDocument(supabase, companyId, documentId)
+  if (!classification.ok) return classification
+
+  await supabase
+    .from("documents")
+    .update({ category: classification.category })
+    .eq("id", documentId)
+    .eq("company_id", companyId)
+
+  const extraction = isSupportedCategory(classification.category)
+    ? await extractDocument(supabase, companyId, documentId, { category: classification.category })
+    : null
+
+  return {
+    ok: true,
+    category: classification.category,
+    classificationConfidence: classification.confidence,
+    extraction,
+  }
+}
+
+/** True when any extracted field's value contains `query` (case-
+ * insensitive substring) — the matching primitive behind document
+ * search-by-extracted-field (roadmap phase 04 requirement 7, see
+ * lib/documents.ts#searchDocumentIdsByExtractedFields). Pure and cheap
+ * enough to run in JS over an already-fetched batch of extractions
+ * rather than needing a database-side JSONB text search. */
+export function fieldsContainText(fields: ExtractedFields, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return false
+  return Object.values(fields).some(({ value }) => {
+    if (value == null) return false
+    if (Array.isArray(value)) return value.some((item) => String(item).toLowerCase().includes(q))
+    return String(value).toLowerCase().includes(q)
+  })
 }
