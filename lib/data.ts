@@ -49,6 +49,7 @@ import {
   type CustomerMatchCandidate,
   type DuplicateMatch,
 } from "@/lib/customer-matching"
+import { searchDocumentIdsByExtractedFields } from "@/lib/documents"
 import { MAINTENANCE_TYPE_LABELS } from "@/lib/status"
 import {
   rentalDaysFor,
@@ -2081,6 +2082,10 @@ export async function getDocumentsList(
     if (filters.reservationId) items = items.filter((d) => d.reservationId === filters.reservationId)
     if (filters.customerId) items = items.filter((d) => d.customerId === filters.customerId)
     if (filters.vehicleId) items = items.filter((d) => d.vehicleId === filters.vehicleId)
+    // Filename-only in mock mode — the live branch below also matches
+    // customer/vehicle names and extracted field values (roadmap phase
+    // 04 requirement 7), but mockDocuments has no extraction fixtures to
+    // search against.
     if (filters.search) {
       const q = filters.search.toLowerCase()
       items = items.filter((d) => d.originalFilename.toLowerCase().includes(q))
@@ -2101,7 +2106,32 @@ export async function getDocumentsList(
   if (filters.reservationId) query = query.eq("reservation_id", filters.reservationId)
   if (filters.customerId) query = query.eq("customer_id", filters.customerId)
   if (filters.vehicleId) query = query.eq("vehicle_id", filters.vehicleId)
-  if (filters.search) query = query.ilike("original_filename", `%${escapeIlike(filters.search)}%`)
+
+  if (filters.search?.trim()) {
+    // Roadmap phase 04 requirement 7: match filename, but also the
+    // customer/vehicle a document is linked to and its own extracted
+    // field values (licence number, plate, VIN, ...) — not just the
+    // filename, same "resolve related ids, then .in()" pattern as
+    // getReservationsList's search above.
+    const q = escapeIlike(filters.search)
+    const [matchingCustomers, matchingVehicles, matchingDocumentIds] = await Promise.all([
+      supabase.from("customers").select("id").eq("company_id", companyId).ilike("full_name", `%${q}%`),
+      supabase
+        .from("vehicles")
+        .select("id")
+        .eq("company_id", companyId)
+        .or(`registration_number.ilike.%${q}%,make.ilike.%${q}%,model.ilike.%${q}%`),
+      searchDocumentIdsByExtractedFields(supabase, companyId, filters.search),
+    ])
+    const customerIds = (matchingCustomers.data ?? []).map((c) => c.id)
+    const vehicleIds = (matchingVehicles.data ?? []).map((v) => v.id)
+
+    const orParts = [`original_filename.ilike.%${q}%`]
+    if (customerIds.length > 0) orParts.push(`customer_id.in.(${customerIds.join(",")})`)
+    if (vehicleIds.length > 0) orParts.push(`vehicle_id.in.(${vehicleIds.join(",")})`)
+    if (matchingDocumentIds.length > 0) orParts.push(`id.in.(${matchingDocumentIds.join(",")})`)
+    query = query.or(orParts.join(","))
+  }
 
   const start = (page - 1) * pageSize
   const { data, error, count } = await query
