@@ -9,6 +9,9 @@ vi.mock("@/lib/contracts/pdf-extract", () => pdfExtractMock)
 const pdfRenderMock = vi.hoisted(() => ({ renderContractPdf: vi.fn() }))
 vi.mock("@/lib/contracts/pdf-render", () => pdfRenderMock)
 
+const previewAiMock = vi.hoisted(() => ({ flagContractPreviewIssues: vi.fn() }))
+vi.mock("@/lib/contracts/preview-ai", () => previewAiMock)
+
 const activityLogMock = vi.hoisted(() => ({ recordEvent: vi.fn(async () => {}) }))
 vi.mock("@/lib/activity-log", () => activityLogMock)
 
@@ -17,6 +20,17 @@ import {
   activateVersion,
   createEditedVersion,
   generateContract,
+  previewContract,
+  prepareContract,
+  sendContractForSignature,
+  addContractSignature,
+  activateContract,
+  completeContract,
+  archiveContract,
+  cancelContract,
+  createContractAmendment,
+  searchContracts,
+  regenerateContractPdf,
   getTemplateVersion,
 } from "@/lib/contracts/template-store"
 import type { SessionContext } from "@/lib/auth/session"
@@ -82,8 +96,27 @@ function makeFakeSupabase() {
     let limitCount: number | null = null
     let ilikeFilter: [string, string] | null = null
 
+    // Generic FK-embed simulation, by naming convention only
+    // (customer_id -> tables.customers, etc.) — good enough for the
+    // handful of `alias:table(cols)` embeds these tests actually rely
+    // on (searchContracts' customer/vehicle/reservation lookups), not
+    // a real select-string parser.
+    function withEmbeds(row: Record<string, unknown>): Record<string, unknown> {
+      const embedded = { ...row }
+      for (const [fk, embedTable, alias] of [
+        ["customer_id", "customers", "customer"],
+        ["vehicle_id", "vehicles", "vehicle"],
+        ["reservation_id", "reservations", "reservation"],
+      ] as const) {
+        if (fk in row && tables[embedTable]) {
+          embedded[alias] = tables[embedTable].find((r) => r.id === row[fk]) ?? null
+        }
+      }
+      return embedded
+    }
+
     function rows() {
-      let result = tables[table].filter((r) => matchesFilters(r, filters))
+      let result = tables[table].filter((r) => matchesFilters(r, filters)).map(withEmbeds)
       if (ilikeFilter) {
         const [key, needle] = ilikeFilter
         result = result.filter((r) => String(r[key] ?? "").toLowerCase().includes(needle.toLowerCase()))
@@ -119,6 +152,10 @@ function makeFakeSupabase() {
       },
       limit(n: number) {
         limitCount = n
+        return builder
+      },
+      range(from: number, to: number) {
+        limitCount = to - from + 1
         return builder
       },
       select() {
@@ -194,6 +231,8 @@ beforeEach(() => {
   pdfExtractMock.extractPdfText.mockResolvedValue({ ok: true, text: "Renter: [CUSTOMER NAME]" })
   pdfRenderMock.renderContractPdf.mockReset()
   pdfRenderMock.renderContractPdf.mockResolvedValue(new Uint8Array([1, 2, 3]))
+  previewAiMock.flagContractPreviewIssues.mockReset()
+  previewAiMock.flagContractPreviewIssues.mockResolvedValue({ ok: true, data: { warnings: [] }, confidence: "high", modelId: "claude-sonnet-5" })
   activityLogMock.recordEvent.mockClear()
 })
 
@@ -441,5 +480,280 @@ describe("generateContract", () => {
     expect(result.error).toContain("no identity document on file")
     expect(result.error).toContain("no vehicle assigned")
     expect(tables.contracts).toHaveLength(0) // nothing was persisted, not even a draft
+  })
+})
+
+/** Seeds one valid, generateContract-able reservation/template/company
+ * and returns the generated contract's id — shared setup for the
+ * lifecycle/signature/amendment/search tests below, all of which start
+ * from "a contract already exists." */
+async function seedGeneratedContract(client: never, tables: Record<string, Record<string, unknown>[]>) {
+  tables.contract_templates.push({ id: "tpl_1", company_id: "co_1", name: "Standard", language: "fr", active_version_id: "v1" })
+  tables.contract_template_versions.push({
+    id: "v1",
+    template_id: "tpl_1",
+    company_id: "co_1",
+    version_number: 1,
+    status: "active",
+    sections: [{ id: "s1", title: "Renter", bodyText: "{{customer.fullName}} rents {{vehicle.plate}}.", condition: null }],
+    variable_mappings: [],
+    legal_footer_text: null,
+    created_at: "2026-01-01T00:00:00Z",
+  })
+  tables.reservations.push({
+    id: "res_1",
+    company_id: "co_1",
+    reference: "RB-3391",
+    pickup_at: "2026-07-15T10:00:00Z",
+    return_at: "2026-07-19T10:00:00Z",
+    pickup_location: "Airport",
+    return_location: "Airport",
+    daily_rate: 380,
+    discount_amount: 0,
+    total_amount: 1520,
+    customer: {
+      id: "cus_1",
+      full_name: "Ahmed Tazi",
+      phone: "+212 662-897431",
+      email: null,
+      address: null,
+      nationality: null,
+      license_number: "MA-1",
+      license_expires_on: "2028-01-01",
+      id_document_number: null,
+      date_of_birth: "1990-01-01",
+    },
+    vehicle: {
+      id: "veh_1",
+      make: "Hyundai",
+      model: "Accent",
+      year: 2023,
+      registration_number: "12345-A-6",
+      color: null,
+      category: "compact",
+      seats: 5,
+      fuel_type: "petrol",
+      transmission: "manual",
+    },
+  })
+  tables.companies.push({ id: "co_1", name: "Atlas Rent Car", address: null, city: null, country: "Morocco", tax_id: null, business_register: null })
+  tables.documents.push({ company_id: "co_1", customer_id: "cus_1", status: "active", category: "identity_document", expires_on: "2029-01-01" })
+  // searchContracts resolves customer/vehicle matches against their own
+  // tables (contracts.customer_id/vehicle_id, not the reservation's
+  // embedded copy), so those need their own rows here too.
+  if (!tables.customers) tables.customers = []
+  if (!tables.vehicles) tables.vehicles = []
+  tables.customers.push({ id: "cus_1", company_id: "co_1", full_name: "Ahmed Tazi" })
+  tables.vehicles.push({ id: "veh_1", company_id: "co_1", registration_number: "12345-A-6" })
+
+  const result = await generateContract(client, makeSession(), { reservationId: "res_1" })
+  if (!result.ok) throw new Error(`seed failed: ${result.error}`)
+  return result.contractId
+}
+
+describe("previewContract", () => {
+  it("returns context, rendered sections, validation issues, and AI warnings without persisting anything", async () => {
+    const { client, tables } = makeFakeSupabase()
+    tables.contract_templates.push({ id: "tpl_1", company_id: "co_1", name: "Standard", language: "fr", active_version_id: "v1" })
+    tables.contract_template_versions.push({
+      id: "v1",
+      template_id: "tpl_1",
+      company_id: "co_1",
+      version_number: 1,
+      status: "active",
+      sections: [{ id: "s1", title: "Renter", bodyText: "{{customer.fullName}}", condition: null }],
+      variable_mappings: [],
+      legal_footer_text: null,
+      created_at: "2026-01-01T00:00:00Z",
+    })
+    tables.reservations.push({
+      id: "res_1",
+      company_id: "co_1",
+      reference: "RB-3391",
+      pickup_at: "2026-07-15T10:00:00Z",
+      return_at: "2026-07-19T10:00:00Z",
+      pickup_location: "Airport",
+      return_location: "Airport",
+      daily_rate: 380,
+      discount_amount: 0,
+      total_amount: 1520,
+      customer: { id: "cus_1", full_name: "Ahmed Tazi", phone: "+212 662-897431", email: null, address: null, nationality: null, license_number: "MA-1", license_expires_on: "2028-01-01", id_document_number: null, date_of_birth: "1990-01-01" },
+      vehicle: null, // deliberately missing, to prove the preview surfaces the same validation as generation
+    })
+    tables.companies.push({ id: "co_1", name: "Atlas Rent Car", address: null, city: null, country: "Morocco", tax_id: null, business_register: null })
+    tables.documents.push({ company_id: "co_1", customer_id: "cus_1", status: "active", category: "identity_document", expires_on: "2029-01-01" })
+    previewAiMock.flagContractPreviewIssues.mockResolvedValue({
+      ok: true,
+      data: { warnings: [{ message: "Total looks low for a 4-day rental.", severity: "warning" }] },
+      confidence: "medium",
+      modelId: "claude-sonnet-5",
+    })
+
+    const preview = await previewContract(client, makeSession(), { reservationId: "res_1" })
+    expect(preview.ok).toBe(true)
+    if (!preview.ok) return
+    expect(preview.context["customer.fullName"]).toBe("Ahmed Tazi")
+    expect(preview.validationIssues.map((i) => i.code)).toContain("no_vehicle")
+    expect(preview.aiWarnings).toEqual([{ message: "Total looks low for a 4-day rental.", severity: "warning" }])
+    expect(tables.contracts).toHaveLength(0) // read-only — nothing generated
+  })
+})
+
+describe("full contract lifecycle (acceptance criterion)", () => {
+  it("moves generated -> prepared -> awaiting_signature -> signed -> active -> completed -> archived, with events at each step", async () => {
+    const { client, tables } = makeFakeSupabase()
+    const contractId = await seedGeneratedContract(client as never, tables)
+    expect(tables.contracts.find((c) => c.id === contractId)!.status).toBe("draft")
+
+    const session = makeSession()
+
+    const prepared = await prepareContract(client, session, contractId)
+    expect(prepared.ok).toBe(true)
+    expect(tables.contracts.find((c) => c.id === contractId)!.status).toBe("prepared")
+
+    const sent = await sendContractForSignature(client, session, contractId)
+    expect(sent.ok).toBe(true)
+    expect(tables.contracts.find((c) => c.id === contractId)!.status).toBe("awaiting_signature")
+
+    // One signature isn't enough — customer + employee are both required.
+    const customerSig = await addContractSignature(client, session, {
+      contractId,
+      signerType: "customer",
+      signerName: "Ahmed Tazi",
+      deviceInfo: "Mozilla/5.0 test",
+      ipAddress: "127.0.0.1",
+    })
+    expect(customerSig.ok).toBe(true)
+    if (customerSig.ok) expect(customerSig.nowSigned).toBe(false)
+    expect(tables.contracts.find((c) => c.id === contractId)!.status).toBe("awaiting_signature")
+
+    const employeeSig = await addContractSignature(client, session, {
+      contractId,
+      signerType: "employee",
+      signerName: "Youssef El Amrani",
+      deviceInfo: "Mozilla/5.0 test",
+      ipAddress: "127.0.0.1",
+    })
+    expect(employeeSig.ok).toBe(true)
+    if (employeeSig.ok) expect(employeeSig.nowSigned).toBe(true)
+    expect(tables.contracts.find((c) => c.id === contractId)!.status).toBe("signed")
+
+    const activated = await activateContract(client, session, contractId)
+    expect(activated.ok).toBe(true)
+    expect(tables.contracts.find((c) => c.id === contractId)!.status).toBe("active")
+
+    const completed = await completeContract(client, session, contractId)
+    expect(completed.ok).toBe(true)
+    expect(tables.contracts.find((c) => c.id === contractId)!.status).toBe("completed")
+
+    const archived = await archiveContract(client, session, contractId)
+    expect(archived.ok).toBe(true)
+    expect(tables.contracts.find((c) => c.id === contractId)!.status).toBe("archived")
+
+    const emittedTypes = activityLogMock.recordEvent.mock.calls.map((call: unknown[]) => (call[1] as { type: string }).type)
+    expect(emittedTypes).toEqual([
+      "contract_generated",
+      "contract_prepared",
+      "contract_sent_for_signature",
+      "contract_signed",
+      "contract_activated",
+      "contract_completed",
+      "contract_archived",
+    ])
+  })
+
+  it("rejects an illegal jump (draft straight to signed) with a specific error", async () => {
+    const { client, tables } = makeFakeSupabase()
+    const contractId = await seedGeneratedContract(client as never, tables)
+    const result = await activateContract(client, makeSession(), contractId) // draft -> active, skipping every step in between
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toContain("Draft")
+    expect(result.error).toContain("Active")
+    expect(tables.contracts.find((c) => c.id === contractId)!.status).toBe("draft") // unchanged
+  })
+
+  it("cancelling records the reason", async () => {
+    const { client, tables } = makeFakeSupabase()
+    const contractId = await seedGeneratedContract(client as never, tables)
+    const session = makeSession()
+    await prepareContract(client, session, contractId)
+
+    const result = await cancelContract(client, session, contractId, "Customer withdrew.")
+    expect(result.ok).toBe(true)
+    const row = tables.contracts.find((c) => c.id === contractId)!
+    expect(row.status).toBe("cancelled")
+    expect(row.cancelled_reason).toBe("Customer withdrew.")
+  })
+})
+
+describe("createContractAmendment (acceptance criterion: never alters the original)", () => {
+  it("leaves the original contract's resolved_context/rendered_sections/pdf_storage_path byte-identical", async () => {
+    const { client, tables } = makeFakeSupabase()
+    const contractId = await seedGeneratedContract(client as never, tables)
+    const before = JSON.parse(JSON.stringify(tables.contracts.find((c) => c.id === contractId)))
+
+    const result = await createContractAmendment(client, makeSession(), {
+      contractId,
+      type: "rental_extension",
+      description: "Extended by 2 days at the customer's request.",
+      changes: [{ field: "reservation.returnAt", before: "19 Jul 2026", after: "21 Jul 2026" }],
+    })
+    expect(result.ok).toBe(true)
+
+    const after = tables.contracts.find((c) => c.id === contractId)!
+    expect(after).toEqual(before) // the original row is completely untouched
+    expect(tables.contract_amendments).toHaveLength(1)
+    expect(tables.contract_amendments[0].contract_id).toBe(contractId)
+
+    expect(activityLogMock.recordEvent).toHaveBeenCalledWith(client, expect.objectContaining({ type: "contract_amended" }))
+  })
+})
+
+describe("searchContracts (acceptance criterion)", () => {
+  it("finds a contract by customer name, vehicle plate, and contract number", async () => {
+    const { client, tables } = makeFakeSupabase()
+    const contractId = await seedGeneratedContract(client as never, tables)
+    const contractNumber = tables.contracts.find((c) => c.id === contractId)!.contract_number as string
+
+    const byCustomer = await searchContracts(client, "co_1", { customerName: "ahmed" })
+    expect(byCustomer.items.map((i) => i.id)).toContain(contractId)
+    expect(byCustomer.items[0].customerName).toBe("Ahmed Tazi")
+
+    const byPlate = await searchContracts(client, "co_1", { vehiclePlate: "12345" })
+    expect(byPlate.items.map((i) => i.id)).toContain(contractId)
+    expect(byPlate.items[0].vehicleLabel).toContain("12345-A-6")
+
+    const byNumber = await searchContracts(client, "co_1", { contractNumber })
+    expect(byNumber.items.map((i) => i.id)).toEqual([contractId])
+
+    const noMatch = await searchContracts(client, "co_1", { customerName: "nobody with this name" })
+    expect(noMatch.items).toEqual([])
+  })
+
+  it("filters by status", async () => {
+    const { client, tables } = makeFakeSupabase()
+    const contractId = await seedGeneratedContract(client as never, tables)
+
+    const draftResults = await searchContracts(client, "co_1", { status: "draft" })
+    expect(draftResults.items.map((i) => i.id)).toContain(contractId)
+
+    const activeResults = await searchContracts(client, "co_1", { status: "active" })
+    expect(activeResults.items.map((i) => i.id)).not.toContain(contractId)
+  })
+})
+
+describe("regenerateContractPdf", () => {
+  it("rebuilds the PDF from stored data alone, without re-reading customer/vehicle/reservation rows", async () => {
+    const { client, tables } = makeFakeSupabase()
+    const contractId = await seedGeneratedContract(client as never, tables)
+    pdfRenderMock.renderContractPdf.mockClear()
+
+    const result = await regenerateContractPdf(client, makeSession(), contractId)
+    expect(result.ok).toBe(true)
+    expect(pdfRenderMock.renderContractPdf).toHaveBeenCalledTimes(1)
+    const callArg = pdfRenderMock.renderContractPdf.mock.calls[0][0]
+    expect(callArg.contractId).toBe(contractId)
+    expect(callArg.sections.length).toBeGreaterThan(0)
   })
 })
