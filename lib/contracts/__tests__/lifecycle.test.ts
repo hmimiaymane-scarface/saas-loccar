@@ -7,6 +7,8 @@ import {
   isTerminalContractStatus,
   isCancellable,
   hasRequiredSignatures,
+  isManualTransition,
+  contractActionLabelFor,
   type ContractStatus,
 } from "@/lib/contracts/lifecycle"
 
@@ -94,5 +96,20 @@ describe("hasRequiredSignatures", () => {
 
   it("is false with no signatures at all", () => {
     expect(hasRequiredSignatures([])).toBe(false)
+  })
+})
+
+describe("isManualTransition / contractActionLabelFor", () => {
+  it("signed is the only non-manual transition — it only happens via signature collection", () => {
+    expect(isManualTransition("signed")).toBe(false)
+    expect(isManualTransition("prepared")).toBe(true)
+    expect(isManualTransition("active")).toBe(true)
+    expect(isManualTransition("cancelled")).toBe(true)
+  })
+
+  it("has a human label for every transition button that's actually shown", () => {
+    for (const status of ["prepared", "awaiting_signature", "active", "completed", "archived", "cancelled"] as ContractStatus[]) {
+      expect(contractActionLabelFor(status)).not.toBe(status) // a real label, not a fallback to the raw enum value
+    }
   })
 })

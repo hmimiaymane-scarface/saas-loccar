@@ -65,6 +65,27 @@ export function contractStatusLabel(status: ContractStatus): string {
   return CONTRACT_STATUS_LABELS[status]
 }
 
+const CONTRACT_ACTION_LABELS: Partial<Record<ContractStatus, string>> = {
+  prepared: "Mark as prepared",
+  awaiting_signature: "Send for signature",
+  active: "Activate",
+  completed: "Complete",
+  archived: "Archive",
+  cancelled: "Cancel",
+}
+
+export function contractActionLabelFor(next: ContractStatus): string {
+  return CONTRACT_ACTION_LABELS[next] ?? next
+}
+
+/** "Signed" is never a manually-clicked transition — it only happens
+ * as a side effect of `addContractSignature` once both required
+ * signer types are on file (see `hasRequiredSignatures`). Buttons
+ * driven by `allowedNextContractStatuses` should skip it. */
+export function isManualTransition(status: ContractStatus): boolean {
+  return status !== "signed"
+}
+
 export type SignerType = "customer" | "additional_driver" | "employee" | "manager"
 
 /**

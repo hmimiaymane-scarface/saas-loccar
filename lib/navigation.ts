@@ -9,6 +9,7 @@ import {
   Wrench,
   FileText,
   FileSignature,
+  ScrollText,
   UserCog,
   BarChart3,
   Globe,
@@ -95,6 +96,13 @@ export const primaryNav: NavItem[] = [
     href: "/documents",
     icon: FileText,
     description: "Contracts and files, uploaded by your team",
+    roles: ["owner", "manager", "agent"],
+  },
+  {
+    title: "Contracts",
+    href: "/contracts",
+    icon: ScrollText,
+    description: "Generated rental agreements — search, sign, amend, archive",
     roles: ["owner", "manager", "agent"],
   },
   {
