@@ -76,6 +76,7 @@ function DocumentUploadRow({
       customerId: customerId ?? null,
       vehicleId: null,
       url: null,
+      expiresOn: null,
     })
   }
 

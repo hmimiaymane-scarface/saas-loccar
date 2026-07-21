@@ -16,6 +16,7 @@ export const documents: RentalDocument[] = [
     customerId: null,
     vehicleId: null,
     url: null,
+    expiresOn: null,
   },
   {
     id: "doc_2",
@@ -32,6 +33,10 @@ export const documents: RentalDocument[] = [
     customerId: "cus_2",
     vehicleId: null,
     url: null,
+    // Roadmap phase 09's returning-customer readiness demo — this is
+    // Ahmed Tazi's fast-path fixture, and it's deliberately valid
+    // (see cus_3 Sara Bennis / doc_5 below for the expired case).
+    expiresOn: "2029-03-01",
   },
   {
     id: "doc_3",
@@ -48,6 +53,7 @@ export const documents: RentalDocument[] = [
     customerId: "cus_2",
     vehicleId: null,
     url: null,
+    expiresOn: null,
   },
   {
     id: "doc_4",
@@ -64,5 +70,25 @@ export const documents: RentalDocument[] = [
     customerId: null,
     vehicleId: null,
     url: null,
+    expiresOn: null,
+  },
+  {
+    id: "doc_5",
+    category: "identity_document",
+    originalFilename: "id-sara-bennis.jpg",
+    mimeType: "image/jpeg",
+    fileSizeBytes: 1_180_000,
+    contractReference: null,
+    notes: null,
+    status: "active",
+    uploadedByName: "Hamza Berrada",
+    createdAt: "2026-03-02T09:15:00+01:00",
+    reservationId: null,
+    customerId: "cus_3",
+    vehicleId: null,
+    url: null,
+    // Expired — Sara Bennis (cus_3) is the readiness demo's
+    // "interrupted" fast path: an active but expired identity scan.
+    expiresOn: "2026-05-01",
   },
 ]

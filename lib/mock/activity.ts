@@ -13,6 +13,8 @@ export const recentActivity: ActivityItem[] = [
     description: "Ahmed Tazi paid 1,200 MAD toward booking #RB-3391",
     timestamp: "2026-07-18T09:42:00+01:00",
     actor: "Youssef El Amrani",
+    reservationId: "bk_1",
+    customerId: "cus_2",
   },
   {
     id: "act_2",
@@ -36,9 +38,11 @@ export const recentActivity: ActivityItem[] = [
     id: "act_4",
     type: "document_uploaded",
     title: "Contract uploaded",
-    description: "Signed contract added to Mehdi Chraibi's booking #RB-3388",
+    description: "Signed contract added to Mehdi Chraibi's booking #RB-3394",
     timestamp: "2026-07-17T16:05:00+01:00",
     actor: "Hamza Berrada",
+    reservationId: "bk_4",
+    customerId: "cus_4",
   },
   {
     id: "act_5",

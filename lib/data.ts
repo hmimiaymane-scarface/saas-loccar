@@ -286,6 +286,7 @@ function mapActivityRow(row: {
     actorId: row.actor_id ?? undefined,
     reservationId: typeof metadata.reservation_id === "string" ? metadata.reservation_id : undefined,
     vehicleId: typeof metadata.vehicle_id === "string" ? metadata.vehicle_id : undefined,
+    customerId: typeof metadata.customer_id === "string" ? metadata.customer_id : undefined,
   }
 }
 
@@ -409,6 +410,7 @@ function mapDocumentRow(row: {
   reservation_id: string | null
   customer_id: string | null
   vehicle_id: string | null
+  expires_on: string | null
 }): Omit<RentalDocument, "uploadedByName" | "url"> & { uploadedBy: string | null; storagePath: string } {
   return {
     id: row.id,
@@ -425,6 +427,7 @@ function mapDocumentRow(row: {
     customerId: row.customer_id,
     vehicleId: row.vehicle_id,
     storagePath: row.storage_path,
+    expiresOn: row.expires_on,
   }
 }
 
@@ -1376,6 +1379,87 @@ export async function getActivityLogList(
   }
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Roadmap phase 09's Customer Timeline. Unlike the vehicle timeline
+ * (which just filters on `metadata->>vehicle_id`, reliably stamped on
+ * every reservation-lifecycle event), no single metadata key covers a
+ * customer: `customer_id` is only stamped on payment events (see
+ * `payments/actions.ts#recordPayment`), so this combines four
+ * predicates instead of one —
+ * 1. the customer's own account events (`entity_type = customer`),
+ * 2. every event on one of their reservations, found via the same
+ *    `metadata->>reservation_id` every reservation-lifecycle event
+ *    already carries (covers deposits, damages, inspections, and the
+ *    reservation record itself),
+ * 3. every document uploaded directly to them, found via
+ *    `entity_type = document` + their document ids (documents don't
+ *    reliably carry a reservation_id — an identity scan can be
+ *    uploaded outside any specific booking),
+ * 4. the rare payment recorded with no reservation at all, caught via
+ *    `metadata->>customer_id` directly.
+ * customerId is a route param, not free-text search input, but it's
+ * spliced into a raw `.or()` string (PostgREST has no parameterized
+ * form for that), so it's still validated as a UUID first rather than
+ * trusted structurally.
+ */
+export async function getCustomerTimeline(
+  companyId: string,
+  customerId: string,
+  page = 1,
+  pageSize = 30
+): Promise<PaginatedResult<ActivityItem>> {
+  if (isMockMode()) {
+    const reservationIds = mockBookings.filter((b) => b.customer.id === customerId).map((b) => b.id)
+    const items = mockRecentActivity.filter(
+      (a) => a.customerId === customerId || (a.reservationId != null && reservationIds.includes(a.reservationId))
+    )
+    items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    const total = items.length
+    const start = (page - 1) * pageSize
+    return { items: items.slice(start, start + pageSize), total, page, pageSize }
+  }
+
+  if (!UUID_PATTERN.test(customerId)) {
+    return { items: [], total: 0, page, pageSize }
+  }
+
+  const supabase = await createClient()
+
+  const [reservationsRes, documentsRes] = await Promise.all([
+    supabase.from("reservations").select("id").eq("company_id", companyId).eq("customer_id", customerId),
+    supabase.from("documents").select("id").eq("company_id", companyId).eq("customer_id", customerId),
+  ])
+  if (reservationsRes.error) throw reservationsRes.error
+  if (documentsRes.error) throw documentsRes.error
+
+  const reservationIds = (reservationsRes.data ?? []).map((r) => r.id as string).filter((id) => UUID_PATTERN.test(id))
+  const documentIds = (documentsRes.data ?? []).map((d) => d.id as string).filter((id) => UUID_PATTERN.test(id))
+
+  const orClauses = [`and(entity_type.eq.customer,entity_id.eq.${customerId})`, `metadata->>customer_id.eq.${customerId}`]
+  if (reservationIds.length > 0) orClauses.push(`metadata->>reservation_id.in.(${reservationIds.join(",")})`)
+  if (documentIds.length > 0) orClauses.push(`and(entity_type.eq.document,entity_id.in.(${documentIds.join(",")}))`)
+
+  const start = (page - 1) * pageSize
+  const { data, error, count } = await supabase
+    .from("activity_log")
+    .select("id, type, title, description, created_at, actor_id, metadata, actor:profiles(full_name)", { count: "exact" })
+    .eq("company_id", companyId)
+    .or(orClauses.join(","))
+    .order("created_at", { ascending: false })
+    .range(start, start + pageSize - 1)
+
+  if (error) throw error
+
+  return {
+    items: (data ?? []).map((row) => mapActivityRow(row as never)),
+    total: count ?? 0,
+    page,
+    pageSize,
+  }
+}
+
 export async function getTodayPickups(companyId: string): Promise<Booking[]> {
   if (isMockMode()) {
     const TODAY = "2026-07-18"
@@ -2066,7 +2150,7 @@ export async function getDepositForReservation(
 // ---------------------------------------------------------------------
 
 const DOCUMENT_SELECT =
-  "id, category, storage_path, original_filename, mime_type, file_size_bytes, contract_reference, notes, status, uploaded_by, created_at, reservation_id, customer_id, vehicle_id"
+  "id, category, storage_path, original_filename, mime_type, file_size_bytes, contract_reference, notes, status, uploaded_by, created_at, reservation_id, customer_id, vehicle_id, expires_on"
 
 export interface DocumentListFilters {
   category?: DocumentCategory
@@ -2307,6 +2391,7 @@ export async function getCustomerDetail(companyId: string, customerId: string): 
       .reduce((sum, b) => sum + b.payment.remainingMad, 0)
     return {
       ...c,
+      customerSince: "2025-11-02T09:00:00+01:00",
       nationality: null,
       idDocumentNumber: null,
       address: null,
@@ -2325,7 +2410,7 @@ export async function getCustomerDetail(companyId: string, customerId: string): 
   const { data: row, error } = await supabase
     .from("customers")
     .select(
-      "id, full_name, phone, email, nationality, id_document_number, license_number, license_expires_on, address, notes, status, date_of_birth, marketing_consent"
+      "id, full_name, phone, email, nationality, id_document_number, license_number, license_expires_on, address, notes, status, date_of_birth, marketing_consent, created_at"
     )
     .eq("company_id", companyId)
     .eq("id", customerId)
@@ -2372,6 +2457,7 @@ export async function getCustomerDetail(companyId: string, customerId: string): 
     licenseNumber: row.license_number ?? "",
     licenseExpiresAt: row.license_expires_on ?? "",
     totalBookings: custReservations.length,
+    customerSince: row.created_at,
     nationality: row.nationality,
     idDocumentNumber: row.id_document_number,
     address: row.address,

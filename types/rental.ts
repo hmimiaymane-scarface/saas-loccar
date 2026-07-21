@@ -303,6 +303,7 @@ export interface ActivityItem {
   actorId?: string
   reservationId?: string
   vehicleId?: string
+  customerId?: string
 }
 
 export interface OverviewMetrics {
@@ -383,6 +384,11 @@ export interface RentalDocument {
   /** Time-limited signed URL, resolved server-side at read time — never a
    * raw storage path (see phase brief: "Do not expose raw storage paths"). */
   url: string | null
+  /** Set by the extraction pipeline for expiry-bearing categories (see
+   * lib/documents.ts#recordDetectedExpiry) — already a real column,
+   * just not selected on this read path until roadmap phase 09's
+   * returning-customer readiness check needed it. */
+  expiresOn: string | null
 }
 
 // ---------------------------------------------------------------------
@@ -554,6 +560,10 @@ export interface PaymentTransaction {
 // ---------------------------------------------------------------------
 
 export interface CustomerDetail extends Customer {
+  /** ISO timestamp — `customers.created_at`. Roadmap phase 09's "how
+   * long they've been a customer" tenure figure on the Customer
+   * Command Center. */
+  customerSince: string
   nationality: string | null
   idDocumentNumber: string | null
   address: string | null
