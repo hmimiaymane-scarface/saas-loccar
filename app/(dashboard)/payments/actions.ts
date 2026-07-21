@@ -7,6 +7,7 @@ import { requiredString, optionalString, requiredNumber, requiredEnum } from "@/
 import { createClient } from "@/lib/supabase/server"
 import { recordEvent } from "@/lib/activity-log"
 import { computeDepositStatus, exceedsCollected } from "@/lib/deposits"
+import { recomputeCustomerIntelligenceBestEffort } from "@/lib/customer-intelligence-store"
 import type { PaymentMethod, PaymentTransactionType } from "@/types/rental"
 
 const PAYMENT_ROLES = ["owner", "manager", "agent", "accountant"] as const
@@ -74,6 +75,10 @@ export async function recordPayment(
       description: reference ? `Ref. ${reference}` : null,
       metadata: reservationId ? { reservation_id: reservationId, customer_id: customerId } : { customer_id: customerId },
     })
+
+    // Roadmap phase 08 requirement 6 — see the matching call in
+    // reservations/actions.ts#completeRentalAction.
+    await recomputeCustomerIntelligenceBestEffort(supabase, session, customerId, "payment_recorded")
 
     if (reservationId) revalidatePath(`/reservations/${reservationId}`)
     revalidatePath("/payments")

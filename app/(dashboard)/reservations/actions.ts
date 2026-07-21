@@ -18,6 +18,7 @@ import { findCustomerByPhone, getAvailableVehicles, searchCustomers } from "@/li
 import { recordEvent } from "@/lib/activity-log"
 import { isEditableStatus } from "@/lib/reservations/status"
 import { recomputeVehicleIntelligenceBestEffort } from "@/lib/vehicle-intelligence-store"
+import { recomputeCustomerIntelligenceBestEffort } from "@/lib/customer-intelligence-store"
 import type { BookingStatus, Customer, ReservationSource, Vehicle, VehicleCategory } from "@/types/rental"
 
 export interface ReservationActionState {
@@ -333,19 +334,22 @@ export async function completeRentalAction(
 
     if (error) return { error: friendlyDbError(error) }
 
-    // Roadmap phase 06 requirement 5: recompute this vehicle's health/
-    // profitability/utilization score now that a rental just completed
-    // against it, rather than on every future page view. complete_rental
-    // only takes the reservation id, not the vehicle id, so look it up —
-    // best-effort, never fails the completion itself.
+    // Roadmap phase 06 requirement 5 / phase 08 requirement 6: recompute
+    // this vehicle's and this customer's scores now that a rental just
+    // completed, rather than on every future page view. complete_rental
+    // only takes the reservation id, not the vehicle/customer id, so
+    // look them up — best-effort, never fails the completion itself.
     const { data: completedReservation } = await supabase
       .from("reservations")
-      .select("vehicle_id")
+      .select("vehicle_id, customer_id")
       .eq("id", reservationId)
       .eq("company_id", session.company.id)
       .maybeSingle()
     if (completedReservation?.vehicle_id) {
       await recomputeVehicleIntelligenceBestEffort(supabase, session, completedReservation.vehicle_id, "vehicle_returned")
+    }
+    if (completedReservation?.customer_id) {
+      await recomputeCustomerIntelligenceBestEffort(supabase, session, completedReservation.customer_id, "vehicle_returned")
     }
 
     revalidatePath(`/reservations/${reservationId}`)

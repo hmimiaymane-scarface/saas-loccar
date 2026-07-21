@@ -7,6 +7,7 @@ import { requiredString, optionalString, optionalNumber, requiredEnum } from "@/
 import { createClient } from "@/lib/supabase/server"
 import { recordEvent } from "@/lib/activity-log"
 import { recomputeVehicleIntelligenceBestEffort } from "@/lib/vehicle-intelligence-store"
+import { recomputeCustomerIntelligenceBestEffort } from "@/lib/customer-intelligence-store"
 import type { DamageCategory, DamageSeverity, DamageStatus } from "@/types/rental"
 
 const DAMAGE_ROLES = ["owner", "manager", "agent"] as const
@@ -76,6 +77,24 @@ export async function createDamage(
     // Roadmap phase 06 requirement 5 — see the matching call in
     // reservations/actions.ts#completeRentalAction.
     await recomputeVehicleIntelligenceBestEffort(supabase, session, vehicleId, "damage_recorded")
+
+    // Roadmap phase 08 requirement 6 — only when this damage is linked
+    // to a reservation, since that's the only way to know which
+    // customer it belongs to (damages don't carry a customer_id
+    // directly). A damage recorded with no reservation (e.g. found
+    // during routine inspection, not tied to a specific rental) has no
+    // customer to recompute.
+    if (reservationId) {
+      const { data: reservation } = await supabase
+        .from("reservations")
+        .select("customer_id")
+        .eq("id", reservationId)
+        .eq("company_id", companyId)
+        .maybeSingle()
+      if (reservation?.customer_id) {
+        await recomputeCustomerIntelligenceBestEffort(supabase, session, reservation.customer_id, "damage_recorded")
+      }
+    }
 
     if (reservationId) revalidatePath(`/reservations/${reservationId}`)
     revalidatePath(`/fleet/${vehicleId}`)
