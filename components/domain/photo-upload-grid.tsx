@@ -23,12 +23,21 @@ function PhotoUploadGrid({
   pathSegments,
   uploaded,
   onUpload,
+  onQueueOffline,
 }: {
   slots: PhotoSlot[]
   companyId: string
   pathSegments: string[]
   uploaded: UploadedPhoto[]
   onUpload: (slotKey: string, file: File, storagePath: string) => Promise<{ error?: string }>
+  /** Roadmap phase 16 requirement 6 — when provided and the device is
+   * offline, this is called INSTEAD of the normal upload-then-onUpload
+   * flow (both of which need a live network). The slot still shows the
+   * same "captured" checkmark either way — from the employee's
+   * perspective a queued photo IS captured; syncing later is invisible
+   * infrastructure, not something a field workflow should make them
+   * think about. */
+  onQueueOffline?: (slotKey: string, file: File) => Promise<{ error?: string }>
 }) {
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -41,9 +50,25 @@ function PhotoUploadGrid({
       return
     }
     setBusyKey(slotKey)
+
+    if (onQueueOffline && !navigator.onLine) {
+      const queued = await onQueueOffline(slotKey, file)
+      if (queued.error) setError(queued.error)
+      setBusyKey(null)
+      return
+    }
+
     const path = buildStoragePath(companyId, pathSegments, file.name)
     const upload = await uploadFile(path, file)
     if (upload.error) {
+      // A network-shaped failure after all — fall back to queueing
+      // rather than surfacing an error the employee can't act on mid-task.
+      if (onQueueOffline) {
+        const queued = await onQueueOffline(slotKey, file)
+        if (queued.error) setError(queued.error)
+        setBusyKey(null)
+        return
+      }
       setError(upload.error)
       setBusyKey(null)
       return

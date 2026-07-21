@@ -911,6 +911,10 @@ export async function addContractSignature(
     signerName: string
     deviceInfo: string | null
     ipAddress: string | null
+    /** Roadmap phase 16 — set together: a drawn signature captured via
+     * components/domain/contracts/signature-pad.tsx. Both omitted (the
+     * default) keeps the original typed_name_confirmation method. */
+    signatureImagePath?: string
   }
 ): Promise<TemplateActionResult<{ signatureId: string; nowSigned: boolean }>> {
   const companyId = session.company.id
@@ -931,6 +935,8 @@ export async function addContractSignature(
       signer_user_id: isEmployeeSigner ? session.userId : null,
       device_info: input.deviceInfo,
       ip_address: input.ipAddress,
+      method: input.signatureImagePath ? "drawn_signature" : "typed_name_confirmation",
+      signature_image_path: input.signatureImagePath ?? null,
     })
     .select("id")
     .single()

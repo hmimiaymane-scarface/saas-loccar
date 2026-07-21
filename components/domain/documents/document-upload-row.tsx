@@ -21,6 +21,7 @@ function DocumentUploadRow({
   customerId,
   existing,
   onUploaded,
+  onQueueOffline,
 }: {
   slot: DocumentSlotDef
   companyId: string
@@ -28,9 +29,36 @@ function DocumentUploadRow({
   customerId?: string
   existing?: RentalDocument
   onUploaded: (doc: RentalDocument) => void
+  /** Roadmap phase 16 requirement 6 ("document scanning" queueable
+   * offline) — called with a client-generated mutation id instead of
+   * the normal upload+createDocumentRecord flow when the device is
+   * offline; the row still shows "uploaded" immediately (see
+   * PhotoUploadGrid's identical reasoning: syncing later is invisible
+   * infrastructure, not something a field workflow should surface). */
+  onQueueOffline?: (file: File) => Promise<{ mutationId: string } | { error: string }>
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  function placeholderDocument(id: string, file: File): RentalDocument {
+    return {
+      id,
+      category: slot.category,
+      originalFilename: file.name,
+      mimeType: file.type,
+      fileSizeBytes: file.size,
+      contractReference: null,
+      notes: null,
+      status: "active",
+      uploadedByName: null,
+      createdAt: new Date().toISOString(),
+      reservationId: reservationId ?? null,
+      customerId: customerId ?? null,
+      vehicleId: null,
+      url: null,
+      expiresOn: null,
+    }
+  }
 
   async function handleFile(file: File) {
     setError(null)
@@ -40,9 +68,31 @@ function DocumentUploadRow({
       return
     }
     setBusy(true)
+
+    if (onQueueOffline && !navigator.onLine) {
+      const queued = await onQueueOffline(file)
+      setBusy(false)
+      if ("error" in queued) {
+        setError(queued.error)
+        return
+      }
+      onUploaded(placeholderDocument(`queued:${queued.mutationId}`, file))
+      return
+    }
+
     const path = buildStoragePath(companyId, ["documents", reservationId ?? customerId ?? "misc"], file.name)
     const upload = await uploadFile(path, file)
     if (upload.error) {
+      if (onQueueOffline) {
+        const queued = await onQueueOffline(file)
+        setBusy(false)
+        if ("error" in queued) {
+          setError(queued.error)
+          return
+        }
+        onUploaded(placeholderDocument(`queued:${queued.mutationId}`, file))
+        return
+      }
       setError(upload.error)
       setBusy(false)
       return
@@ -61,23 +111,7 @@ function DocumentUploadRow({
       setError(result.error)
       return
     }
-    onUploaded({
-      id: result.documentId!,
-      category: slot.category,
-      originalFilename: file.name,
-      mimeType: file.type,
-      fileSizeBytes: file.size,
-      contractReference: null,
-      notes: null,
-      status: "active",
-      uploadedByName: null,
-      createdAt: new Date().toISOString(),
-      reservationId: reservationId ?? null,
-      customerId: customerId ?? null,
-      vehicleId: null,
-      url: null,
-      expiresOn: null,
-    })
+    onUploaded(placeholderDocument(result.documentId!, file))
   }
 
   return (

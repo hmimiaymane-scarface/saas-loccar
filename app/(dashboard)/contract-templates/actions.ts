@@ -167,6 +167,7 @@ export async function addSignatureAction(input: {
   contractId: string
   signerType: SignerType
   signerName: string
+  signatureImagePath?: string
 }): Promise<{ ok: true; nowSigned: boolean } | { ok: false; error: string }> {
   const session = await requireSession()
   requireRole(session, [...GENERATE_ROLES])

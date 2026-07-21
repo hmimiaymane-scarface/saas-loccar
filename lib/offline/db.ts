@@ -23,6 +23,7 @@ export type MutationType =
   | "completeInspection"
   | "createDamage"
   | "createDocumentRecord"
+  | "addContractSignature"
 
 export type MutationStatus = "pending" | "syncing" | "needs_review"
 

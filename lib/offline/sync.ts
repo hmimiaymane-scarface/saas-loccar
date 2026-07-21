@@ -1,6 +1,7 @@
 import { saveInspectionFields, attachInspectionMedia, completeInspectionAction } from "@/app/(dashboard)/inspections/actions"
 import { createDamage } from "@/app/(dashboard)/damages/actions"
 import { createDocumentRecord, type CreateDocumentInput } from "@/app/(dashboard)/documents/actions"
+import { addSignatureAction } from "@/app/(dashboard)/contract-templates/actions"
 import { uploadFile } from "@/lib/storage-client"
 import { buildStoragePath } from "@/lib/storage"
 import { listMutations, getBlob, updateMutation, removeMutation, type QueuedMutation } from "@/lib/offline/db"
@@ -121,6 +122,20 @@ async function runMutation(companyId: string, mutation: QueuedMutation): Promise
       if (resolved.error) return { ok: false, retry: true, message: resolved.error }
       const result = await createDocumentRecord({ ...input, storagePath: resolved.path, idempotencyKey: mutation.id })
       if (result.error) return { ok: false, retry: false, message: result.error }
+      return { ok: true }
+    }
+
+    case "addContractSignature": {
+      const { contractId, signerType, signerName } = mutation.payload as {
+        contractId: string
+        signerType: "customer" | "additional_driver" | "employee" | "manager"
+        signerName: string
+      }
+      const resolved = await resolveStoragePath(companyId, mutation, ["signatures", contractId])
+      if (!resolved) return { ok: false, retry: false, message: "The signature for this contract is no longer available on this device." }
+      if (resolved.error) return { ok: false, retry: true, message: resolved.error }
+      const result = await addSignatureAction({ contractId, signerType, signerName, signatureImagePath: resolved.path })
+      if (!result.ok) return { ok: false, retry: false, message: result.error }
       return { ok: true }
     }
   }

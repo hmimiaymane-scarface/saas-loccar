@@ -92,7 +92,12 @@ export default async function ContractViewPage({ params }: { params: Promise<{ i
         </div>
 
         <div className="flex flex-col gap-4">
-          <ContractSignatureSection contractId={contract.id} status={contract.status} signatures={signatures} />
+          <ContractSignatureSection
+            contractId={contract.id}
+            companyId={session.company.id}
+            status={contract.status}
+            signatures={signatures}
+          />
 
           {contract.cancelledReason && (
             <Card>

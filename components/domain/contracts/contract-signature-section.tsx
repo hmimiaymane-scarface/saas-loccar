@@ -7,12 +7,17 @@ import { Loader2, PenLine, CheckCircle2 } from "lucide-react"
 import { addSignatureAction } from "@/app/(dashboard)/contract-templates/actions"
 import { hasRequiredSignatures, type SignerType } from "@/lib/contracts/lifecycle"
 import { formatDateTime } from "@/lib/format"
+import { buildStoragePath } from "@/lib/storage"
+import { uploadFile } from "@/lib/storage-client"
+import { useOfflineQueue } from "@/hooks/use-offline-queue"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { SignaturePad } from "@/components/domain/contracts/signature-pad"
+import { OfflineStatusBanner } from "@/components/domain/offline-status-banner"
 
 const SIGNER_LABELS: Record<SignerType, string> = {
   customer: "Customer",
@@ -39,10 +44,12 @@ interface SignatureItem {
  */
 function ContractSignatureSection({
   contractId,
+  companyId,
   status,
   signatures,
 }: {
   contractId: string
+  companyId: string
   status: string
   signatures: SignatureItem[]
 }) {
@@ -50,8 +57,10 @@ function ContractSignatureSection({
   const [signerType, setSignerType] = useState<SignerType>("customer")
   const [signerName, setSignerName] = useState("")
   const [confirmed, setConfirmed] = useState(false)
+  const [mode, setMode] = useState<"draw" | "type">("draw")
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const { isOnline, enqueue, pendingCount } = useOfflineQueue(companyId)
 
   const canSign = status === "awaiting_signature"
   const signedTypes = signatures.map((s) => s.signerType)
@@ -73,15 +82,60 @@ function ContractSignatureSection({
     })
   }
 
+  function submitDrawn(blob: Blob) {
+    if (!signerName.trim()) {
+      setError("Enter the signer's name first.")
+      return
+    }
+    setError(null)
+    startTransition(async () => {
+      const fileName = `${signerType}-${Date.now()}.png`
+
+      if (!isOnline) {
+        await enqueue(
+          "addContractSignature",
+          { contractId, signerType, signerName: signerName.trim() },
+          { file: { blob, fileName, mimeType: "image/png" } }
+        )
+        setSignerName("")
+        setError(null)
+        return
+      }
+
+      const path = buildStoragePath(companyId, ["signatures", contractId], fileName)
+      const upload = await uploadFile(path, new File([blob], fileName, { type: "image/png" }))
+      if (upload.error) {
+        // Fall back to queueing rather than losing the signature the
+        // customer just drew — same "network-shaped failure -> queue"
+        // pattern as PhotoUploadGrid/DocumentUploadRow.
+        await enqueue(
+          "addContractSignature",
+          { contractId, signerType, signerName: signerName.trim() },
+          { file: { blob, fileName, mimeType: "image/png" } }
+        )
+        setSignerName("")
+        return
+      }
+      const result = await addSignatureAction({ contractId, signerType, signerName: signerName.trim(), signatureImagePath: path })
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      setSignerName("")
+      router.refresh()
+    })
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Signatures</CardTitle>
         <CardDescription>
-          Typed name + explicit confirmation, not a drawn or certified e-signature — see docs/contract-lifecycle.md.
+          A drawn signature, or typed name + explicit confirmation — not a certified e-signature. See docs/contract-lifecycle.md.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        {canSign && <OfflineStatusBanner isOnline={isOnline} pendingCount={pendingCount} />}
         {signatures.length > 0 && (
           <div className="flex flex-col gap-2">
             {signatures.map((sig) => (
@@ -116,23 +170,46 @@ function ContractSignatureSection({
                   <Input id="signerName" value={signerName} onChange={(e) => setSignerName(e.target.value)} placeholder="Type full legal name" />
                 </div>
               </div>
-              <label className="flex items-start gap-2 text-sm text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={confirmed}
-                  onChange={(e) => setConfirmed(e.target.checked)}
-                  className="mt-0.5 size-4 rounded border-border"
-                />
-                I confirm this represents {signerName.trim() || "the signer"}&apos;s agreement to this contract, typed by them or on their explicit
-                behalf.
-              </label>
+
+              {mode === "draw" ? (
+                <div className="flex flex-col gap-2">
+                  <SignaturePad onCapture={submitDrawn} />
+                  <button
+                    type="button"
+                    className="w-fit text-xs text-muted-foreground underline underline-offset-2"
+                    onClick={() => setMode("type")}
+                  >
+                    Can&apos;t draw on this device — type name instead
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <label className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={confirmed}
+                      onChange={(e) => setConfirmed(e.target.checked)}
+                      className="mt-0.5 size-4 rounded border-border"
+                    />
+                    I confirm this represents {signerName.trim() || "the signer"}&apos;s agreement to this contract, typed by them or on their
+                    explicit behalf.
+                  </label>
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground underline underline-offset-2"
+                      onClick={() => setMode("draw")}
+                    >
+                      Draw a signature instead
+                    </button>
+                    <Button size="sm" disabled={pending || !signerName.trim() || !confirmed} onClick={submit}>
+                      {pending ? <Loader2 className="animate-spin" /> : <PenLine />}
+                      Record signature
+                    </Button>
+                  </div>
+                </div>
+              )}
               {error && <p className="text-sm text-destructive">{error}</p>}
-              <div className="flex justify-end">
-                <Button size="sm" disabled={pending || !signerName.trim() || !confirmed} onClick={submit}>
-                  {pending ? <Loader2 className="animate-spin" /> : <PenLine />}
-                  Record signature
-                </Button>
-              </div>
             </div>
           </>
         )}

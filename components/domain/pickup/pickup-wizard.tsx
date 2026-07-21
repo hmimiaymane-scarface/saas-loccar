@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import {
   Loader2,
@@ -35,6 +35,7 @@ import { resolveInitialStep, type RequirementItem } from "@/lib/workflow/steps"
 import { missingRequiredPhotoSlots } from "@/lib/inspections/rules"
 import { PHOTO_SLOTS } from "@/lib/inspections/photo-slots"
 import { useStepFocus } from "@/hooks/use-step-focus"
+import { useOfflineQueue } from "@/hooks/use-offline-queue"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -42,6 +43,7 @@ import { NativeSelect } from "@/components/ui/native-select"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { WizardProgress } from "@/components/domain/wizard-progress"
+import { OfflineStatusBanner } from "@/components/domain/offline-status-banner"
 import { WizardFooter } from "@/components/domain/wizard-footer"
 import { SummaryRow } from "@/components/domain/summary-row"
 import { RequirementsSummary } from "@/components/domain/requirements-summary"
@@ -115,6 +117,18 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
   const stepContainerRef = useStepFocus<HTMLDivElement>(step)
   const [isPending, startTransition] = useTransition()
   const [stepError, setStepError] = useState<string | null>(null)
+
+  // Offline queue (roadmap phase 16 requirement 6) — inspection field
+  // saves, photo capture, and document scanning are queueable with the
+  // network fully disabled; a mutation's id is tracked in
+  // queuedMutationIds so the final completion step can list them as
+  // dependsOn, keeping sync order correct (photos/documents before the
+  // inspection is marked complete). Deliberately NOT extended to
+  // activateRentalAction below — that's a reservation-status/payment
+  // transition, a heavier action this checkpoint keeps online-only; see
+  // docs/mobile.md for the full boundary.
+  const { isOnline, enqueue, pendingCount } = useOfflineQueue(companyId)
+  const queuedMutationIds = useRef<string[]>([])
 
   // Inspection ------------------------------------------------------------
   const [inspectionId, setInspectionId] = useState<string | null>(reservation.pickupInspection?.id ?? null)
@@ -279,13 +293,22 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
   async function saveInspectionStep() {
     if (!inspectionId) return
     setStepError(null)
-    const result = await saveInspectionFields(inspectionId, {
+    const fields = {
       odometerKm: odometerKm ? Number(odometerKm) : undefined,
       fuelLevel: fuelLevel ?? undefined,
       cleanliness: cleanliness ?? undefined,
       overallCondition: overallCondition ?? undefined,
       notes: inspectionNotes || undefined,
-    })
+    }
+
+    if (!isOnline) {
+      const mutationId = await enqueue("saveInspectionFields", { inspectionId, fields })
+      queuedMutationIds.current.push(mutationId)
+      setStep(4)
+      return
+    }
+
+    const result = await saveInspectionFields(inspectionId, fields)
     if (result.error) {
       setStepError(result.error)
       return
@@ -306,6 +329,19 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
     if (missingSlots.length > 0 && !reason) {
       const labels = missingSlots.map((key) => PHOTO_SLOTS.find((s) => s.key === key)?.label ?? key)
       setStepError(`Missing required photos: ${labels.join(", ")}.`)
+      return
+    }
+
+    if (!isOnline) {
+      const mutationId = await enqueue(
+        "completeInspection",
+        { inspectionId, reservationId: reservation.id },
+        { dependsOn: [...queuedMutationIds.current] }
+      )
+      queuedMutationIds.current.push(mutationId)
+      setStepError(
+        "You're offline — the inspection is saved on this device and will finish completing once you're back online. Activating the rental needs a connection."
+      )
       return
     }
 
@@ -359,6 +395,7 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
         {STEPS[step].label} — step {step + 1} of {STEPS.length}
       </div>
       <WizardProgress steps={STEPS} currentStep={step} />
+      <OfflineStatusBanner isOnline={isOnline} pendingCount={pendingCount} />
       <RequirementsSummary items={requirementItems} />
 
       <div ref={stepContainerRef} className="flex flex-col gap-6">
@@ -418,6 +455,21 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
                 reservationId={reservation.id}
                 existing={documents.find((d) => d.category === slot.category)}
                 onUploaded={(doc) => setDocuments((prev) => [doc, ...prev.filter((d) => d.category !== slot.category)])}
+                onQueueOffline={async (file) => {
+                  const mutationId = await enqueue(
+                    "createDocumentRecord",
+                    {
+                      category: slot.category,
+                      originalFilename: file.name,
+                      mimeType: file.type,
+                      fileSizeBytes: file.size,
+                      reservationId: reservation.id,
+                    },
+                    { file: { blob: file, fileName: file.name, mimeType: file.type } }
+                  )
+                  queuedMutationIds.current.push(mutationId)
+                  return { mutationId }
+                }}
               />
             ))}
           </CardContent>
@@ -610,6 +662,16 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
                     const result = await attachInspectionMedia(inspectionId, path, file.name, file.type, file.size, slotKey)
                     if (!result.error) setPhotos((prev) => [...prev, { key: slotKey }])
                     return result
+                  }}
+                  onQueueOffline={async (slotKey, file) => {
+                    const mutationId = await enqueue(
+                      "attachInspectionMedia",
+                      { inspectionId, caption: slotKey },
+                      { file: { blob: file, fileName: file.name, mimeType: file.type } }
+                    )
+                    queuedMutationIds.current.push(mutationId)
+                    setPhotos((prev) => [...prev, { key: slotKey }])
+                    return {}
                   }}
                 />
               )}
