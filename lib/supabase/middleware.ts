@@ -3,7 +3,10 @@ import { NextResponse, type NextRequest } from "next/server"
 
 import { isSupabaseConfigured, env } from "@/lib/env"
 
-const PUBLIC_PATHS = ["/sign-in", "/sign-up", "/auth/callback"]
+// /offline (roadmap phase 16) is public so the service worker's install
+// step can always cache a 200 response for it regardless of auth state,
+// and so it never loops through a redirect if reached directly.
+const PUBLIC_PATHS = ["/sign-in", "/sign-up", "/auth/callback", "/offline"]
 const ONBOARDING_PATH = "/onboarding"
 const ACCOUNT_SUSPENDED_PATH = "/account-suspended"
 const PLATFORM_PATH = "/platform"
