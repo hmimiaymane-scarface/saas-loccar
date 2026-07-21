@@ -193,8 +193,12 @@ type ResolvedVisionModel =
  * documentId) and extractBytes/classifyBytes (raw bytes, no document row
  * yet — roadmap phase 14's onboarding intake) both need and share no
  * other state for: picking an available provider and resolving its
- * model. Split out so neither path duplicates provider-resolution logic. */
-function resolveVisionModel(): ResolvedVisionModel {
+ * model. Split out so neither path duplicates provider-resolution logic.
+ * Exported for lib/damage-detection.ts (roadmap phase 15) — a second,
+ * unrelated vision use case (comparing two photos) that needs the exact
+ * same "pick an available provider's vision model" step and nothing
+ * else document-specific from this module. */
+export function resolveVisionModel(): ResolvedVisionModel {
   const provider = resolveAvailableProvider()
   if (!provider) {
     return {

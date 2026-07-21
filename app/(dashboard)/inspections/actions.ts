@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache"
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { createClient } from "@/lib/supabase/server"
 import { recordEvent } from "@/lib/activity-log"
+import { STORAGE_BUCKET } from "@/lib/storage"
+import { compareInspectionPhotos } from "@/lib/damage-detection"
 import type {
   Cleanliness,
   FuelLevel,
@@ -226,6 +228,109 @@ export async function completeInspectionAction(
     revalidatePath(`/reservations/${reservationId}`)
     revalidatePath(`/inspections/${inspectionId}`)
     return {}
+  } catch (err) {
+    if (err instanceof ActionError) return { error: err.message }
+    throw err
+  }
+}
+
+export interface DetectReturnDamageResult {
+  /** Set on a hard failure (auth, no provider configured, unreadable file). */
+  error?: string
+  /** True when there's nothing to compare against — no pickup photo was
+   * captured for this angle, or no pickup inspection exists at all. Not
+   * an error: comparison is simply unavailable, same as any other
+   * optional AI enrichment in this app degrading gracefully. */
+  noPickupPhoto?: boolean
+  damageDetected?: boolean
+  confidence?: number
+  description?: string
+}
+
+/**
+ * Roadmap phase 15 requirement 2 — compares a just-captured return
+ * inspection photo against the pickup inspection's photo of the same
+ * angle. Never persists a damage record itself; the caller (the return
+ * wizard's Damage step) shows the result via AiRecommendationCard and
+ * only creates a damage if the employee explicitly accepts it — see
+ * lib/damage-detection.ts's own doc comment for why this can't and
+ * shouldn't auto-record anything.
+ *
+ * The pickup↔return photo join is a two-hop lookup (reservation ->
+ * pickup inspection -> its media for this angle) since there's no
+ * direct FK between a return photo and "the corresponding pickup
+ * photo" — angle identity is `media.caption`, the same convention every
+ * other reader of inspection photos already relies on.
+ */
+export async function detectReturnDamage(returnInspectionId: string, angle: string): Promise<DetectReturnDamageResult> {
+  try {
+    const session = await requireSession()
+    requireRole(session, [...INSPECTION_ROLES])
+    const companyId = session.company.id
+    const supabase = await createClient()
+
+    const { data: returnInspection, error: returnError } = await supabase
+      .from("inspections")
+      .select("id, reservation_id, type")
+      .eq("id", returnInspectionId)
+      .eq("company_id", companyId)
+      .maybeSingle()
+
+    if (returnError) throw new ActionError(friendlyDbError(returnError))
+    if (!returnInspection || returnInspection.type !== "return") {
+      throw new ActionError("Return inspection not found.")
+    }
+
+    const { data: pickupInspection } = await supabase
+      .from("inspections")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("reservation_id", returnInspection.reservation_id)
+      .eq("type", "pickup")
+      .maybeSingle()
+
+    if (!pickupInspection) return { noPickupPhoto: true }
+
+    const [{ data: pickupMedia }, { data: returnMedia }] = await Promise.all([
+      supabase
+        .from("media")
+        .select("storage_path, mime_type")
+        .eq("company_id", companyId)
+        .eq("entity_type", "inspection")
+        .eq("entity_id", pickupInspection.id)
+        .eq("caption", angle)
+        .maybeSingle(),
+      supabase
+        .from("media")
+        .select("storage_path, mime_type")
+        .eq("company_id", companyId)
+        .eq("entity_type", "inspection")
+        .eq("entity_id", returnInspectionId)
+        .eq("caption", angle)
+        .maybeSingle(),
+    ])
+
+    if (!pickupMedia) return { noPickupPhoto: true }
+    if (!returnMedia) throw new ActionError("That return photo could not be found.")
+
+    const [pickupDownload, returnDownload] = await Promise.all([
+      supabase.storage.from(STORAGE_BUCKET).download(pickupMedia.storage_path),
+      supabase.storage.from(STORAGE_BUCKET).download(returnMedia.storage_path),
+    ])
+
+    if (pickupDownload.error || !pickupDownload.data || returnDownload.error || !returnDownload.data) {
+      throw new ActionError("Could not read one of the photos from storage.")
+    }
+
+    const result = await compareInspectionPhotos(
+      Buffer.from(await pickupDownload.data.arrayBuffer()),
+      pickupMedia.mime_type,
+      Buffer.from(await returnDownload.data.arrayBuffer()),
+      returnMedia.mime_type
+    )
+
+    if (!result.ok) return { error: result.message }
+    return { damageDetected: result.damageDetected, confidence: result.confidence, description: result.description }
   } catch (err) {
     if (err instanceof ActionError) return { error: err.message }
     throw err
