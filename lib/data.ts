@@ -919,7 +919,7 @@ export async function findDuplicateCandidates(
   if (isMockMode()) {
     return findDuplicateMatches(
       candidate,
-      mockCustomers.map((c) => ({ id: c.id, fullName: c.fullName, licenseNumber: c.licenseNumber })),
+      mockCustomers.map((c) => ({ id: c.id, fullName: c.fullName, licenseNumber: c.licenseNumber, phone: c.phone, email: c.email })),
       excludeCustomerId
     )
   }
@@ -927,7 +927,7 @@ export async function findDuplicateCandidates(
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("customers")
-    .select("id, full_name, id_document_number, license_number")
+    .select("id, full_name, id_document_number, license_number, phone, email, date_of_birth")
     .eq("company_id", companyId)
     .limit(500)
 
@@ -940,6 +940,9 @@ export async function findDuplicateCandidates(
       fullName: row.full_name as string,
       idDocumentNumber: row.id_document_number as string | null,
       licenseNumber: row.license_number as string | null,
+      phone: row.phone as string | null,
+      email: row.email as string | null,
+      dateOfBirth: row.date_of_birth as string | null,
     })),
     excludeCustomerId
   )
@@ -2309,6 +2312,8 @@ export async function getCustomerDetail(companyId: string, customerId: string): 
       address: null,
       notes: null,
       status: "active",
+      dateOfBirth: null,
+      marketingConsent: false,
       reservations: custReservations,
       activeRental,
       documents: mockDocuments.filter((d) => d.customerId === customerId),
@@ -2320,7 +2325,7 @@ export async function getCustomerDetail(companyId: string, customerId: string): 
   const { data: row, error } = await supabase
     .from("customers")
     .select(
-      "id, full_name, phone, email, nationality, id_document_number, license_number, license_expires_on, address, notes, status"
+      "id, full_name, phone, email, nationality, id_document_number, license_number, license_expires_on, address, notes, status, date_of_birth, marketing_consent"
     )
     .eq("company_id", companyId)
     .eq("id", customerId)
@@ -2372,6 +2377,8 @@ export async function getCustomerDetail(companyId: string, customerId: string): 
     address: row.address,
     notes: row.notes,
     status: row.status as CustomerDetail["status"],
+    dateOfBirth: row.date_of_birth,
+    marketingConsent: row.marketing_consent,
     reservations: custReservations,
     activeRental,
     documents: mappedDocuments.map((d) => ({

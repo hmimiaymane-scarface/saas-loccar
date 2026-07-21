@@ -1,21 +1,35 @@
 /**
- * Duplicate-customer detection (roadmap phase 04 requirement 5). Pure
- * scoring logic only — no Supabase dependency, so it's unit-testable
- * without mocking a database and reusable from both the mock-data and
- * live-data branches of lib/data.ts#findDuplicateCandidates (the
- * DB-facing wrapper, which follows the same isMockMode() convention as
- * every other reader in that file — see findCustomerByPhone).
+ * Duplicate-customer detection (roadmap phase 04 requirement 5,
+ * extended by phase 08 requirement 3 into a full customer-record-level
+ * concept — name, birth date, licence/passport number, phone, email).
+ * Pure scoring logic only — no Supabase dependency, so it's
+ * unit-testable without mocking a database and reusable from both the
+ * mock-data and live-data branches of lib/data.ts#findDuplicateCandidates.
  *
  * The bible's flow is Merge / Keep Separate / Review Later, not a hard
  * block — see how app/(dashboard)/customers/actions.ts#createCustomer
- * uses this: a likely duplicate returns candidates for the form to show
- * rather than refusing to create the record.
+ * and #updateCustomerProfile use this: a likely duplicate returns
+ * candidates for the form to show rather than refusing to save.
+ *
+ * False-positive risk was a named acceptance requirement for phase 08
+ * (e.g. "same phone reused legitimately" — a shared household/business
+ * line between genuinely different people). Phone and email are real
+ * signals but weighted below identity-document/licence numbers (which
+ * are, practically, unique to one person) for exactly that reason — see
+ * scoreCustomerMatch's weights and lib/__tests__/customer-matching.test.ts's
+ * false-positive cases.
  */
 
 export interface CustomerMatchCandidate {
   fullName: string
   idDocumentNumber?: string | null
   licenseNumber?: string | null
+  phone?: string | null
+  email?: string | null
+  /** ISO date (YYYY-MM-DD). A supporting signal only — many unrelated
+   * people share a birth date, so this alone never surfaces a match
+   * (see DUPLICATE_SURFACE_THRESHOLD and its weight below). */
+  dateOfBirth?: string | null
 }
 
 export interface ExistingCustomerRecord {
@@ -23,6 +37,9 @@ export interface ExistingCustomerRecord {
   fullName: string
   idDocumentNumber?: string | null
   licenseNumber?: string | null
+  phone?: string | null
+  email?: string | null
+  dateOfBirth?: string | null
 }
 
 export interface DuplicateMatch {
@@ -75,8 +92,9 @@ export function normalizeName(value: string): string {
 
 /** 0 (nothing alike) to 1 (identical after normalization) — Levenshtein
  * distance scaled by the longer name's length. Used for "near-match but
- * different spelling" fuzziness; exact-field matches (licence/ID number)
- * use normalizeIdLike + strict equality instead, deliberately not fuzzy. */
+ * different spelling" fuzziness; exact-field matches (licence/ID number,
+ * phone, email) use their own normalize-then-strict-equality instead,
+ * deliberately not fuzzy. */
 export function nameSimilarity(a: string, b: string): number {
   const na = normalizeName(a)
   const nb = normalizeName(b)
@@ -92,13 +110,35 @@ export function normalizeIdLike(value: string): string {
   return value.toUpperCase().replace(/[\s-]/g, "")
 }
 
+/** Digits only — "+212 661-234567" and "212661234567" compare equal.
+ * Deliberately doesn't attempt country-code normalization (e.g.
+ * reconciling a local "0661234567" against an international
+ * "212661234567" form of the same number) — a full phone-number parser
+ * is out of scope here, same restraint as normalizeIdLike's simple
+ * approach; see docs/customer-intelligence.md. */
+export function normalizePhone(value: string): string {
+  return value.replace(/\D/g, "")
+}
+
+export function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase()
+}
+
 /** Scores one existing customer against a candidate's identity fields.
- * An exact id-document or licence-number match is a strong independent
- * signal (55 points each); name similarity only contributes above a
- * fuzziness floor (0.85), capped so a shared name alone can reach the
- * surface threshold but never the "likely duplicate" one — matching the
- * acceptance requirement that near-similar-but-different names must not
- * be flagged as a confident duplicate on their own. */
+ * Exact matches on id-document/licence number are the strongest signal
+ * (55 points each — practically unique to one person). Phone and email
+ * are real but weaker signals (40 points each) — deliberately below
+ * the id-document tier and below DUPLICATE_LIKELY_THRESHOLD alone,
+ * because either can legitimately be shared between different people
+ * (a family phone line, a shared inbox) — but still at or above
+ * DUPLICATE_SURFACE_THRESHOLD alone, so an exact phone/email reuse is
+ * never silently invisible either; it surfaces as a "review later"
+ * signal even with no other match; combined with a name match it
+ * clears the "likely duplicate" bar. Date of birth (15 points) is
+ * weaker still — many unrelated people share a birth date — and name
+ * similarity only contributes above a fuzziness floor (0.85), capped
+ * so a shared name alone can reach the surface threshold but never the
+ * "likely duplicate" one. */
 export function scoreCustomerMatch(
   candidate: CustomerMatchCandidate,
   existing: ExistingCustomerRecord
@@ -124,6 +164,21 @@ export function scoreCustomerMatch(
     matchedFields.push("licenseNumber")
   }
 
+  if (candidate.phone && existing.phone && normalizePhone(candidate.phone) === normalizePhone(existing.phone)) {
+    score += 40
+    matchedFields.push("phone")
+  }
+
+  if (candidate.email && existing.email && normalizeEmail(candidate.email) === normalizeEmail(existing.email)) {
+    score += 40
+    matchedFields.push("email")
+  }
+
+  if (candidate.dateOfBirth && existing.dateOfBirth && candidate.dateOfBirth === existing.dateOfBirth) {
+    score += 15
+    matchedFields.push("dateOfBirth")
+  }
+
   const similarity = nameSimilarity(candidate.fullName, existing.fullName)
   if (similarity >= 0.85) {
     score += Math.round(similarity * 40)
@@ -138,8 +193,8 @@ export function scoreCustomerMatch(
  * first. `excludeCustomerId` skips a record — e.g. when re-checking an
  * existing customer's own updated profile, or a document already known
  * to belong to a specific customer (cross-document duplicate detection
- * per requirement 5's "compare extracted identity fields ... against
- * existing customers"). */
+ * per phase 04 requirement 5's "compare extracted identity fields ...
+ * against existing customers"). */
 export function findDuplicateMatches(
   candidate: CustomerMatchCandidate,
   pool: ExistingCustomerRecord[],

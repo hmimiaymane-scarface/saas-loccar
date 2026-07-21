@@ -1,7 +1,7 @@
 "use client"
 
-import { useActionState, useState } from "react"
-import { Loader2, Pencil } from "lucide-react"
+import { useActionState, useRef, useState } from "react"
+import { Loader2, Pencil, AlertTriangle } from "lucide-react"
 
 import { updateCustomerProfile, type CustomerActionState } from "@/app/(dashboard)/customers/actions"
 import type { CustomerDetail } from "@/types/rental"
@@ -15,6 +15,7 @@ function CustomerEditForm({ customer }: { customer: CustomerDetail }) {
   const [open, setOpen] = useState(false)
   const action = updateCustomerProfile.bind(null, customer.id)
   const [state, formAction, isPending] = useActionState(action, initialState)
+  const acknowledgeDuplicatesRef = useRef<HTMLInputElement>(null)
 
   if (!open) {
     return (
@@ -45,6 +46,10 @@ function CustomerEditForm({ customer }: { customer: CustomerDetail }) {
           <Input id="nationality" name="nationality" defaultValue={customer.nationality ?? undefined} />
         </div>
         <div className="flex flex-col gap-1.5">
+          <Label htmlFor="dateOfBirth">Date of birth</Label>
+          <Input id="dateOfBirth" name="dateOfBirth" type="date" defaultValue={customer.dateOfBirth ?? undefined} />
+        </div>
+        <div className="flex flex-col gap-1.5">
           <Label htmlFor="idDocumentNumber">ID document number</Label>
           <Input id="idDocumentNumber" name="idDocumentNumber" defaultValue={customer.idDocumentNumber ?? undefined} />
         </div>
@@ -71,6 +76,55 @@ function CustomerEditForm({ customer }: { customer: CustomerDetail }) {
           className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
         />
       </div>
+      <label className="flex items-center gap-2 text-sm text-foreground">
+        <input
+          type="checkbox"
+          name="marketingConsent"
+          value="true"
+          defaultChecked={customer.marketingConsent}
+          className="size-4 rounded border-input"
+        />
+        Customer has consented to marketing communications
+      </label>
+
+      <input ref={acknowledgeDuplicatesRef} type="hidden" name="acknowledgeDuplicates" defaultValue="false" />
+
+      {/* Same duplicate check as CustomerForm (roadmap phase 08
+          requirement 3: "creating or editing a customer") — never
+          blocks saving. */}
+      {state.duplicateCandidates && state.duplicateCandidates.length > 0 && (
+        <div className="flex flex-col gap-2.5 rounded-2xl bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+          <span className="flex items-center gap-2">
+            <AlertTriangle className="size-4 shrink-0" />
+            These edits now look like they might match another customer
+          </span>
+          <ul className="flex flex-col gap-1.5">
+            {state.duplicateCandidates.map((candidate) => (
+              <li key={candidate.customerId} className="flex items-center justify-between gap-3">
+                <span>
+                  {candidate.fullName} — {candidate.confidence}% match ({candidate.matchedFields.join(", ")})
+                </span>
+                <Button type="button" variant="ghost" size="sm" asChild>
+                  <a href={`/customers/${candidate.customerId}`}>View them</a>
+                </Button>
+              </li>
+            ))}
+          </ul>
+          <div>
+            <Button
+              type="submit"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (acknowledgeDuplicatesRef.current) acknowledgeDuplicatesRef.current.value = "true"
+              }}
+            >
+              Not a duplicate — save anyway
+            </Button>
+          </div>
+        </div>
+      )}
+
       {state.error && <p className="text-xs text-destructive">{state.error}</p>}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>

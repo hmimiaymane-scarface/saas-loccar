@@ -69,6 +69,7 @@ function CustomerForm({ returnTo }: { returnTo?: string }) {
             required
           />
           <Field label="Nationality" name="nationality" placeholder="Optional" />
+          <Field label="Date of birth" name="dateOfBirth" type="date" />
         </CardContent>
       </Card>
 
@@ -89,6 +90,10 @@ function CustomerForm({ returnTo }: { returnTo?: string }) {
           <div className="sm:col-span-2">
             <Field label="Address" name="address" placeholder="Optional" />
           </div>
+          <label className="flex items-center gap-2 text-sm text-foreground sm:col-span-2">
+            <input type="checkbox" name="marketingConsent" value="true" className="size-4 rounded border-input" />
+            Customer has consented to marketing communications
+          </label>
         </CardContent>
       </Card>
 
@@ -125,23 +130,9 @@ function CustomerForm({ returnTo }: { returnTo?: string }) {
 
       <input ref={acknowledgeDuplicatesRef} type="hidden" name="acknowledgeDuplicates" defaultValue="false" />
 
-      {state.duplicateCustomer && (
-        <div className="flex items-center justify-between rounded-2xl bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-          <span className="flex items-center gap-2">
-            <AlertTriangle className="size-4 shrink-0" />
-            Already a customer: {state.duplicateCustomer.fullName}
-          </span>
-          <Button type="button" variant="ghost" size="sm" asChild>
-            <a href={returnTo ? `${returnTo}?customerId=${state.duplicateCustomer.id}` : `/customers/${state.duplicateCustomer.id}`}>
-              Use them
-            </a>
-          </Button>
-        </div>
-      )}
-
-      {/* Identity-based near-matches (roadmap phase 04 requirement 5) —
-          unlike duplicateCustomer's exact phone match above, this never
-          blocks: the bible's flow is Merge / Keep Separate / Review
+      {/* Duplicate candidates (roadmap phase 04 requirement 5, extended by
+          phase 08 requirement 3 to also match phone/email/birth date) —
+          never blocks: the bible's flow is Merge / Keep Separate / Review
           Later, so the form offers "use them" per candidate plus a way
           to acknowledge and create anyway. */}
       {state.duplicateCandidates && state.duplicateCandidates.length > 0 && (
@@ -179,7 +170,7 @@ function CustomerForm({ returnTo }: { returnTo?: string }) {
         </div>
       )}
 
-      {state.error && !state.duplicateCustomer && (
+      {state.error && (
         <p className="text-sm text-destructive" role="alert">
           {state.error}
         </p>

@@ -559,6 +559,13 @@ export interface CustomerDetail extends Customer {
   address: string | null
   notes: string | null
   status: "active" | "flagged" | "blocked"
+  /** ISO date (YYYY-MM-DD) — a duplicate-matching factor (roadmap
+   * phase 08) and a marketing-segmentation input (birthday campaigns).
+   * Null until some flow captures it; no current form requires it. */
+  dateOfBirth: string | null
+  /** Explicit opt-in — phase 08's marketing segmentation queries only
+   * ever return customers with this set true. Defaults false. */
+  marketingConsent: boolean
   reservations: Booking[]
   activeRental: Booking | null
   documents: RentalDocument[]

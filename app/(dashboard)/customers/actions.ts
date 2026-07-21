@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { requiredString, optionalString } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
-import { findCustomerByPhone, findDuplicateCandidates } from "@/lib/data"
+import { findDuplicateCandidates } from "@/lib/data"
 import { recordEvent } from "@/lib/activity-log"
 import type { DuplicateMatch } from "@/lib/customer-matching"
 
@@ -16,12 +16,14 @@ const STATUSES = ["active", "flagged", "blocked"] as const
 export interface CustomerActionState {
   error?: string
   customerId?: string
-  duplicateCustomer?: { id: string; fullName: string; phone: string }
-  /** Identity-based near-matches (roadmap phase 04 requirement 5) — a
-   * softer signal than duplicateCustomer's exact phone match. The form
-   * shows these but doesn't block creation; resubmitting with
-   * acknowledgeDuplicates=true skips this check and creates anyway
-   * (the bible's "Keep Separate" choice). */
+  /** Duplicate candidates (roadmap phase 04 requirement 5, extended by
+   * phase 08 requirement 3 to also match on phone/email/birth date) —
+   * never blocks create/edit outright. Resubmitting with
+   * acknowledgeDuplicates=true skips this check and saves anyway (the
+   * bible's "Keep Separate" choice); "Use them" on a candidate is
+   * "Merge" in spirit (navigate to the existing record instead).
+   * "Review Later" is simply not acknowledging yet — the candidates
+   * stay visible until the user picks one of the other two. */
   duplicateCandidates?: DuplicateMatch[]
 }
 
@@ -29,8 +31,7 @@ export interface CustomerActionState {
  * quick "new customer" path inside reservation creation stays a separate,
  * minimal insert in reservations/actions.ts on purpose — it only ever
  * needs name + phone, and shouldn't gain this form's extra required
- * fields. Same duplicate-by-phone check as that path, so a customer can't
- * be created twice by two different routes into this app. */
+ * fields; it isn't duplicate-checked by this same flow. */
 export async function createCustomer(
   _prevState: CustomerActionState,
   formData: FormData
@@ -48,20 +49,14 @@ export async function createCustomer(
     const idDocumentNumber = optionalString(formData, "idDocumentNumber")
     const licenseNumber = optionalString(formData, "licenseNumber")
     const licenseExpiresOn = optionalString(formData, "licenseExpiresOn")
+    const dateOfBirth = optionalString(formData, "dateOfBirth")
     const address = optionalString(formData, "address")
     const notes = optionalString(formData, "notes")
-
-    const existing = await findCustomerByPhone(companyId, phone)
-    if (existing) {
-      return {
-        error: "A customer with this phone number already exists.",
-        duplicateCustomer: { id: existing.id, fullName: existing.fullName, phone: existing.phone },
-      }
-    }
+    const marketingConsent = formData.get("marketingConsent") === "true"
 
     const acknowledgeDuplicates = formData.get("acknowledgeDuplicates") === "true"
     if (!acknowledgeDuplicates) {
-      const candidates = await findDuplicateCandidates(companyId, { fullName, idDocumentNumber, licenseNumber })
+      const candidates = await findDuplicateCandidates(companyId, { fullName, idDocumentNumber, licenseNumber, phone, email, dateOfBirth })
       const likely = candidates.filter((c) => c.isLikelyDuplicate)
       if (likely.length > 0) {
         return { duplicateCandidates: likely }
@@ -79,8 +74,10 @@ export async function createCustomer(
         id_document_number: idDocumentNumber,
         license_number: licenseNumber,
         license_expires_on: licenseExpiresOn,
+        date_of_birth: dateOfBirth,
         address,
         notes,
+        marketing_consent: marketingConsent,
       })
       .select("id")
       .single()
@@ -122,18 +119,36 @@ export async function updateCustomerProfile(
     const idDocumentNumber = optionalString(formData, "idDocumentNumber")
     const licenseNumber = optionalString(formData, "licenseNumber")
     const licenseExpiresOn = optionalString(formData, "licenseExpiresOn")
+    const dateOfBirth = optionalString(formData, "dateOfBirth")
     const address = optionalString(formData, "address")
     const notes = optionalString(formData, "notes")
+    const marketingConsent = formData.get("marketingConsent") === "true"
 
     const { data: existing, error: fetchError } = await supabase
       .from("customers")
-      .select("full_name, phone, email, nationality, id_document_number, license_number, license_expires_on, address, notes")
+      .select("full_name, phone, email, nationality, id_document_number, license_number, license_expires_on, date_of_birth, address, notes, marketing_consent")
       .eq("id", customerId)
       .eq("company_id", companyId)
       .maybeSingle()
 
     if (fetchError) throw new ActionError(friendlyDbError(fetchError))
     if (!existing) throw new ActionError("Customer not found.")
+
+    // Same duplicate check as createCustomer (phase 08 requirement 3:
+    // "creating or editing a customer") — excludes this customer's own
+    // record so editing your own profile never flags itself.
+    const acknowledgeDuplicates = formData.get("acknowledgeDuplicates") === "true"
+    if (!acknowledgeDuplicates) {
+      const candidates = await findDuplicateCandidates(
+        companyId,
+        { fullName, idDocumentNumber, licenseNumber, phone, email, dateOfBirth },
+        customerId
+      )
+      const likely = candidates.filter((c) => c.isLikelyDuplicate)
+      if (likely.length > 0) {
+        return { duplicateCandidates: likely }
+      }
+    }
 
     const { error } = await supabase
       .from("customers")
@@ -145,8 +160,10 @@ export async function updateCustomerProfile(
         id_document_number: idDocumentNumber,
         license_number: licenseNumber,
         license_expires_on: licenseExpiresOn,
+        date_of_birth: dateOfBirth,
         address,
         notes,
+        marketing_consent: marketingConsent,
       })
       .eq("id", customerId)
       .eq("company_id", companyId)
@@ -170,8 +187,10 @@ export async function updateCustomerProfile(
           id_document_number: idDocumentNumber,
           license_number: licenseNumber,
           license_expires_on: licenseExpiresOn,
+          date_of_birth: dateOfBirth,
           address,
           notes,
+          marketing_consent: marketingConsent,
         },
       },
     })
