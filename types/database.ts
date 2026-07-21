@@ -672,6 +672,34 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["document_extractions"]["Insert"]>
         Relationships: []
       }
+      ai_usage_log: {
+        Row: {
+          id: string
+          company_id: string
+          actor_id: string | null
+          role: string
+          purpose: string
+          provider: string
+          model: string
+          success: boolean
+          error_code: string | null
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          actor_id?: string | null
+          role: string
+          purpose: string
+          provider: string
+          model: string
+          success: boolean
+          error_code?: string | null
+          created_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["ai_usage_log"]["Insert"]>
+        Relationships: []
+      }
       inspections: {
         Row: {
           id: string
