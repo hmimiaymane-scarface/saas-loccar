@@ -273,3 +273,66 @@ describe("askAI", () => {
     expect(result).toEqual({ ok: true, data: { summary: "All good." }, confidence: "high", modelId: "claude-sonnet-5" })
   })
 })
+
+// --- Acceptance criterion: two different "module-style" callers, two
+// different domain schemas, same service — proving askAI() is genuinely
+// reusable across domains rather than shaped around one caller. Neither
+// vehicle-health-scoring (phase 06) nor customer-trust-scoring (phase
+// 08) exist yet; these stand in for what those phases' calls will look
+// like once they do. ---
+
+const vehicleSummarySchema = z.object({
+  healthSummary: z.string(),
+  riskFactors: z.array(z.string()),
+})
+
+const customerSummarySchema = z.object({
+  trustSummary: z.string(),
+  flaggedConcerns: z.array(z.string()),
+})
+
+describe("askAI as a platform service — cross-domain reuse", () => {
+  it("a vehicle-module-style call works through the service", async () => {
+    aiMock.generateObject.mockResolvedValue({
+      object: { healthSummary: "Low mileage, no open damages, insurance current.", riskFactors: [] },
+    })
+    const { client, inserted } = makeFakeSupabase()
+
+    const result = await askAI(client as never, makeSession(), {
+      purpose: "vehicle.summarize",
+      prompt: "Summarize this vehicle's health and flag any risk factors: Dacia Duster, 22,000 km, no open damages.",
+      schema: vehicleSummarySchema,
+      allowedRoles: ["owner", "manager", "agent"],
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      data: { healthSummary: "Low mileage, no open damages, insurance current.", riskFactors: [] },
+      confidence: "high",
+      modelId: "claude-sonnet-5",
+    })
+    expect(inserted[0].row).toMatchObject({ purpose: "vehicle.summarize" })
+  })
+
+  it("a customer-module-style call works through the same service with a different schema", async () => {
+    aiMock.generateObject.mockResolvedValue({
+      object: { trustSummary: "Long-standing customer, always pays on time.", flaggedConcerns: [] },
+    })
+    const { client, inserted } = makeFakeSupabase()
+
+    const result = await askAI(client as never, makeSession(), {
+      purpose: "customer.summarize",
+      prompt: "Summarize this customer's history and flag any concerns: 6 completed bookings, no outstanding balance.",
+      schema: customerSummarySchema,
+      allowedRoles: ["owner", "manager", "agent"],
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      data: { trustSummary: "Long-standing customer, always pays on time.", flaggedConcerns: [] },
+      confidence: "high",
+      modelId: "claude-sonnet-5",
+    })
+    expect(inserted[0].row).toMatchObject({ purpose: "customer.summarize" })
+  })
+})
