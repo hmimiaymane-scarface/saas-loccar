@@ -672,6 +672,40 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["document_extractions"]["Insert"]>
         Relationships: []
       }
+      vehicle_intelligence: {
+        Row: {
+          id: string
+          company_id: string
+          vehicle_id: string
+          health_score: number
+          health_band: string
+          health_factors: unknown
+          profitability_net_mad: number
+          profitability_breakdown: unknown
+          utilization: unknown
+          recommendations: unknown | null
+          recommendations_confidence: string | null
+          computed_reason: string
+          computed_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          vehicle_id: string
+          health_score: number
+          health_band: string
+          health_factors: unknown
+          profitability_net_mad: number
+          profitability_breakdown: unknown
+          utilization: unknown
+          recommendations?: unknown | null
+          recommendations_confidence?: string | null
+          computed_reason: string
+          computed_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["vehicle_intelligence"]["Insert"]>
+        Relationships: []
+      }
       ai_usage_log: {
         Row: {
           id: string
