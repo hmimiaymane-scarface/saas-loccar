@@ -9,7 +9,7 @@ function VehicleEconomicsCard({ economics, period }: { economics: VehicleEconomi
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Financial &amp; operational summary</CardTitle>
+        <CardTitle>Revenue &amp; expenses</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <PeriodSelector current={period} />

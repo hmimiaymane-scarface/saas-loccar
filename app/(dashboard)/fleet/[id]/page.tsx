@@ -1,9 +1,9 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
-import { Pencil, Plus, Gauge, MapPin, AlertTriangle, Wrench } from "lucide-react"
+import { Pencil, Plus, Gauge, MapPin, AlertTriangle, Wrench, Sparkles } from "lucide-react"
 
 import { getSessionContext, type SessionContext } from "@/lib/auth/session"
-import { getVehicleDetail, getVehicleMaintenanceHistory, getVehicleEconomics } from "@/lib/data"
+import { getVehicleDetail, getVehicleMaintenanceHistory, getVehicleEconomics, getActivityLogList } from "@/lib/data"
 import { formatMad, formatDate, formatDateTime } from "@/lib/format"
 import { vehicleStatusConfig, damageStatusConfig, maintenanceRecordStatusConfig, MAINTENANCE_TYPE_LABELS } from "@/lib/status"
 import { resolveReportPeriod, type ReportPeriod } from "@/lib/reports"
@@ -20,6 +20,13 @@ import { VehicleStatusActions } from "@/components/domain/fleet/vehicle-status-a
 import { DocumentListItem } from "@/components/domain/documents/document-list-item"
 import { VehicleEconomicsCard } from "@/components/domain/fleet/vehicle-economics-card"
 import { VehicleIntelligenceCard } from "@/components/domain/fleet/vehicle-intelligence-card"
+import { VehicleInsightsSection } from "@/components/domain/fleet/vehicle-insights-section"
+import { EntityTimeline } from "@/components/domain/intelligence/entity-timeline"
+
+// Bible Chapter 3 §5 also lists a "Customer Reviews" section — omitted
+// here rather than faked: this codebase has no review/rating concept
+// anywhere (no field on customers, reservations, or anything else). A
+// future phase, not this one.
 
 /** Skipped entirely in mock mode (no createClient() to make) — matches
  * how the rest of this page already behaves via lib/data.ts's
@@ -86,11 +93,12 @@ export default async function VehicleDetailPage({
   const today = new Date().toISOString().slice(0, 10)
   const range = resolveReportPeriod(period, session.company.timezone, { from: query.from ?? today, to: query.to ?? today })
 
-  const [vehicle, maintenanceHistory, economics, intelligence] = await Promise.all([
+  const [vehicle, maintenanceHistory, economics, intelligence, timeline] = await Promise.all([
     getVehicleDetail(session.company.id, id),
     getVehicleMaintenanceHistory(session.company.id, id),
     getVehicleEconomics(session.company.id, id, range),
     loadVehicleIntelligence(session, id),
+    getActivityLogList(session.company.id, { vehicleId: id }, 1, 20),
   ])
   if (!vehicle) notFound()
 
@@ -139,6 +147,16 @@ export default async function VehicleDetailPage({
         }
       />
 
+      {/* Bible requirement: "an owner should understand a vehicle
+          within seconds" — the AI summary leads the page, above
+          everything else, not buried inside a card. */}
+      {intelligence?.summary && (
+        <div className="flex items-center gap-2 rounded-2xl bg-muted/60 px-4 py-3 text-sm text-foreground">
+          <Sparkles className="size-4 shrink-0 text-muted-foreground" />
+          {intelligence.summary}
+        </div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="flex flex-col gap-4 lg:col-span-2">
           <Card>
@@ -171,6 +189,15 @@ export default async function VehicleDetailPage({
           </Card>
 
           {intelligence && <VehicleIntelligenceCard intelligence={intelligence} />}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Timeline</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EntityTimeline items={timeline.items} />
+            </CardContent>
+          </Card>
 
           <VehicleEconomicsCard economics={economics} period={period} />
 
@@ -214,7 +241,7 @@ export default async function VehicleDetailPage({
           {vehicle.recentInspections.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Recent inspections</CardTitle>
+                <CardTitle>Inspections</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col divide-y divide-border">
                 {vehicle.recentInspections.map((inspection) => (
@@ -240,7 +267,7 @@ export default async function VehicleDetailPage({
           {maintenanceHistory.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Maintenance history</CardTitle>
+                <CardTitle>Maintenance</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col divide-y divide-border">
                 {maintenanceHistory.map((record) => (
@@ -266,7 +293,7 @@ export default async function VehicleDetailPage({
           {vehicle.documents.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Files</CardTitle>
+                <CardTitle>Documents</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 {vehicle.documents.map((doc) => (
@@ -288,6 +315,8 @@ export default async function VehicleDetailPage({
               </CardContent>
             </Card>
           )}
+
+          {intelligence && <VehicleInsightsSection intelligence={intelligence} />}
 
           {vehicle.openDamages.length > 0 && (
             <Card>
@@ -334,7 +363,7 @@ export default async function VehicleDetailPage({
 
           <Card>
             <CardHeader>
-              <CardTitle>Compliance</CardTitle>
+              <CardTitle>Insurance &amp; compliance</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-2.5">
               <DocumentRow label="Insurance" date={vehicle.insuranceExpiresOn} nowMs={nowMs} />
