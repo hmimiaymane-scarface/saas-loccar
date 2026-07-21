@@ -1,22 +1,34 @@
 "use client"
 
-import { AlertTriangle, Info, AlertCircle } from "lucide-react"
+import { AlertTriangle, Info, AlertCircle, TrendingUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { toneClasses, type Tone } from "@/lib/tone"
 import { Button } from "@/components/ui/button"
 
-export type InsightPriority = "critical" | "important" | "informational"
+/** Roadmap phase 12 requirement 4 — the bible's Chapter 10 §2
+ * four-level hierarchy, narrowed to what one feed item can be:
+ * `critical` (needs immediate action), `operational` (today's
+ * operations — act today, not an emergency), `important` (business
+ * health / opportunities — a slower-building concern or upside),
+ * `informational` (worth knowing, nothing to do right now). Extended
+ * from the original 3-tier version (phase 02) to give "today's
+ * operations" and "business health" their own distinct visual
+ * treatment instead of collapsing two conceptually different
+ * categories into one "important" bucket. */
+export type InsightPriority = "critical" | "operational" | "important" | "informational"
 
 const PRIORITY_TONE: Record<InsightPriority, Tone> = {
   critical: "critical",
-  important: "warning",
+  operational: "warning",
+  important: "positive",
   informational: "neutral",
 }
 
 const PRIORITY_ICON = {
   critical: AlertTriangle,
-  important: AlertCircle,
+  operational: AlertCircle,
+  important: TrendingUp,
   informational: Info,
 } as const
 
