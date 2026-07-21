@@ -619,6 +619,8 @@ export type Database = {
           notes: string | null
           status: string
           uploaded_by: string | null
+          expires_on: string | null
+          replaces_document_id: string | null
 
           created_at: Timestamp
           updated_at: Timestamp
@@ -638,6 +640,8 @@ export type Database = {
           notes?: string | null
           status?: string
           uploaded_by?: string | null
+          expires_on?: string | null
+          replaces_document_id?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["documents"]["Insert"]>
         Relationships: []
