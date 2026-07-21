@@ -2,10 +2,21 @@ import { notFound, redirect } from "next/navigation"
 
 import { getSessionContext } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
-import { getTemplateVersion } from "@/lib/contracts/template-store"
+import { getTemplateVersion, type TemplateVersionRecord } from "@/lib/contracts/template-store"
+import { isSupabaseConfigured } from "@/lib/env"
 import { SectionHeader } from "@/components/domain/section-header"
 import { TemplateReviewEditor } from "@/components/domain/contracts/template-review-editor"
 import { ActivateButton } from "@/components/domain/contracts/activate-button"
+
+async function loadVersion(companyId: string, versionId: string): Promise<TemplateVersionRecord | null> {
+  if (!isSupabaseConfigured) return null
+  try {
+    const supabase = await createClient()
+    return await getTemplateVersion(supabase, companyId, versionId)
+  } catch {
+    return null
+  }
+}
 
 export default async function TemplateVersionReviewPage({
   params,
@@ -17,8 +28,7 @@ export default async function TemplateVersionReviewPage({
   if (!["owner", "manager"].includes(session.role)) redirect("/overview")
 
   const { id, versionId } = await params
-  const supabase = await createClient()
-  const version = await getTemplateVersion(supabase, session.company.id, versionId)
+  const version = await loadVersion(session.company.id, versionId)
   if (!version || version.templateId !== id) notFound()
 
   return (

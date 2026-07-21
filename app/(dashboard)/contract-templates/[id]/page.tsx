@@ -4,7 +4,8 @@ import { Plus } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
-import { listTemplates, getTemplateVersions } from "@/lib/contracts/template-store"
+import { listTemplates, getTemplateVersions, type TemplateRecord, type TemplateVersionRecord } from "@/lib/contracts/template-store"
+import { isSupabaseConfigured } from "@/lib/env"
 import { formatDateTime } from "@/lib/format"
 import { SectionHeader } from "@/components/domain/section-header"
 import { Card, CardContent } from "@/components/ui/card"
@@ -16,17 +17,30 @@ const STATUS_LABEL: Record<string, string> = {
   archived: "Archived",
 }
 
+async function loadTemplateAndVersions(
+  companyId: string,
+  templateId: string
+): Promise<{ templates: TemplateRecord[]; versions: TemplateVersionRecord[] }> {
+  if (!isSupabaseConfigured) return { templates: [], versions: [] }
+  try {
+    const supabase = await createClient()
+    const [templates, versions] = await Promise.all([
+      listTemplates(supabase, companyId),
+      getTemplateVersions(supabase, companyId, templateId),
+    ])
+    return { templates, versions }
+  } catch {
+    return { templates: [], versions: [] }
+  }
+}
+
 export default async function ContractTemplateDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSessionContext()
   if (!session) redirect("/sign-in")
   if (!["owner", "manager"].includes(session.role)) redirect("/overview")
 
   const { id } = await params
-  const supabase = await createClient()
-  const [templates, versions] = await Promise.all([
-    listTemplates(supabase, session.company.id),
-    getTemplateVersions(supabase, session.company.id, id),
-  ])
+  const { templates, versions } = await loadTemplateAndVersions(session.company.id, id)
   const template = templates.find((t) => t.id === id)
   if (!template) notFound()
 

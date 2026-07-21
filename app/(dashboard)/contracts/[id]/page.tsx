@@ -5,6 +5,7 @@ import { Download } from "lucide-react"
 import { getSessionContext } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { getContract } from "@/lib/contracts/template-store"
+import { isSupabaseConfigured } from "@/lib/env"
 import { STORAGE_BUCKET } from "@/lib/storage"
 import { formatDateTime } from "@/lib/format"
 import { SectionHeader } from "@/components/domain/section-header"
@@ -17,6 +18,10 @@ export default async function ContractViewPage({ params }: { params: Promise<{ i
   if (!["owner", "manager", "agent"].includes(session.role)) redirect("/overview")
 
   const { id } = await params
+  // No mock-mode branch here (unlike lib/data.ts's reads) — this whole
+  // domain is live-Supabase-only, and there's no organic way to reach a
+  // real contract id in mock mode anyway (generation is a mutation).
+  if (!isSupabaseConfigured) notFound()
   const supabase = await createClient()
   const contract = await getContract(supabase, session.company.id, id)
   if (!contract) notFound()

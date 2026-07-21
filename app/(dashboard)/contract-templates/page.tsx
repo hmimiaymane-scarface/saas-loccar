@@ -4,19 +4,33 @@ import { Plus, FileSignature } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
-import { listTemplates } from "@/lib/contracts/template-store"
+import { listTemplates, type TemplateRecord } from "@/lib/contracts/template-store"
+import { isSupabaseConfigured } from "@/lib/env"
 import { SectionHeader } from "@/components/domain/section-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
+
+/** Same degrade-to-empty convention as every other AI/database-only
+ * feature's mock-mode handling on this page's peers (fleet, customers)
+ * — this whole domain is live-Supabase-only (see docs/contracts.md),
+ * so mock mode shows an empty list rather than crashing the page. */
+async function loadTemplates(companyId: string): Promise<TemplateRecord[]> {
+  if (!isSupabaseConfigured) return []
+  try {
+    const supabase = await createClient()
+    return await listTemplates(supabase, companyId)
+  } catch {
+    return []
+  }
+}
 
 export default async function ContractTemplatesPage() {
   const session = await getSessionContext()
   if (!session) redirect("/sign-in")
   if (!["owner", "manager"].includes(session.role)) redirect("/overview")
 
-  const supabase = await createClient()
-  const templates = await listTemplates(supabase, session.company.id)
+  const templates = await loadTemplates(session.company.id)
 
   return (
     <>
