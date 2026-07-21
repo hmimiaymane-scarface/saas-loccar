@@ -69,14 +69,16 @@ function buildVehicleRecommendationPrompt(
 
 /** Generates up to 4 grounded recommendations from an already-computed
  * health/profitability/utilization snapshot. Allowed for owner/manager/
- * agent — the same role set already gated to trigger a recompute in the
- * first place (completing a rental/maintenance/recording a damage —
- * see RESERVATION_ROLES/MAINTENANCE_ROLES/DAMAGE_ROLES). Restricting
- * this further would mean an agent's own action silently fails to
- * produce recommendations while everything else about it succeeds —
- * and the underlying health/profitability/utilization data isn't
- * role-restricted anywhere else in this codebase either, so there's
- * nothing this gate would actually be protecting. */
+ * agent — the union of every role that can trigger a recompute in the
+ * first place: completing a rental (RESERVATION_ROLES) and recording a
+ * damage (DAMAGE_ROLES) both allow agent; completing maintenance
+ * (MAINTENANCE_ROLES) is owner/manager only. Using the union rather
+ * than the narrowest set means an agent's own rental-completion or
+ * damage-recording action never silently fails to produce
+ * recommendations while everything else about it succeeds — and the
+ * underlying health/profitability/utilization data isn't role-
+ * restricted anywhere else in this codebase either, so there's nothing
+ * a narrower gate here would actually be protecting. */
 export async function generateVehicleRecommendations(
   supabase: SupabaseServerClient,
   session: SessionContext,

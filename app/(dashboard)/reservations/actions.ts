@@ -17,6 +17,7 @@ import { calculatePricing } from "@/lib/pricing"
 import { findCustomerByPhone, getAvailableVehicles, searchCustomers } from "@/lib/data"
 import { recordEvent } from "@/lib/activity-log"
 import { isEditableStatus } from "@/lib/reservations/status"
+import { recomputeVehicleIntelligenceBestEffort } from "@/lib/vehicle-intelligence-store"
 import type { BookingStatus, Customer, ReservationSource, Vehicle, VehicleCategory } from "@/types/rental"
 
 export interface ReservationActionState {
@@ -331,6 +332,21 @@ export async function completeRentalAction(
     })
 
     if (error) return { error: friendlyDbError(error) }
+
+    // Roadmap phase 06 requirement 5: recompute this vehicle's health/
+    // profitability/utilization score now that a rental just completed
+    // against it, rather than on every future page view. complete_rental
+    // only takes the reservation id, not the vehicle id, so look it up —
+    // best-effort, never fails the completion itself.
+    const { data: completedReservation } = await supabase
+      .from("reservations")
+      .select("vehicle_id")
+      .eq("id", reservationId)
+      .eq("company_id", session.company.id)
+      .maybeSingle()
+    if (completedReservation?.vehicle_id) {
+      await recomputeVehicleIntelligenceBestEffort(supabase, session, completedReservation.vehicle_id, "vehicle_returned")
+    }
 
     revalidatePath(`/reservations/${reservationId}`)
     revalidatePath("/reservations")

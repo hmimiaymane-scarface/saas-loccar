@@ -6,6 +6,7 @@ import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib
 import { requiredString, optionalString, optionalNumber, requiredEnum } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
 import { getUpcomingReservationConflicts } from "@/lib/data"
+import { recomputeVehicleIntelligenceBestEffort } from "@/lib/vehicle-intelligence-store"
 import type {
   MaintenancePriority,
   MaintenanceRecordStatus,
@@ -190,6 +191,10 @@ export async function completeMaintenanceAction(
       p_create_expense: options.createExpense ?? true,
     })
     if (error) return { error: friendlyDbError(error) }
+
+    // Roadmap phase 06 requirement 5 — see the matching call in
+    // reservations/actions.ts#completeRentalAction.
+    await recomputeVehicleIntelligenceBestEffort(supabase, session, vehicleId, "maintenance_completed")
 
     revalidatePath(`/maintenance/${maintenanceId}`)
     revalidatePath("/maintenance")

@@ -6,6 +6,7 @@ import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib
 import { requiredString, optionalString, optionalNumber, requiredEnum } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
 import { recordEvent } from "@/lib/activity-log"
+import { recomputeVehicleIntelligenceBestEffort } from "@/lib/vehicle-intelligence-store"
 import type { DamageCategory, DamageSeverity, DamageStatus } from "@/types/rental"
 
 const DAMAGE_ROLES = ["owner", "manager", "agent"] as const
@@ -71,6 +72,10 @@ export async function createDamage(
       description,
       metadata: { reservation_id: reservationId, damage_id: data.id, vehicle_id: vehicleId },
     })
+
+    // Roadmap phase 06 requirement 5 — see the matching call in
+    // reservations/actions.ts#completeRentalAction.
+    await recomputeVehicleIntelligenceBestEffort(supabase, session, vehicleId, "damage_recorded")
 
     if (reservationId) revalidatePath(`/reservations/${reservationId}`)
     revalidatePath(`/fleet/${vehicleId}`)
