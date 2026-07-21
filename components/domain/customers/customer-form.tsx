@@ -50,6 +50,7 @@ function CustomerForm({ returnTo }: { returnTo?: string }) {
 
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
+  const acknowledgeDuplicatesRef = useRef<HTMLInputElement>(null)
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -122,6 +123,8 @@ function CustomerForm({ returnTo }: { returnTo?: string }) {
         </CardContent>
       </Card>
 
+      <input ref={acknowledgeDuplicatesRef} type="hidden" name="acknowledgeDuplicates" defaultValue="false" />
+
       {state.duplicateCustomer && (
         <div className="flex items-center justify-between rounded-2xl bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
           <span className="flex items-center gap-2">
@@ -133,6 +136,46 @@ function CustomerForm({ returnTo }: { returnTo?: string }) {
               Use them
             </a>
           </Button>
+        </div>
+      )}
+
+      {/* Identity-based near-matches (roadmap phase 04 requirement 5) —
+          unlike duplicateCustomer's exact phone match above, this never
+          blocks: the bible's flow is Merge / Keep Separate / Review
+          Later, so the form offers "use them" per candidate plus a way
+          to acknowledge and create anyway. */}
+      {state.duplicateCandidates && state.duplicateCandidates.length > 0 && (
+        <div className="flex flex-col gap-2.5 rounded-2xl bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+          <span className="flex items-center gap-2">
+            <AlertTriangle className="size-4 shrink-0" />
+            This might already be a customer
+          </span>
+          <ul className="flex flex-col gap-1.5">
+            {state.duplicateCandidates.map((candidate) => (
+              <li key={candidate.customerId} className="flex items-center justify-between gap-3">
+                <span>
+                  {candidate.fullName} — {candidate.confidence}% match ({candidate.matchedFields.join(", ")})
+                </span>
+                <Button type="button" variant="ghost" size="sm" asChild>
+                  <a href={returnTo ? `${returnTo}?customerId=${candidate.customerId}` : `/customers/${candidate.customerId}`}>
+                    Use them
+                  </a>
+                </Button>
+              </li>
+            ))}
+          </ul>
+          <div>
+            <Button
+              type="submit"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (acknowledgeDuplicatesRef.current) acknowledgeDuplicatesRef.current.value = "true"
+              }}
+            >
+              Not a duplicate — create anyway
+            </Button>
+          </div>
         </div>
       )}
 

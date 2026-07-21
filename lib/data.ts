@@ -44,6 +44,11 @@ import {
 import { STORAGE_BUCKET } from "@/lib/storage"
 import { depositHeldMad } from "@/lib/deposits"
 import { urgencyForDaysUntil, daysUntil as daysUntilFn } from "@/lib/alerts"
+import {
+  findDuplicateMatches,
+  type CustomerMatchCandidate,
+  type DuplicateMatch,
+} from "@/lib/customer-matching"
 import { MAINTENANCE_TYPE_LABELS } from "@/lib/status"
 import {
   rentalDaysFor,
@@ -896,6 +901,47 @@ export async function findCustomerByPhone(
 
   if (error) throw error
   return data ? mapCustomerRow(data) : null
+}
+
+/** Identity-based duplicate detection (roadmap phase 04 requirement 5)
+ * — a softer, confidence-scored complement to findCustomerByPhone's
+ * exact match. Scores the candidate's name/id-document/licence-number
+ * against every customer in the company; see lib/customer-matching.ts
+ * for the scoring itself and why a shared name alone never reaches
+ * "likely duplicate" on its own. `excludeCustomerId` skips a customer
+ * (e.g. the one a re-checked document is already linked to). */
+export async function findDuplicateCandidates(
+  companyId: string,
+  candidate: CustomerMatchCandidate,
+  excludeCustomerId?: string
+): Promise<DuplicateMatch[]> {
+  if (isMockMode()) {
+    return findDuplicateMatches(
+      candidate,
+      mockCustomers.map((c) => ({ id: c.id, fullName: c.fullName, licenseNumber: c.licenseNumber })),
+      excludeCustomerId
+    )
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("customers")
+    .select("id, full_name, id_document_number, license_number")
+    .eq("company_id", companyId)
+    .limit(500)
+
+  if (error) throw error
+
+  return findDuplicateMatches(
+    candidate,
+    (data ?? []).map((row) => ({
+      id: row.id as string,
+      fullName: row.full_name as string,
+      idDocumentNumber: row.id_document_number as string | null,
+      licenseNumber: row.license_number as string | null,
+    })),
+    excludeCustomerId
+  )
 }
 
 // ---------------------------------------------------------------------

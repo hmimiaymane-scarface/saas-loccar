@@ -5,8 +5,9 @@ import { revalidatePath } from "next/cache"
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { requiredString, optionalString } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
-import { findCustomerByPhone } from "@/lib/data"
+import { findCustomerByPhone, findDuplicateCandidates } from "@/lib/data"
 import { recordEvent } from "@/lib/activity-log"
+import type { DuplicateMatch } from "@/lib/customer-matching"
 
 const CUSTOMER_ROLES = ["owner", "manager", "agent"] as const
 const CUSTOMER_STATUS_ROLES = ["owner", "manager"] as const
@@ -16,6 +17,12 @@ export interface CustomerActionState {
   error?: string
   customerId?: string
   duplicateCustomer?: { id: string; fullName: string; phone: string }
+  /** Identity-based near-matches (roadmap phase 04 requirement 5) — a
+   * softer signal than duplicateCustomer's exact phone match. The form
+   * shows these but doesn't block creation; resubmitting with
+   * acknowledgeDuplicates=true skips this check and creates anyway
+   * (the bible's "Keep Separate" choice). */
+  duplicateCandidates?: DuplicateMatch[]
 }
 
 /** Standalone customer creation (the guided /customers/new form). The
@@ -49,6 +56,15 @@ export async function createCustomer(
       return {
         error: "A customer with this phone number already exists.",
         duplicateCustomer: { id: existing.id, fullName: existing.fullName, phone: existing.phone },
+      }
+    }
+
+    const acknowledgeDuplicates = formData.get("acknowledgeDuplicates") === "true"
+    if (!acknowledgeDuplicates) {
+      const candidates = await findDuplicateCandidates(companyId, { fullName, idDocumentNumber, licenseNumber })
+      const likely = candidates.filter((c) => c.isLikelyDuplicate)
+      if (likely.length > 0) {
+        return { duplicateCandidates: likely }
       }
     }
 
