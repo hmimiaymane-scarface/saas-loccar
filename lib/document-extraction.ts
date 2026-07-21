@@ -4,7 +4,7 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { resolveModel, resolveAvailableProvider } from "@/lib/ai/models"
 import { STORAGE_BUCKET } from "@/lib/storage"
-import { CATEGORY_OPTIONS } from "@/lib/documents"
+import { CATEGORY_OPTIONS } from "@/lib/document-categories"
 import type { DocumentCategory } from "@/types/rental"
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>

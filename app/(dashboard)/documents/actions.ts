@@ -6,6 +6,7 @@ import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib
 import { createClient } from "@/lib/supabase/server"
 import { recordEvent } from "@/lib/activity-log"
 import { STORAGE_BUCKET } from "@/lib/storage"
+import { findSupersededDocument } from "@/lib/documents"
 import type { DocumentCategory } from "@/types/rental"
 
 const DOCUMENT_ROLES = ["owner", "manager", "agent"] as const
@@ -36,6 +37,18 @@ export async function createDocumentRecord(
       throw new ActionError("A document must be linked to a reservation, customer or vehicle.")
     }
 
+    // Version chaining (roadmap phase 04 requirement 3): if this same
+    // entity already has an active document of this category, the new
+    // upload supersedes it rather than leaving two "active" rows for
+    // the same thing — the old one is flipped to 'replaced' below, never
+    // deleted, so it stays retrievable via getDocumentVersionHistory().
+    const supersededId = await findSupersededDocument(supabase, companyId, {
+      category: input.category,
+      reservationId: input.reservationId,
+      customerId: input.customerId,
+      vehicleId: input.vehicleId,
+    })
+
     const { data, error } = await supabase
       .from("documents")
       .insert({
@@ -51,11 +64,20 @@ export async function createDocumentRecord(
         contract_reference: input.contractReference ?? null,
         notes: input.notes ?? null,
         uploaded_by: session.userId,
+        replaces_document_id: supersededId,
       })
       .select("id")
       .single()
 
     if (error) return { error: friendlyDbError(error) }
+
+    if (supersededId) {
+      await supabase
+        .from("documents")
+        .update({ status: "replaced" })
+        .eq("id", supersededId)
+        .eq("company_id", companyId)
+    }
 
     await recordEvent(supabase, {
       companyId,
@@ -68,6 +90,7 @@ export async function createDocumentRecord(
         ...(input.reservationId ? { reservation_id: input.reservationId } : {}),
         ...(input.customerId ? { customer_id: input.customerId } : {}),
         ...(input.vehicleId ? { vehicle_id: input.vehicleId } : {}),
+        ...(supersededId ? { replaces_document_id: supersededId } : {}),
       },
     })
 
