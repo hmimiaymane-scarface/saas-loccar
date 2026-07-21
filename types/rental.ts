@@ -305,6 +305,11 @@ export interface ReservationDetail extends Booking {
   documents: RentalDocument[]
   damages: Damage[]
   payments: PaymentTransaction[]
+  /** Roadmap phase 16 — which employee (if any) is doing this
+   * reservation's pickup/return in the field. Null means unassigned,
+   * visible to any agent, the same as every reservation before this
+   * field existed. */
+  assignedEmployeeId: string | null
 }
 
 export interface ActivityItem {

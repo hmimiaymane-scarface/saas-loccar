@@ -58,6 +58,12 @@ export interface ReservationFormInitial {
   dailyRateMad: number
   discountMad: number
   notes: string | null
+  assignedEmployeeId?: string | null
+}
+
+export interface AssignableEmployee {
+  userId: string
+  fullName: string
 }
 
 interface ReservationFormProps {
@@ -85,6 +91,12 @@ interface ReservationFormProps {
    * at the moment it actually matters, without blocking the form:
    * advisory only, same as every other AI/derived signal in this app. */
   returningCustomerReadiness?: ReturningCustomerReadiness
+  /** Roadmap phase 16 — only owner/manager pages pass this; agents
+   * never see the field at all (they can't assign work to themselves
+   * or others, only be assigned). Empty/omitted means no assignment
+   * picker renders — a reservation stays unassigned, visible to any
+   * agent, exactly as before this field existed. */
+  assignableEmployees?: AssignableEmployee[]
 }
 
 const initialState: ReservationActionState = {}
@@ -113,6 +125,7 @@ function ReservationForm({
   initial,
   preselectedCustomer,
   returningCustomerReadiness,
+  assignableEmployees = [],
 }: ReservationFormProps) {
   const [state, formAction, isPending] = useActionState(action, initialState)
   const isEdit = Boolean(initial)
@@ -250,6 +263,7 @@ function ReservationForm({
   const [source, setSource] = useState<ReservationSource>("walk_in")
   const [status, setStatus] = useState<BookingStatus>("request")
   const [notes, setNotes] = useState(initial?.notes ?? "")
+  const [assignedEmployeeId, setAssignedEmployeeId] = useState(initial?.assignedEmployeeId ?? "")
 
   const canSubmit = periodValid && (vehicleId || (unassigned && category))
 
@@ -698,6 +712,24 @@ function ReservationForm({
                   {STATUS_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+            )}
+            {assignableEmployees.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="assignedEmployeeId">Assign to</Label>
+                <NativeSelect
+                  id="assignedEmployeeId"
+                  name="assignedEmployeeId"
+                  value={assignedEmployeeId ?? ""}
+                  onChange={(e) => setAssignedEmployeeId(e.target.value)}
+                >
+                  <option value="">Unassigned — visible to any agent</option>
+                  {assignableEmployees.map((e) => (
+                    <option key={e.userId} value={e.userId}>
+                      {e.fullName}
                     </option>
                   ))}
                 </NativeSelect>

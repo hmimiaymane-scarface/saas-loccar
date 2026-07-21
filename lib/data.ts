@@ -513,7 +513,7 @@ const RESERVATION_SELECT =
   "id, reference, pickup_at, return_at, pickup_location, return_location, status, total_amount, amount_paid, remaining_balance, requested_category, created_at, customer:customers(id, full_name, phone), vehicle:vehicles(id, make, model, registration_number, category)"
 
 const RESERVATION_DETAIL_SELECT =
-  "id, reference, pickup_at, return_at, pickup_location, return_location, status, source, daily_rate, num_days, discount_amount, total_amount, amount_paid, remaining_balance, notes, requested_category, created_at, created_by, branch:branches(id, name), customer:customers(id, full_name, phone, email, license_number), vehicle:vehicles(id, make, model, registration_number, category)"
+  "id, reference, pickup_at, return_at, pickup_location, return_location, status, source, daily_rate, num_days, discount_amount, total_amount, amount_paid, remaining_balance, notes, requested_category, created_at, created_by, assigned_employee_id, branch:branches(id, name), customer:customers(id, full_name, phone, email, license_number), vehicle:vehicles(id, make, model, registration_number, category)"
 
 // ---------------------------------------------------------------------
 // Company reference data
@@ -1073,6 +1073,10 @@ export async function getReservationDetail(
       documents: mockDocuments.filter((d) => d.reservationId === reservationId),
       damages: mockDamages.filter((d) => d.reservationId === reservationId),
       payments: mockPaymentLedger.filter((p) => p.reservationId === reservationId),
+      // No mock reservation has an assignment — mock mode always reads
+      // as "unassigned," visible to any agent, same as a real unassigned
+      // reservation.
+      assignedEmployeeId: null,
     }
   }
 
@@ -1208,6 +1212,7 @@ export async function getReservationDetail(
     documents: documentsWithUrls,
     damages: damagesWithNames,
     payments: paymentsWithNames,
+    assignedEmployeeId: (row as unknown as { assigned_employee_id: string | null }).assigned_employee_id ?? null,
   }
 }
 

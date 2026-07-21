@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 
 import { getSessionContext, type SessionContext } from "@/lib/auth/session"
-import { getBranches, getCustomerDetail } from "@/lib/data"
+import { getBranches, getCustomerDetail, getTeamMembers } from "@/lib/data"
 import { isSupabaseConfigured } from "@/lib/env"
 import { createClient } from "@/lib/supabase/server"
 import { getCustomerIntelligence } from "@/lib/customer-intelligence-store"
@@ -36,6 +36,17 @@ export default async function NewReservationPage({
   const params = await searchParams
   const branches = await getBranches(session.company.id)
 
+  // Roadmap phase 16 — only owner/manager can assign a reservation's
+  // field work to a specific agent/driver; the form itself hides the
+  // picker entirely when this list is empty.
+  let assignableEmployees: { userId: string; fullName: string }[] = []
+  if (["owner", "manager"].includes(session.role)) {
+    const team = await getTeamMembers(session.company.id)
+    assignableEmployees = team
+      .filter((m) => m.status === "active" && ["agent", "driver"].includes(m.role))
+      .map((m) => ({ userId: m.userId, fullName: m.fullName ?? "Unnamed" }))
+  }
+
   // Coming back from the standalone "Add customer" flow (see the returnTo
   // link in the reservation form's quick-add section), or from the
   // Customer Command Center's "Start rental" button (roadmap phase 09's
@@ -68,6 +79,7 @@ export default async function NewReservationPage({
         defaultCategory={defaultCategory ?? undefined}
         preselectedCustomer={preselectedCustomer ?? undefined}
         returningCustomerReadiness={returningCustomerReadiness ?? undefined}
+        assignableEmployees={assignableEmployees}
       />
     </>
   )

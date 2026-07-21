@@ -50,6 +50,11 @@ function readSharedFields(formData: FormData, timeZone: string) {
 
   const pickupLocation = optionalString(formData, "pickupLocation")
   const returnLocation = optionalString(formData, "returnLocation")
+  // Roadmap phase 16 — who's doing this reservation's pickup/return in
+  // the field (lib/mobile/mission-feed.ts's "my work today"). Optional;
+  // an unassigned reservation stays visible to any agent, unchanged
+  // from every reservation's behavior before this field existed.
+  const assignedEmployeeId = optionalString(formData, "assignedEmployeeId")
   const dailyRate = requiredNumber(formData, "dailyRate", "Daily rate")
   if (dailyRate < 0) throw new ActionError("Daily rate can't be negative.")
   const discountMad = optionalNumber(formData, "discountMad") ?? 0
@@ -71,6 +76,7 @@ function readSharedFields(formData: FormData, timeZone: string) {
     returnAt,
     pickupLocation,
     returnLocation,
+    assignedEmployeeId,
     dailyRate,
     notes,
     pricing,
@@ -151,6 +157,7 @@ export async function createReservation(
         discount_amount: shared.pricing.discountMad,
         total_amount: shared.pricing.totalMad,
         notes: shared.notes,
+        assigned_employee_id: shared.assignedEmployeeId,
         created_by: session.userId,
       })
       .select("id")
@@ -223,6 +230,7 @@ export async function updateReservation(
         discount_amount: shared.pricing.discountMad,
         total_amount: shared.pricing.totalMad,
         notes: shared.notes,
+        assigned_employee_id: shared.assignedEmployeeId,
       })
       .eq("id", reservationId)
       .eq("company_id", companyId)

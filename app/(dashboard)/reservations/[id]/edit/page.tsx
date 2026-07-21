@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation"
 
 import { getSessionContext } from "@/lib/auth/session"
-import { getReservationDetail, getBranches } from "@/lib/data"
+import { getReservationDetail, getBranches, getTeamMembers } from "@/lib/data"
 import { isEditableStatus } from "@/lib/reservations/status"
 import { SectionHeader } from "@/components/domain/section-header"
 import { ReservationForm } from "@/components/domain/reservations/reservation-form"
@@ -24,6 +24,14 @@ export default async function EditReservationPage({
   if (!reservation) notFound()
   if (!isEditableStatus(reservation.status)) redirect(`/reservations/${id}`)
 
+  let assignableEmployees: { userId: string; fullName: string }[] = []
+  if (["owner", "manager"].includes(session.role)) {
+    const team = await getTeamMembers(session.company.id)
+    assignableEmployees = team
+      .filter((m) => m.status === "active" && ["agent", "driver"].includes(m.role))
+      .map((m) => ({ userId: m.userId, fullName: m.fullName ?? "Unnamed" }))
+  }
+
   return (
     <>
       <SectionHeader title={`Edit ${reservation.reference}`} description={reservation.customer.fullName} />
@@ -45,7 +53,9 @@ export default async function EditReservationPage({
           dailyRateMad: reservation.dailyRateMad,
           discountMad: reservation.discountMad,
           notes: reservation.notes,
+          assignedEmployeeId: reservation.assignedEmployeeId,
         }}
+        assignableEmployees={assignableEmployees}
       />
     </>
   )
