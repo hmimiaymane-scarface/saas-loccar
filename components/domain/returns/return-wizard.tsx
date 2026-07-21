@@ -23,6 +23,7 @@ import {
   saveChecklistResponse,
   attachInspectionMedia,
   completeInspectionAction,
+  detectReturnDamage,
 } from "@/app/(dashboard)/inspections/actions"
 import { completeRentalAction } from "@/app/(dashboard)/reservations/actions"
 import { recordPayment, returnDeposit, retainDeposit } from "@/app/(dashboard)/payments/actions"
@@ -44,6 +45,7 @@ import { RequirementsSummary } from "@/components/domain/requirements-summary"
 import { SegmentedSelector } from "@/components/domain/inspections/segmented-selector"
 import { ChecklistSection } from "@/components/domain/inspections/checklist-section"
 import { PhotoUploadGrid, type UploadedPhoto } from "@/components/domain/photo-upload-grid"
+import { AiRecommendationCard } from "@/components/domain/intelligence/ai-recommendation-card"
 
 const STEPS = [
   { label: "Return details" },
@@ -137,6 +139,86 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
   const [photos, setPhotos] = useState<UploadedPhoto[]>(
     (reservation.returnInspection?.media ?? []).map((m) => ({ key: m.caption ?? m.id }))
   )
+
+  // AI damage detection (roadmap phase 15) --------------------------------
+  // A suggestion only — the AI comparison can be wrong in either
+  // direction, so nothing here ever creates a damage record on its own.
+  // Runs in the background right after each return photo upload
+  // (fire-and-forget, never awaited before letting the employee
+  // continue) rather than blocking the inspection flow on it.
+  interface DamageSuggestion {
+    angle: string
+    angleLabel: string
+    description: string
+    confidence: number
+  }
+  const [damageSuggestions, setDamageSuggestions] = useState<DamageSuggestion[]>([])
+  const [acceptingAngle, setAcceptingAngle] = useState<string | null>(null)
+
+  function runDamageDetection(currentInspectionId: string, slotKey: string) {
+    void (async () => {
+      const result = await detectReturnDamage(currentInspectionId, slotKey)
+      if (!result.damageDetected) return
+      const label = PHOTO_SLOTS.find((s) => s.key === slotKey)?.label ?? slotKey
+      setDamageSuggestions((prev) => [
+        { angle: slotKey, angleLabel: label, description: result.description ?? "", confidence: result.confidence ?? 0 },
+        ...prev.filter((s) => s.angle !== slotKey),
+      ])
+    })()
+  }
+
+  function dismissDamageSuggestion(angle: string) {
+    setDamageSuggestions((prev) => prev.filter((s) => s.angle !== angle))
+  }
+
+  async function acceptDamageSuggestion(suggestion: DamageSuggestion) {
+    setAcceptingAngle(suggestion.angle)
+    const formData = new FormData()
+    formData.set("vehicleId", reservation.vehicle?.id ?? "")
+    formData.set("reservationId", reservation.id)
+    if (inspectionId) formData.set("discoveredInInspectionId", inspectionId)
+    formData.set("category", "bodywork")
+    formData.set("severity", "minor")
+    formData.set("vehicleArea", suggestion.angleLabel)
+    formData.set(
+      "description",
+      suggestion.description || `Possible new damage detected near the ${suggestion.angleLabel.toLowerCase()}.`
+    )
+    formData.set("preExisting", "false")
+    formData.set("source", "ai_detected")
+    formData.set("aiConfidence", String(suggestion.confidence))
+    const result = await createDamage({}, formData)
+    setAcceptingAngle(null)
+    if (result.error) {
+      setStepError(result.error)
+      return
+    }
+    setNewDamages((prev) => [
+      {
+        id: result.damageId!,
+        vehicleId: reservation.vehicle?.id ?? "",
+        vehicleLabel: reservation.vehicle ? `${reservation.vehicle.make} ${reservation.vehicle.model}` : "",
+        reservationId: reservation.id,
+        reservationReference: reservation.reference,
+        discoveredInInspectionId: inspectionId,
+        status: "newly_discovered",
+        category: "bodywork",
+        vehicleArea: suggestion.angleLabel,
+        severity: "minor",
+        description: suggestion.description,
+        preExisting: false,
+        estimatedCostMad: null,
+        actualCostMad: null,
+        createdByName: null,
+        createdAt: new Date().toISOString(),
+        media: [],
+        source: "ai_detected",
+        aiConfidence: suggestion.confidence,
+      },
+      ...prev,
+    ])
+    dismissDamageSuggestion(suggestion.angle)
+  }
 
   useEffect(() => {
     if (inspectionId) return
@@ -489,7 +571,10 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
                   uploaded={photos}
                   onUpload={async (slotKey, file, path) => {
                     const result = await attachInspectionMedia(inspectionId, path, file.name, file.type, file.size, slotKey)
-                    if (!result.error) setPhotos((prev) => [...prev, { key: slotKey }])
+                    if (!result.error) {
+                      setPhotos((prev) => [...prev, { key: slotKey }])
+                      runDamageDetection(inspectionId, slotKey)
+                    }
                     return result
                   }}
                 />
@@ -514,15 +599,32 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       )}
 
       {step === 2 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Damage found at return</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div>
-              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                On file before this rental ({vehicleDamages.length})
-              </p>
+        <div className="flex flex-col gap-4">
+          {damageSuggestions.length > 0 && (
+            <div className="flex flex-col gap-3">
+              {damageSuggestions.map((s) => (
+                <AiRecommendationCard
+                  key={s.angle}
+                  observation={`This return photo (${s.angleLabel.toLowerCase()}) may show new damage — please check it against the actual vehicle before confirming.`}
+                  reasoning={s.description || "The photo differs from the pickup photo of the same angle in a way that might be damage."}
+                  suggestedAction="Confirm as new damage"
+                  confidence={s.confidence}
+                  onAccept={() => void acceptDamageSuggestion(s)}
+                  onDismiss={() => dismissDamageSuggestion(s.angle)}
+                  className={acceptingAngle === s.angle ? "opacity-60" : undefined}
+                />
+              ))}
+            </div>
+          )}
+          <Card>
+            <CardHeader>
+              <CardTitle>Damage found at return</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <div>
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  On file before this rental ({vehicleDamages.length})
+                </p>
               {vehicleDamages.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nothing on file.</p>
               ) : (
@@ -570,6 +672,7 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
             )}
           </CardContent>
         </Card>
+        </div>
       )}
 
       {step === 3 && (
