@@ -4,6 +4,9 @@ import { Pencil, UserRound, Car, MapPin, Clock, ClipboardCheck, Undo2, GitCompar
 
 import { getSessionContext } from "@/lib/auth/session"
 import { getReservationDetail } from "@/lib/data"
+import { createClient } from "@/lib/supabase/server"
+import { getContractsForReservation } from "@/lib/contracts/template-store"
+import { isSupabaseConfigured } from "@/lib/env"
 import { formatMad, formatDateTime } from "@/lib/format"
 import { formatInTimeZone } from "@/lib/timezone"
 import { bookingStatusConfig, overdueVisual, paymentStatusConfig, damageStatusConfig } from "@/lib/status"
@@ -16,6 +19,20 @@ import { Button } from "@/components/ui/button"
 import { ReservationStatusActions } from "@/components/domain/reservations/reservation-status-actions"
 import { DocumentListItem } from "@/components/domain/documents/document-list-item"
 import { DepositPanel } from "@/components/domain/reservations/deposit-panel"
+import { GenerateContractButton } from "@/components/domain/contracts/generate-contract-button"
+
+/** Same degrade-to-empty convention as every other AI/advisory feature
+ * on this page's peers (fleet/[id], customers/[id]) — mock mode has no
+ * Supabase client to query contracts through. */
+async function loadContracts(companyId: string, reservationId: string) {
+  if (!isSupabaseConfigured) return []
+  try {
+    const supabase = await createClient()
+    return await getContractsForReservation(supabase, companyId, reservationId)
+  } catch {
+    return []
+  }
+}
 
 const SOURCE_LABELS: Record<string, string> = {
   walk_in: "Walk-in",
@@ -37,6 +54,8 @@ export default async function ReservationDetailPage({
   const { id } = await params
   const reservation = await getReservationDetail(session.company.id, id)
   if (!reservation) notFound()
+
+  const contracts = await loadContracts(session.company.id, id)
 
   const tz = session.company.timezone
   const canManage = ["owner", "manager", "agent"].includes(session.role)
@@ -234,6 +253,29 @@ export default async function ReservationDetailPage({
                   </Link>
                 ))}
               </CardContent>
+            </Card>
+          )}
+
+          {canManage && (
+            <Card>
+              <CardHeader className="flex items-center justify-between">
+                <CardTitle>Contract</CardTitle>
+                <GenerateContractButton reservationId={reservation.id} />
+              </CardHeader>
+              {contracts.length > 0 && (
+                <CardContent className="flex flex-col divide-y divide-border">
+                  {contracts.map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/contracts/${c.id}`}
+                      className="flex items-center justify-between py-2.5 text-sm hover:underline"
+                    >
+                      <span className="text-foreground">Generated {formatDateTime(c.generatedAt)}</span>
+                      {c.generatedByName && <span className="text-xs text-muted-foreground">{c.generatedByName}</span>}
+                    </Link>
+                  ))}
+                </CardContent>
+              )}
             </Card>
           )}
 

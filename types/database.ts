@@ -778,7 +778,7 @@ export type Database = {
           company_id: string
           version_number: number
           status: string
-          source_document_id: string | null
+          source_storage_path: string | null
           sections: unknown
           variable_mappings: unknown
           legal_footer_text: string | null
@@ -794,7 +794,7 @@ export type Database = {
           company_id: string
           version_number: number
           status?: string
-          source_document_id?: string | null
+          source_storage_path?: string | null
           sections?: unknown
           variable_mappings?: unknown
           legal_footer_text?: string | null

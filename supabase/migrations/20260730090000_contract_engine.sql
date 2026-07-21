@@ -53,7 +53,12 @@ create table public.contract_template_versions (
   -- pointed at by contract_templates.active_version_id.
   -- archived: superseded by a newer version; kept forever, never deleted.
   status text not null default 'pending_review' check (status in ('pending_review', 'active', 'archived')),
-  source_document_id uuid references public.documents (id),
+  -- Raw storage path of the originally-uploaded PDF, not a `documents`
+  -- row: that table requires every row to link to a reservation,
+  -- customer, or vehicle (see documents/actions.ts#createDocumentRecord),
+  -- but a template source file belongs to the company generally, tied
+  -- to none of those three.
+  source_storage_path text,
   -- Ordered array of {id, title, bodyText, condition} — condition is
   -- either null (always included) or {fieldPath, operator, value?}, the
   -- deliberately-simple "field equals/exists" model requirement 4 asks

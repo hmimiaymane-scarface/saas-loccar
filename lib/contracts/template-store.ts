@@ -32,7 +32,7 @@ export interface TemplateVersionRecord {
   templateId: string
   versionNumber: number
   status: TemplateVersionStatus
-  sourceDocumentId: string | null
+  sourceStoragePath: string | null
   sections: TemplateSection[]
   variableMappings: VariableMapping[]
   legalFooterText: string | null
@@ -61,7 +61,7 @@ function mapVersionRow(row: {
   template_id: string
   version_number: number
   status: string
-  source_document_id: string | null
+  source_storage_path: string | null
   sections: unknown
   variable_mappings: unknown
   legal_footer_text: string | null
@@ -75,7 +75,7 @@ function mapVersionRow(row: {
     templateId: row.template_id,
     versionNumber: row.version_number,
     status: row.status as TemplateVersionStatus,
-    sourceDocumentId: row.source_document_id,
+    sourceStoragePath: row.source_storage_path,
     sections: (row.sections ?? []) as TemplateSection[],
     variableMappings: (row.variable_mappings ?? []) as VariableMapping[],
     legalFooterText: row.legal_footer_text,
@@ -87,7 +87,7 @@ function mapVersionRow(row: {
 }
 
 const VERSION_SELECT =
-  "id, template_id, version_number, status, source_document_id, sections, variable_mappings, legal_footer_text, ai_notes, reviewed_at, created_at, reviewer:profiles!contract_template_versions_reviewed_by_fkey(full_name)"
+  "id, template_id, version_number, status, source_storage_path, sections, variable_mappings, legal_footer_text, ai_notes, reviewed_at, created_at, reviewer:profiles!contract_template_versions_reviewed_by_fkey(full_name)"
 
 /**
  * Requirement 1+2: reads the uploaded PDF, extracts its text, asks the
@@ -100,27 +100,28 @@ const VERSION_SELECT =
 export async function proposeTemplateFromUpload(
   supabase: SupabaseServerClient,
   session: SessionContext,
-  input: { name: string; language: string; documentId: string }
+  input: { name: string; language: string; storagePath: string }
 ): Promise<TemplateActionResult<{ templateId: string; versionId: string }>> {
   const companyId = session.company.id
 
-  const { data: document, error: docError } = await supabase
-    .from("documents")
-    .select("id, storage_path, mime_type")
-    .eq("id", input.documentId)
-    .eq("company_id", companyId)
-    .maybeSingle()
-
-  if (docError || !document) return { ok: false, error: "That uploaded file could not be found." }
-  if (document.mime_type !== "application/pdf") {
-    return { ok: false, error: "Only PDF templates are supported right now — see docs/contracts.md for why." }
+  // Storage RLS keys off the first path segment being the caller's own
+  // company id (see lib/storage.ts's doc comment) — this guards against
+  // a crafted path pointing at another tenant's file even before RLS
+  // itself would reject the download.
+  if (!input.storagePath.startsWith(`${companyId}/`)) {
+    return { ok: false, error: "That file path is not valid for this company." }
   }
 
-  const { data: fileBlob, error: downloadError } = await supabase.storage.from(STORAGE_BUCKET).download(document.storage_path)
+  const { data: fileBlob, error: downloadError } = await supabase.storage.from(STORAGE_BUCKET).download(input.storagePath)
   if (downloadError || !fileBlob) return { ok: false, error: "Could not read the uploaded file from storage." }
 
   const fileBytes = Buffer.from(await fileBlob.arrayBuffer())
-  const extracted = await extractPdfText(fileBytes)
+  let extracted: { ok: boolean; text: string }
+  try {
+    extracted = await extractPdfText(fileBytes)
+  } catch {
+    return { ok: false, error: "That file could not be read as a PDF." }
+  }
   if (!extracted.ok) {
     return { ok: false, error: "No readable text was found in that PDF — a scanned image-only file can't be parsed this way yet." }
   }
@@ -156,7 +157,7 @@ export async function proposeTemplateFromUpload(
       company_id: companyId,
       version_number: 1,
       status: "pending_review",
-      source_document_id: input.documentId,
+      source_storage_path: input.storagePath,
       sections,
       variable_mappings: variableMappings,
       ai_notes: aiNotes,
@@ -521,6 +522,66 @@ export async function generateContract(
   })
 
   return { ok: true, contractId: contract.id }
+}
+
+export interface ContractRecord {
+  id: string
+  reservationId: string
+  customerId: string
+  vehicleId: string | null
+  templateVersionId: string
+  renderedSections: { id: string; title: string; body: string }[]
+  pdfStoragePath: string | null
+  generatedAt: string
+  generatedByName: string | null
+}
+
+const CONTRACT_SELECT =
+  "id, reservation_id, customer_id, vehicle_id, template_version_id, rendered_sections, pdf_storage_path, generated_at, generator:profiles!contracts_generated_by_fkey(full_name)"
+
+function mapContractRow(row: {
+  id: string
+  reservation_id: string
+  customer_id: string
+  vehicle_id: string | null
+  template_version_id: string
+  rendered_sections: unknown
+  pdf_storage_path: string | null
+  generated_at: string
+  generator: { full_name: string | null } | null
+}): ContractRecord {
+  return {
+    id: row.id,
+    reservationId: row.reservation_id,
+    customerId: row.customer_id,
+    vehicleId: row.vehicle_id,
+    templateVersionId: row.template_version_id,
+    renderedSections: (row.rendered_sections ?? []) as ContractRecord["renderedSections"],
+    pdfStoragePath: row.pdf_storage_path,
+    generatedAt: row.generated_at,
+    generatedByName: row.generator?.full_name ?? null,
+  }
+}
+
+export async function getContractsForReservation(
+  supabase: SupabaseServerClient,
+  companyId: string,
+  reservationId: string
+): Promise<ContractRecord[]> {
+  const { data, error } = await supabase
+    .from("contracts")
+    .select(CONTRACT_SELECT)
+    .eq("company_id", companyId)
+    .eq("reservation_id", reservationId)
+    .order("generated_at", { ascending: false })
+  if (error) throw error
+  return (data ?? []).map((r) => mapContractRow(r as never))
+}
+
+export async function getContract(supabase: SupabaseServerClient, companyId: string, contractId: string): Promise<ContractRecord | null> {
+  const { data, error } = await supabase.from("contracts").select(CONTRACT_SELECT).eq("company_id", companyId).eq("id", contractId).maybeSingle()
+  if (error) throw error
+  return data ? mapContractRow(data as never) : null
 }
 
 export type { TemplateSection, SectionCondition }

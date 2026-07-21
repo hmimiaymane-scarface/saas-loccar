@@ -8,6 +8,7 @@ import {
   Receipt,
   Wrench,
   FileText,
+  FileSignature,
   UserCog,
   BarChart3,
   Globe,
@@ -95,6 +96,13 @@ export const primaryNav: NavItem[] = [
     icon: FileText,
     description: "Contracts and files, uploaded by your team",
     roles: ["owner", "manager", "agent"],
+  },
+  {
+    title: "Contract Templates",
+    href: "/contract-templates",
+    icon: FileSignature,
+    description: "Reusable rental agreement templates and variable mappings",
+    roles: ["owner", "manager"],
   },
   {
     title: "Employees",
