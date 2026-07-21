@@ -819,6 +819,9 @@ export type Database = {
           pdf_storage_path: string | null
           generated_by: string | null
           generated_at: Timestamp
+          status: string
+          contract_number: string | null
+          cancelled_reason: string | null
         }
         Insert: {
           id?: string
@@ -831,8 +834,61 @@ export type Database = {
           rendered_sections: unknown
           pdf_storage_path?: string | null
           generated_by?: string | null
+          status?: string
+          contract_number?: string | null
+          cancelled_reason?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["contracts"]["Insert"]>
+        Relationships: []
+      }
+      contract_signatures: {
+        Row: {
+          id: string
+          company_id: string
+          contract_id: string
+          signer_type: string
+          signer_name: string
+          signer_user_id: string | null
+          method: string
+          device_info: string | null
+          ip_address: string | null
+          signed_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          contract_id: string
+          signer_type: string
+          signer_name: string
+          signer_user_id?: string | null
+          method?: string
+          device_info?: string | null
+          ip_address?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["contract_signatures"]["Insert"]>
+        Relationships: []
+      }
+      contract_amendments: {
+        Row: {
+          id: string
+          company_id: string
+          contract_id: string
+          type: string
+          description: string
+          changes: unknown
+          created_by: string | null
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          contract_id: string
+          type: string
+          description: string
+          changes: unknown
+          created_by?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["contract_amendments"]["Insert"]>
         Relationships: []
       }
       ai_usage_log: {

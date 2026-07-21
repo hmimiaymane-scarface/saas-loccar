@@ -33,11 +33,13 @@ function makeFakeSupabase() {
 
 describe("ACTIVITY_TYPES / ENTITY_TYPES", () => {
   // Regression guard: this array is the TS-side single source of truth,
-  // cross-referenced against the `activity_log` check constraints in
-  // supabase/migrations/20260723090000_event_backbone.sql. If either side
-  // changes without the other, this is what catches the drift instead of
-  // it surfacing as a runtime insert failure.
-  it("matches the type check constraint added in the event-backbone migration", () => {
+  // cross-referenced against the `activity_log` check constraints —
+  // originally supabase/migrations/20260723090000_event_backbone.sql,
+  // extended by 20260731090000_contract_lifecycle.sql (roadmap phase
+  // 11). If either side changes without the other, this is what
+  // catches the drift instead of it surfacing as a runtime insert
+  // failure.
+  it("matches the type check constraint (event backbone + phase 11's contract lifecycle extension)", () => {
     expect(ACTIVITY_TYPES).toEqual([
       "reservation_requested",
       "reservation_confirmed",
@@ -74,6 +76,18 @@ describe("ACTIVITY_TYPES / ENTITY_TYPES", () => {
       "rental_extended",
       "contract_generated",
       "contract_signed",
+      "contract_prepared",
+      "contract_sent_for_signature",
+      "contract_activated",
+      "contract_completed",
+      "contract_archived",
+      "contract_cancelled",
+      "contract_amended",
+      "contract_viewed",
+      "contract_printed",
+      "contract_downloaded",
+      "template_created",
+      "template_version_activated",
     ])
   })
 

@@ -80,11 +80,13 @@ export type ReservationSource =
 
 // Single source of truth for both TS and (by cross-reference — see the
 // test that guards against drift) the `activity_log.type` check
-// constraint in supabase/migrations/20260723090000_event_backbone.sql.
-// `rental_extended`, `contract_generated`, and `contract_signed` are
-// reserved vocabulary: the DB constraint accepts them, but no mutation
-// emits them yet because the features they belong to (rental extension;
-// the Dynamic Contract Engine, roadmap phases 10-11) don't exist yet.
+// constraint — originally added in
+// supabase/migrations/20260723090000_event_backbone.sql, extended by
+// supabase/migrations/20260731090000_contract_lifecycle.sql (roadmap
+// phase 11) with the contract lifecycle/template-management events.
+// `rental_extended` is still reserved, unused vocabulary — rental
+// extension itself isn't built (it's one of phase 11's five amendment
+// *types*, not a first-class rental-lifecycle action of its own).
 export const ACTIVITY_TYPES = [
   "reservation_requested",
   "reservation_confirmed",
@@ -121,6 +123,18 @@ export const ACTIVITY_TYPES = [
   "rental_extended",
   "contract_generated",
   "contract_signed",
+  "contract_prepared",
+  "contract_sent_for_signature",
+  "contract_activated",
+  "contract_completed",
+  "contract_archived",
+  "contract_cancelled",
+  "contract_amended",
+  "contract_viewed",
+  "contract_printed",
+  "contract_downloaded",
+  "template_created",
+  "template_version_activated",
 ] as const
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number]

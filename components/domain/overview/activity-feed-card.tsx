@@ -28,6 +28,12 @@ import {
   CalendarPlus,
   FileSignature,
   FileCheck2,
+  Send,
+  Archive,
+  Eye,
+  Printer,
+  Download,
+  FilePlus,
   type LucideIcon,
 } from "lucide-react"
 
@@ -74,6 +80,19 @@ const activityIcon: Record<ActivityType, LucideIcon> = {
   rental_extended: CalendarPlus,
   contract_generated: FileSignature,
   contract_signed: FileCheck2,
+  // Roadmap phase 11 — the contract lifecycle/template-management events.
+  contract_prepared: ClipboardCheck,
+  contract_sent_for_signature: Send,
+  contract_activated: CheckCircle2,
+  contract_completed: FileCheck2,
+  contract_archived: Archive,
+  contract_cancelled: Ban,
+  contract_amended: ClipboardEdit,
+  contract_viewed: Eye,
+  contract_printed: Printer,
+  contract_downloaded: Download,
+  template_created: FilePlus,
+  template_version_activated: FileCheck2,
 }
 
 function ActivityFeedCard({ items }: { items: ActivityItem[] }) {
