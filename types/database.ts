@@ -748,6 +748,93 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["customer_intelligence"]["Insert"]>
         Relationships: []
       }
+      contract_templates: {
+        Row: {
+          id: string
+          company_id: string
+          name: string
+          language: string
+          active_version_id: string | null
+          created_by: string | null
+          created_at: Timestamp
+          updated_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          name: string
+          language?: string
+          active_version_id?: string | null
+          created_by?: string | null
+          updated_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["contract_templates"]["Insert"]>
+        Relationships: []
+      }
+      contract_template_versions: {
+        Row: {
+          id: string
+          template_id: string
+          company_id: string
+          version_number: number
+          status: string
+          source_document_id: string | null
+          sections: unknown
+          variable_mappings: unknown
+          legal_footer_text: string | null
+          ai_notes: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          created_by: string | null
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          template_id: string
+          company_id: string
+          version_number: number
+          status?: string
+          source_document_id?: string | null
+          sections?: unknown
+          variable_mappings?: unknown
+          legal_footer_text?: string | null
+          ai_notes?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_by?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["contract_template_versions"]["Insert"]>
+        Relationships: []
+      }
+      contracts: {
+        Row: {
+          id: string
+          company_id: string
+          reservation_id: string
+          template_version_id: string
+          customer_id: string
+          vehicle_id: string | null
+          resolved_context: unknown
+          rendered_sections: unknown
+          pdf_storage_path: string | null
+          generated_by: string | null
+          generated_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          reservation_id: string
+          template_version_id: string
+          customer_id: string
+          vehicle_id?: string | null
+          resolved_context: unknown
+          rendered_sections: unknown
+          pdf_storage_path?: string | null
+          generated_by?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["contracts"]["Insert"]>
+        Relationships: []
+      }
       ai_usage_log: {
         Row: {
           id: string
