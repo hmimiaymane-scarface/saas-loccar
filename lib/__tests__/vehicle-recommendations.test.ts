@@ -3,7 +3,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest"
 const askAiMock = vi.hoisted(() => ({ askAI: vi.fn() }))
 vi.mock("@/lib/ai/service", () => askAiMock)
 
-import { generateVehicleRecommendations } from "@/lib/vehicle-recommendations"
+import { generateVehicleInsights } from "@/lib/vehicle-recommendations"
 import type { SessionContext } from "@/lib/auth/session"
 import type { VehicleHealthResult, VehicleProfitabilityResult, VehicleUtilizationResult } from "@/lib/vehicle-intelligence"
 
@@ -56,16 +56,19 @@ beforeEach(() => {
   askAiMock.askAI.mockReset()
 })
 
-describe("generateVehicleRecommendations", () => {
+describe("generateVehicleInsights", () => {
   it("calls askAI with the right purpose, allowed roles, and a prompt grounded in the given data", async () => {
     askAiMock.askAI.mockResolvedValue({
       ok: true,
-      data: { recommendations: [{ observation: "Frequent damage.", reasoning: "70/100 damage score.", suggestedAction: "Inspect before next rental." }] },
+      data: {
+        summary: "This vehicle has above-average damage history but remains profitable.",
+        recommendations: [{ observation: "Frequent damage.", reasoning: "70/100 damage score.", suggestedAction: "Inspect before next rental." }],
+      },
       confidence: "high",
       modelId: "claude-sonnet-5",
     })
 
-    const result = await generateVehicleRecommendations(
+    const result = await generateVehicleInsights(
       {} as never,
       makeSession(),
       "Dacia Duster (12345-A-6)",
@@ -76,7 +79,7 @@ describe("generateVehicleRecommendations", () => {
 
     expect(askAiMock.askAI).toHaveBeenCalledTimes(1)
     const call = askAiMock.askAI.mock.calls[0][2]
-    expect(call.purpose).toBe("vehicle.recommend")
+    expect(call.purpose).toBe("vehicle.insights")
     expect(call.allowedRoles).toEqual(["owner", "manager", "agent"])
     expect(call.prompt).toContain("Dacia Duster (12345-A-6)")
     expect(call.prompt).toContain("42/100 (fair)")
@@ -85,15 +88,19 @@ describe("generateVehicleRecommendations", () => {
     expect(call.prompt).toContain("Rental income: +10000 MAD")
     expect(call.prompt).toContain("Maintenance: -1500 MAD")
     expect(call.prompt).toContain("60% occupancy")
+    expect(call.prompt).toContain("one-or-two sentence summary")
 
     expect(result.ok).toBe(true)
-    if (result.ok) expect(result.data.recommendations).toHaveLength(1)
+    if (result.ok) {
+      expect(result.data.summary).toBe("This vehicle has above-average damage history but remains profitable.")
+      expect(result.data.recommendations).toHaveLength(1)
+    }
   })
 
   it("passes through a failed askAI result unchanged", async () => {
     askAiMock.askAI.mockResolvedValue({ ok: false, error: "provider_not_configured", message: "No AI provider is configured." })
 
-    const result = await generateVehicleRecommendations(
+    const result = await generateVehicleInsights(
       {} as never,
       makeSession(),
       "Dacia Duster (12345-A-6)",

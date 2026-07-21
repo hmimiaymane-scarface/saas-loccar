@@ -9,7 +9,7 @@ import {
   type VehicleProfitabilityResult,
   type VehicleUtilizationResult,
 } from "@/lib/vehicle-intelligence"
-import { generateVehicleRecommendations, type VehicleRecommendation } from "@/lib/vehicle-recommendations"
+import { generateVehicleInsights, type VehicleRecommendation } from "@/lib/vehicle-recommendations"
 import type { AskAiConfidence } from "@/lib/ai/service"
 import type { SessionContext } from "@/lib/auth/session"
 import type { ExpenseCategory } from "@/types/rental"
@@ -30,6 +30,10 @@ export interface VehicleIntelligenceResult {
   health: VehicleHealthResult
   profitability: VehicleProfitabilityResult
   utilization: VehicleUtilizationResult
+  /** One-or-two sentence "what's happening right now" (phase 07
+   * requirement 3) — null under the same conditions recommendations is
+   * null (no AI provider configured, or the call failed). */
+  summary: string | null
   recommendations: VehicleRecommendation[] | null
   recommendationsConfidence: AskAiConfidence | null
   computedReason: string
@@ -133,11 +137,11 @@ async function gatherVehicleRawData(
 
 /**
  * Gathers this vehicle's full history, computes health/profitability/
- * utilization, generates recommendations (best-effort — a failed or
- * unconfigured AI provider still lets the score computation succeed;
- * see generateVehicleRecommendations), and upserts the cache row.
- * Returns null only when the vehicle itself doesn't exist/isn't in this
- * company.
+ * utilization, generates the summary + recommendations (best-effort —
+ * a failed or unconfigured AI provider still lets the score
+ * computation succeed; see generateVehicleInsights), and upserts the
+ * cache row. Returns null only when the vehicle itself doesn't exist/
+ * isn't in this company.
  */
 export async function recomputeVehicleIntelligence(
   supabase: SupabaseServerClient,
@@ -153,16 +157,10 @@ export async function recomputeVehicleIntelligence(
   const profitability = computeVehicleProfitability(inputs.profitability)
   const utilization = computeVehicleUtilization(inputs.utilization)
 
-  const recommendationResult = await generateVehicleRecommendations(
-    supabase,
-    session,
-    gathered.vehicleLabel,
-    health,
-    profitability,
-    utilization
-  )
-  const recommendations = recommendationResult.ok ? recommendationResult.data.recommendations : null
-  const recommendationsConfidence = recommendationResult.ok ? recommendationResult.confidence : null
+  const insightsResult = await generateVehicleInsights(supabase, session, gathered.vehicleLabel, health, profitability, utilization)
+  const summary = insightsResult.ok ? insightsResult.data.summary : null
+  const recommendations = insightsResult.ok ? insightsResult.data.recommendations : null
+  const recommendationsConfidence = insightsResult.ok ? insightsResult.confidence : null
 
   const computedAt = new Date().toISOString()
 
@@ -176,6 +174,7 @@ export async function recomputeVehicleIntelligence(
       profitability_net_mad: profitability.netMad,
       profitability_breakdown: profitability.breakdown,
       utilization,
+      summary,
       recommendations,
       recommendations_confidence: recommendationsConfidence,
       computed_reason: reason,
@@ -186,7 +185,7 @@ export async function recomputeVehicleIntelligence(
 
   if (upsertError) throw upsertError
 
-  return { health, profitability, utilization, recommendations, recommendationsConfidence, computedReason: reason, computedAt }
+  return { health, profitability, utilization, summary, recommendations, recommendationsConfidence, computedReason: reason, computedAt }
 }
 
 /** Best-effort wrapper for the event-triggered call sites — a scoring
@@ -219,7 +218,7 @@ export async function getVehicleIntelligence(
   const { data, error } = await supabase
     .from("vehicle_intelligence")
     .select(
-      "health_score, health_band, health_factors, profitability_net_mad, profitability_breakdown, utilization, recommendations, recommendations_confidence, computed_reason, computed_at"
+      "health_score, health_band, health_factors, profitability_net_mad, profitability_breakdown, utilization, summary, recommendations, recommendations_confidence, computed_reason, computed_at"
     )
     .eq("company_id", session.company.id)
     .eq("vehicle_id", vehicleId)
@@ -232,6 +231,7 @@ export async function getVehicleIntelligence(
       health: { score: data.health_score, band: data.health_band, factors: data.health_factors } as VehicleHealthResult,
       profitability: { netMad: Number(data.profitability_net_mad), breakdown: data.profitability_breakdown } as VehicleProfitabilityResult,
       utilization: data.utilization as VehicleUtilizationResult,
+      summary: data.summary,
       recommendations: data.recommendations as VehicleRecommendation[] | null,
       recommendationsConfidence: data.recommendations_confidence as AskAiConfidence | null,
       computedReason: data.computed_reason,

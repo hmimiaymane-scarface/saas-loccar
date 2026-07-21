@@ -685,6 +685,7 @@ export type Database = {
           utilization: unknown
           recommendations: unknown | null
           recommendations_confidence: string | null
+          summary: string | null
           computed_reason: string
           computed_at: Timestamp
         }
@@ -700,6 +701,7 @@ export type Database = {
           utilization: unknown
           recommendations?: unknown | null
           recommendations_confidence?: string | null
+          summary?: string | null
           computed_reason: string
           computed_at?: Timestamp
         }

@@ -8,13 +8,19 @@ import type { VehicleHealthResult, VehicleProfitabilityResult, VehicleUtilizatio
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 
 /**
- * Vehicle Recommendations (roadmap phase 06 requirement 4) — the first
- * real caller of phase 05's askAI() service. Advisory only: "AI may
- * recommend. Humans decide." (bible, non-negotiable) — nothing here
- * writes to any operational table, it only produces text for
- * components/domain/intelligence/ai-recommendation-card.tsx to render,
- * with an Accept/Dismiss the human controls, same propose-then-confirm
- * spirit as the AI Assistant's tools (lib/ai/tools.ts).
+ * Vehicle Insights (roadmap phase 06 requirement 4, extended by phase
+ * 07 requirement 3) — the first real caller of phase 05's askAI()
+ * service. Advisory only: "AI may recommend. Humans decide." (bible,
+ * non-negotiable) — nothing here writes to any operational table, it
+ * only produces text for the vehicle detail page's Overview (the
+ * summary sentence) and AI Insights (the recommendation cards,
+ * components/domain/intelligence/ai-recommendation-card.tsx) sections.
+ *
+ * One askAI() call generates both the summary and the recommendations
+ * together — they're grounded in the exact same health/profitability/
+ * utilization snapshot, and a second model round-trip for one more
+ * sentence would double the cost of every recompute for no real
+ * benefit (see docs/vehicle-command-center.md).
  */
 
 export interface VehicleRecommendation {
@@ -23,7 +29,17 @@ export interface VehicleRecommendation {
   suggestedAction: string
 }
 
-const vehicleRecommendationSchema = z.object({
+export interface VehicleInsights {
+  summary: string
+  recommendations: VehicleRecommendation[]
+}
+
+const vehicleInsightsSchema = z.object({
+  summary: z
+    .string()
+    .describe(
+      "One or two sentences on what's happening with this vehicle right now, in plain business language — not a paragraph, no chat-bot voice."
+    ),
   recommendations: z
     .array(
       z.object({
@@ -46,7 +62,7 @@ function formatBreakdownLine(label: string, amountMad: number, direction: "in" |
   return `- ${label}: ${sign}${amountMad} MAD${isEstimate ? " (estimate)" : ""}`
 }
 
-function buildVehicleRecommendationPrompt(
+function buildVehicleInsightsPrompt(
   vehicleLabel: string,
   health: VehicleHealthResult,
   profitability: VehicleProfitabilityResult,
@@ -63,34 +79,37 @@ function buildVehicleRecommendationPrompt(
     "",
     `Utilization: ${utilization.occupancyRatePercent}% occupancy, ${utilization.idleDays} idle days, ${utilization.reservationCount} reservations, ${utilization.revenuePerDayMad} MAD/day when rented.`,
     "",
-    "Based only on this data, suggest up to 4 concrete actions a rental company owner could take for this vehicle — e.g. adjust its daily rate, schedule maintenance, consider retiring it, renew insurance. For each, give a brief observation, reasoning grounded in the numbers above, and a specific suggested action. Do not suggest anything the data above doesn't support. Plain business language, never chat-bot voice.",
+    "First, write a one-or-two sentence summary of what's happening with this vehicle right now — the single most important thing an owner glancing at this vehicle's page should know.",
+    "Then, based only on this data, suggest up to 4 concrete actions a rental company owner could take for this vehicle — e.g. adjust its daily rate, schedule maintenance, consider retiring it, renew insurance. For each, give a brief observation, reasoning grounded in the numbers above, and a specific suggested action.",
+    "Do not state anything the data above doesn't support. Plain business language, never chat-bot voice.",
   ].join("\n")
 }
 
-/** Generates up to 4 grounded recommendations from an already-computed
- * health/profitability/utilization snapshot. Allowed for owner/manager/
- * agent — the union of every role that can trigger a recompute in the
- * first place: completing a rental (RESERVATION_ROLES) and recording a
- * damage (DAMAGE_ROLES) both allow agent; completing maintenance
+/** Generates a one/two-sentence status summary plus up to 4 grounded
+ * recommendations from an already-computed health/profitability/
+ * utilization snapshot. Allowed for owner/manager/agent — the union of
+ * every role that can trigger a recompute in the first place:
+ * completing a rental (RESERVATION_ROLES) and recording a damage
+ * (DAMAGE_ROLES) both allow agent; completing maintenance
  * (MAINTENANCE_ROLES) is owner/manager only. Using the union rather
  * than the narrowest set means an agent's own rental-completion or
- * damage-recording action never silently fails to produce
- * recommendations while everything else about it succeeds — and the
- * underlying health/profitability/utilization data isn't role-
- * restricted anywhere else in this codebase either, so there's nothing
- * a narrower gate here would actually be protecting. */
-export async function generateVehicleRecommendations(
+ * damage-recording action never silently fails to produce insights
+ * while everything else about it succeeds — and the underlying health/
+ * profitability/utilization data isn't role-restricted anywhere else in
+ * this codebase either, so there's nothing a narrower gate here would
+ * actually be protecting. */
+export async function generateVehicleInsights(
   supabase: SupabaseServerClient,
   session: SessionContext,
   vehicleLabel: string,
   health: VehicleHealthResult,
   profitability: VehicleProfitabilityResult,
   utilization: VehicleUtilizationResult
-): Promise<AskAiResult<{ recommendations: VehicleRecommendation[] }>> {
+): Promise<AskAiResult<VehicleInsights>> {
   return askAI(supabase, session, {
-    purpose: "vehicle.recommend",
-    prompt: buildVehicleRecommendationPrompt(vehicleLabel, health, profitability, utilization),
-    schema: vehicleRecommendationSchema,
+    purpose: "vehicle.insights",
+    prompt: buildVehicleInsightsPrompt(vehicleLabel, health, profitability, utilization),
+    schema: vehicleInsightsSchema,
     allowedRoles: ["owner", "manager", "agent"],
   })
 }

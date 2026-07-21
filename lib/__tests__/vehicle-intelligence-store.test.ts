@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
 
-const recommendationsMock = vi.hoisted(() => ({ generateVehicleRecommendations: vi.fn() }))
-vi.mock("@/lib/vehicle-recommendations", () => recommendationsMock)
+const insightsMock = vi.hoisted(() => ({ generateVehicleInsights: vi.fn() }))
+vi.mock("@/lib/vehicle-recommendations", () => insightsMock)
 
 import {
   recomputeVehicleIntelligence,
@@ -96,10 +96,10 @@ function makeFakeSupabase(
 }
 
 beforeEach(() => {
-  recommendationsMock.generateVehicleRecommendations.mockReset()
-  recommendationsMock.generateVehicleRecommendations.mockResolvedValue({
+  insightsMock.generateVehicleInsights.mockReset()
+  insightsMock.generateVehicleInsights.mockResolvedValue({
     ok: true,
-    data: { recommendations: [{ observation: "o", reasoning: "r", suggestedAction: "a" }] },
+    data: { summary: "All good.", recommendations: [{ observation: "o", reasoning: "r", suggestedAction: "a" }] },
     confidence: "high",
     modelId: "claude-sonnet-5",
   })
@@ -110,7 +110,7 @@ describe("recomputeVehicleIntelligence", () => {
     const { client } = makeFakeSupabase({ vehicles: { data: null, error: null } })
     const result = await recomputeVehicleIntelligence(client as never, makeSession(), "veh-1", "vehicle_returned")
     expect(result).toBeNull()
-    expect(recommendationsMock.generateVehicleRecommendations).not.toHaveBeenCalled()
+    expect(insightsMock.generateVehicleInsights).not.toHaveBeenCalled()
   })
 
   it("computes scores, generates recommendations, and upserts the cache row", async () => {
@@ -124,6 +124,7 @@ describe("recomputeVehicleIntelligence", () => {
     expect(result).not.toBeNull()
     expect(result?.health.score).toEqual(expect.any(Number))
     expect(result?.profitability.breakdown.find((b) => b.label === "Damage repairs")?.amountMad).toBe(200)
+    expect(result?.summary).toBe("All good.")
     expect(result?.recommendations).toEqual([{ observation: "o", reasoning: "r", suggestedAction: "a" }])
     expect(result?.recommendationsConfidence).toBe("high")
     expect(result?.computedReason).toBe("vehicle_returned")
@@ -134,10 +135,11 @@ describe("recomputeVehicleIntelligence", () => {
       company_id: "co_1",
       vehicle_id: "veh-1",
       computed_reason: "vehicle_returned",
+      summary: "All good.",
       recommendations_confidence: "high",
     })
 
-    expect(recommendationsMock.generateVehicleRecommendations).toHaveBeenCalledWith(
+    expect(insightsMock.generateVehicleInsights).toHaveBeenCalledWith(
       client,
       expect.objectContaining({ role: "manager" }),
       "Dacia Duster (12345-A-6)",
@@ -148,7 +150,7 @@ describe("recomputeVehicleIntelligence", () => {
   })
 
   it("still computes and caches scores when recommendation generation fails", async () => {
-    recommendationsMock.generateVehicleRecommendations.mockResolvedValue({
+    insightsMock.generateVehicleInsights.mockResolvedValue({
       ok: false,
       error: "provider_not_configured",
       message: "No AI provider is configured.",
@@ -158,9 +160,10 @@ describe("recomputeVehicleIntelligence", () => {
     const result = await recomputeVehicleIntelligence(client as never, makeSession(), "veh-1", "maintenance_completed")
 
     expect(result).not.toBeNull()
+    expect(result?.summary).toBeNull()
     expect(result?.recommendations).toBeNull()
     expect(result?.recommendationsConfidence).toBeNull()
-    expect(upserts[0].row).toMatchObject({ recommendations: null, recommendations_confidence: null })
+    expect(upserts[0].row).toMatchObject({ summary: null, recommendations: null, recommendations_confidence: null })
   })
 
   it("throws when the upsert fails", async () => {
@@ -187,6 +190,7 @@ describe("getVehicleIntelligence", () => {
       profitability_net_mad: 4200,
       profitability_breakdown: [{ label: "Rental income", amountMad: 5000, direction: "in" }],
       utilization: { occupancyRatePercent: 50, idleDays: 10, reservationCount: 3, revenuePerDayMad: 150, weekdayVsWeekend: null },
+      summary: "Cached summary.",
       recommendations: null,
       recommendations_confidence: null,
       computed_reason: "vehicle_returned",
@@ -200,12 +204,13 @@ describe("getVehicleIntelligence", () => {
       health: { score: 80, band: "good", factors: cachedRow.health_factors },
       profitability: { netMad: 4200, breakdown: cachedRow.profitability_breakdown },
       utilization: cachedRow.utilization,
+      summary: "Cached summary.",
       recommendations: null,
       recommendationsConfidence: null,
       computedReason: "vehicle_returned",
       computedAt: "2026-07-27T00:00:00.000Z",
     })
-    expect(recommendationsMock.generateVehicleRecommendations).not.toHaveBeenCalled()
+    expect(insightsMock.generateVehicleInsights).not.toHaveBeenCalled()
   })
 
   it("lazily computes and caches when nothing has been computed yet", async () => {
