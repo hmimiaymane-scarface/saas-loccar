@@ -1414,6 +1414,21 @@ export type Database = {
         Args: { p_override_id: string }
         Returns: undefined
       }
+      create_approval_request: {
+        Args: {
+          p_company_id: string
+          p_type: string
+          p_entity_type: string | null
+          p_entity_id: string | null
+          p_payload: Record<string, unknown>
+          p_reason: string
+        }
+        Returns: Database["public"]["Tables"]["approval_requests"]["Row"]
+      }
+      resolve_approval_request: {
+        Args: { p_request_id: string; p_decision: string; p_reason: string }
+        Returns: Database["public"]["Tables"]["approval_requests"]["Row"]
+      }
       get_invitation_preview: {
         Args: { p_token: string }
         Returns: {

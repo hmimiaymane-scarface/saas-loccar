@@ -17,6 +17,7 @@ import {
   Bell,
   Settings,
   Home,
+  CheckCircle2,
   type LucideIcon,
 } from "lucide-react"
 
@@ -149,6 +150,13 @@ export const secondaryNav: NavItem[] = [
     href: "/notifications",
     icon: Bell,
     description: "Updates that need your attention",
+    roles: ALL_ROLES,
+  },
+  {
+    title: "Approvals",
+    href: "/approvals",
+    icon: CheckCircle2,
+    description: "Requests that need a decision, and your own request history",
     roles: ALL_ROLES,
   },
   {

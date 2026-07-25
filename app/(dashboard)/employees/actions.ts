@@ -9,7 +9,7 @@ import type { EmployeeRole } from "@/types/rental"
 
 const TEAM_MANAGE_ROLES = ["owner", "manager"] as const
 
-const ROLES: EmployeeRole[] = ["owner", "manager", "agent", "accountant", "driver"]
+const ROLES: EmployeeRole[] = ["owner", "manager", "agent", "accountant", "driver", "cleaner", "mechanic"]
 
 export interface TeamActionState {
   error?: string

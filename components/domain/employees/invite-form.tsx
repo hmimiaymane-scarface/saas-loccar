@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 
-const INVITABLE_ROLES: EmployeeRole[] = ["manager", "agent", "accountant", "driver", "owner"]
+const INVITABLE_ROLES: EmployeeRole[] = ["manager", "agent", "accountant", "driver", "cleaner", "mechanic", "owner"]
 
 const initialState: TeamActionState = {}
 

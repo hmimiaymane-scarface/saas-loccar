@@ -841,6 +841,31 @@ export interface CustomerOverviewReport {
   totalRecordedValueMad: number
 }
 
+// ---------------------------------------------------------------------
+// Approvals (roadmap phase 17) — one type-discriminated "employee
+// proposes, owner/manager reviews" workflow. `payload` shape depends on
+// `type`; see supabase/migrations/20260804090200_phase17_approval_workflow.sql
+// for the exact fields resolve_approval_request() reads per type.
+// ---------------------------------------------------------------------
+export type ApprovalRequestType = "large_discount" | "refund" | "contract_amendment" | "vehicle_exchange" | "blacklist_customer"
+export type ApprovalRequestStatus = "pending" | "approved" | "rejected"
+
+export interface ApprovalRequest {
+  id: string
+  type: ApprovalRequestType
+  entityType: string | null
+  entityId: string | null
+  requestedById: string
+  requestedByName: string | null
+  payload: Record<string, unknown>
+  status: ApprovalRequestStatus
+  reason: string
+  reviewedById: string | null
+  reviewedByName: string | null
+  reviewedAt: string | null
+  createdAt: string
+}
+
 export interface VehicleEconomics {
   recordedRevenueMad: number
   recordedExpensesMad: number

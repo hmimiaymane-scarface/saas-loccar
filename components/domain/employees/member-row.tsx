@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { NativeSelect } from "@/components/ui/native-select"
 import { cn } from "@/lib/utils"
 
-const ROLE_OPTIONS: EmployeeRole[] = ["owner", "manager", "agent", "accountant", "driver"]
+const ROLE_OPTIONS: EmployeeRole[] = ["owner", "manager", "agent", "accountant", "driver", "cleaner", "mechanic"]
 
 function MemberRow({
   member,
