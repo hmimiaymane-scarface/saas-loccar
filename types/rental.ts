@@ -7,6 +7,8 @@
  * Supabase later should not require touching any component.
  */
 
+import type { InsightPriority } from "@/lib/tone"
+
 export type Currency = string
 
 export type VehicleCategory =
@@ -711,8 +713,27 @@ export type NotificationType =
   | "damage_recorded"
   | "inspection_draft_unfinished"
   | "vehicle_unavailable_upcoming_reservation"
+  // Added by roadmap phase 17 (20260804090200_phase17_approval_workflow.sql)
+  // — mirrors that migration's `notifications.type` CHECK constraint,
+  // which already included these; this union had drifted out of sync
+  // with it until roadmap phase 18 caught it.
+  | "approval_requested"
+  | "approval_approved"
+  | "approval_rejected"
 
 export type AlertUrgency = "due_soon" | "due_now" | "overdue"
+
+/** A single concrete, actionable next step attached to a notification —
+ * roadmap phase 18's non-negotiable per the bible ("never 'Vehicle
+ * overdue' alone — 'Vehicle overdue. Call customer. Send message. Open
+ * rental.'"). `kind` only ever reflects a destination that genuinely
+ * exists (e.g. "call" requires a real phone number) — never a dead
+ * button for a channel that isn't wired up. */
+export interface NotificationAction {
+  label: string
+  href: string
+  kind: "call" | "message" | "link"
+}
 
 /** A live alert is computed fresh from current data on every request —
  * never stored — except for its dismissal state (see lib/notifications.ts
@@ -726,6 +747,10 @@ export interface LiveAlert {
   description: string
   href: string
   dueDate: string | null
+  /** Concrete next steps, per roadmap phase 18 — see NotificationAction.
+   * Every alert builder in lib/data.ts#getLiveAlerts supplies its own;
+   * never empty. */
+  actions: NotificationAction[]
 }
 
 export interface NotificationItem {
@@ -737,8 +762,13 @@ export interface NotificationItem {
   type: NotificationType
   title: string
   description: string | null
-  priority: "low" | "normal" | "high" | "urgent"
+  /** Shares components/domain/intelligence/insight-feed-item.tsx's
+   * InsightPriority vocabulary (roadmap phase 18 requirement 3) rather
+   * than a second taxonomy, so the Notification Center and the
+   * Operations Feed speak the same visual language. */
+  priority: InsightPriority
   href: string | null
+  actions: NotificationAction[]
   isRead: boolean
   createdAt: string
 }

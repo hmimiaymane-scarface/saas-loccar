@@ -6,6 +6,7 @@ import { Bell, ArrowRight } from "lucide-react"
 import type { NotificationItem } from "@/types/rental"
 import { formatRelativeTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { toneClasses, insightPriorityTone } from "@/lib/tone"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -13,12 +14,9 @@ import {
   DropdownMenuContent,
 } from "@/components/ui/dropdown-menu"
 
-const PRIORITY_DOT: Record<NotificationItem["priority"], string> = {
-  low: "bg-zinc-400",
-  normal: "bg-blue-500",
-  high: "bg-amber-500",
-  urgent: "bg-red-500",
-}
+const PRIORITY_DOT: Record<NotificationItem["priority"], string> = Object.fromEntries(
+  Object.entries(insightPriorityTone).map(([priority, tone]) => [priority, toneClasses[tone].fill])
+) as Record<NotificationItem["priority"], string>
 
 function NotificationBell({ notifications, unreadCount }: { notifications: NotificationItem[]; unreadCount: number }) {
   return (

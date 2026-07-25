@@ -10,6 +10,24 @@
 
 export type Tone = "positive" | "warning" | "critical" | "neutral"
 
+/** The bible's Chapter 10 §2 four-level hierarchy, narrowed to what one
+ * feed item or notification can be: `critical` (needs immediate action),
+ * `operational` (today's operations — act today, not an emergency),
+ * `important` (business health / opportunities — a slower-building
+ * concern or upside), `informational` (worth knowing, nothing to do
+ * right now). Originally defined in components/domain/intelligence/
+ * insight-feed-item.tsx (roadmap phase 12); lives here since roadmap
+ * phase 18 needs the same vocabulary for notifications and this module
+ * is the shared home for tone-adjacent vocab, not a UI component. */
+export type InsightPriority = "critical" | "operational" | "important" | "informational"
+
+export const insightPriorityTone: Record<InsightPriority, Tone> = {
+  critical: "critical",
+  operational: "warning",
+  important: "positive",
+  informational: "neutral",
+}
+
 interface ToneClasses {
   badge: string
   text: string

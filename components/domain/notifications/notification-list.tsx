@@ -8,15 +8,9 @@ import { markNotificationRead, markAllNotificationsRead, dismissLiveAlert } from
 import type { NotificationItem } from "@/types/rental"
 import { formatDateTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { toneClasses, insightPriorityTone } from "@/lib/tone"
 import { Button } from "@/components/ui/button"
 import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
-
-const PRIORITY_TONE: Record<NotificationItem["priority"], string> = {
-  low: "bg-zinc-100 text-zinc-600 dark:bg-zinc-500/10 dark:text-zinc-400",
-  normal: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
-  high: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
-  urgent: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400",
-}
 
 function groupByDate(items: NotificationItem[]) {
   const groups = new Map<string, NotificationItem[]>()
@@ -73,26 +67,44 @@ function NotificationList({ initialItems }: { initialItems: NotificationItem[] }
         <div key={day} className="flex flex-col gap-2">
           <p className="text-xs font-medium text-muted-foreground">{formatDateTime(dayItems[0].createdAt).split(",")[0]}</p>
           <div className="flex flex-col divide-y divide-border rounded-3xl border border-border bg-card">
-            {dayItems.map((item) => (
-              <div key={item.id} className="flex items-start gap-3 p-3">
-                <Link href={item.href ?? "/notifications"} className="flex min-w-0 flex-1 flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className={cn("text-sm", item.isRead ? "text-muted-foreground" : "font-medium text-foreground")}>
-                      {item.title}
-                    </span>
-                    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", PRIORITY_TONE[item.priority])}>
-                      {item.priority}
-                    </span>
+            {dayItems.map((item) => {
+              const tone = toneClasses[insightPriorityTone[item.priority]]
+              return (
+                <div key={item.id} className="flex items-start gap-3 p-3">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <Link href={item.href ?? "/notifications"} className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className={cn("text-sm", item.isRead ? "text-muted-foreground" : "font-medium text-foreground")}>
+                          {item.title}
+                        </span>
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", tone.badge)}>
+                          {item.priority}
+                        </span>
+                      </div>
+                      {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+                    </Link>
+                    {item.actions.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {item.actions.map((action) => (
+                          <a
+                            key={action.href + action.label}
+                            href={action.href}
+                            className="text-xs font-medium text-primary hover:underline"
+                          >
+                            {action.label}
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
-                </Link>
-                {!item.isRead && (
-                  <Button variant="ghost" size="icon-sm" onClick={() => markOne(item)} disabled={isPending} title="Mark as read">
-                    <Check className="size-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
+                  {!item.isRead && (
+                    <Button variant="ghost" size="icon-sm" onClick={() => markOne(item)} disabled={isPending} title="Mark as read">
+                      <Check className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       ))}

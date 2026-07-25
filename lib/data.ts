@@ -21,6 +21,7 @@
 
 import { isSupabaseConfigured } from "@/lib/env"
 import { createClient } from "@/lib/supabase/server"
+import { callAndOpenActions } from "@/lib/notifications/actions"
 import { vehicles as mockVehicles } from "@/lib/mock/vehicles"
 import { customers as mockCustomers } from "@/lib/mock/customers"
 import { bookings as mockBookings } from "@/lib/mock/bookings"
@@ -92,6 +93,7 @@ import type {
   LiveAlert,
   NotificationItem,
   NotificationType,
+  NotificationAction,
   FinancialReport,
   FleetPerformanceReport,
   FleetPerformanceRow,
@@ -2943,39 +2945,45 @@ export async function getLiveAlerts(companyId: string, options: LiveAlertOptions
   if (isMockMode()) {
     for (const b of mockBookings) {
       if (b.status === "active" && b.isOverdue) {
+        const href = `/reservations/${b.id}`
         alerts.push({
           key: `rental_overdue:${b.id}`,
           type: "rental_overdue",
           urgency: "overdue",
           title: `${b.reference} is overdue for return`,
           description: `${b.customer.fullName} — expected back ${b.endDate}`,
-          href: `/reservations/${b.id}`,
+          href,
           dueDate: b.endDate,
+          actions: callAndOpenActions(b.customer.phone, "Open rental", href),
         })
       }
       if ((b.status === "active" || b.status === "completed") && b.payment.remainingMad > 0) {
+        const href = `/reservations/${b.id}`
         alerts.push({
           key: `outstanding_balance:${b.id}`,
           type: "outstanding_balance",
           urgency: "due_now",
           title: `${b.reference} has an outstanding balance`,
           description: `${b.customer.fullName} owes ${b.payment.remainingMad} MAD`,
-          href: `/reservations/${b.id}`,
+          href,
           dueDate: null,
+          actions: callAndOpenActions(b.customer.phone, "Open rental", href),
         })
       }
     }
     for (const d of mockDeposits) {
       const booking = mockBookings.find((b) => b.id === d.reservationId)
       if (booking?.status === "completed" && d.collectedMad > depositHeldMad({ collectedMad: 0, returnedMad: d.returnedMad, retainedMad: d.retainedMad }) && depositHeldMad(d) > 0) {
+        const href = `/reservations/${d.reservationId}`
         alerts.push({
           key: `deposit_unresolved:${d.reservationId}`,
           type: "deposit_unresolved",
           urgency: "due_now",
           title: `Deposit not yet resolved for ${booking.reference}`,
           description: `${depositHeldMad(d)} MAD still held`,
-          href: `/reservations/${d.reservationId}`,
+          href,
           dueDate: null,
+          actions: callAndOpenActions(booking.customer.phone, "Open rental", href),
         })
       }
     }
@@ -2984,14 +2992,16 @@ export async function getLiveAlerts(companyId: string, options: LiveAlertOptions
         const days = daysUntilFn(m.scheduledOn, nowMs)
         if (days <= options.maintenanceReminderDays) {
           const urgency = urgencyForDaysUntil(days)
+          const href = `/maintenance/${m.id}`
           alerts.push({
             key: `maintenance_${urgency === "overdue" ? "overdue" : "due"}:${m.id}`,
             type: urgency === "overdue" ? "maintenance_overdue" : "maintenance_due",
             urgency,
             title: `${m.vehicleLabel} — ${m.type.replace("_", " ")}`,
             description: `Scheduled ${m.scheduledOn}`,
-            href: `/maintenance/${m.id}`,
+            href,
             dueDate: m.scheduledOn,
+            actions: [{ label: "Open maintenance record", href, kind: "link" }],
           })
         }
       }
@@ -3002,14 +3012,16 @@ export async function getLiveAlerts(companyId: string, options: LiveAlertOptions
     // them from here.
     for (const d of mockDamages) {
       if (d.status === "newly_discovered" || d.status === "under_review") {
+        const href = `/damages/${d.id}`
         alerts.push({
           key: `damage_recorded:${d.id}`,
           type: "damage_recorded",
           urgency: "due_now",
           title: `${d.vehicleLabel} — damage needs review`,
           description: d.description,
-          href: `/damages/${d.id}`,
+          href,
           dueDate: null,
+          actions: [{ label: "Review damage", href, kind: "link" }],
         })
       }
     }
@@ -3025,21 +3037,21 @@ export async function getLiveAlerts(companyId: string, options: LiveAlertOptions
     await Promise.all([
       supabase
         .from("reservations")
-        .select("id, reference, return_at, customer:customers(full_name)")
+        .select("id, reference, return_at, customer:customers(full_name, phone)")
         .eq("company_id", companyId)
         .eq("status", "active")
         .lt("return_at", now.toISOString())
         .limit(25),
       supabase
         .from("reservations")
-        .select("id, reference, remaining_balance, customer:customers(full_name)")
+        .select("id, reference, remaining_balance, customer:customers(full_name, phone)")
         .eq("company_id", companyId)
         .in("status", ["active", "completed"])
         .gt("remaining_balance", 0)
         .limit(25),
       supabase
         .from("deposits")
-        .select("reservation_id, collected_amount, returned_amount, retained_amount, reservation:reservations(reference, status)")
+        .select("reservation_id, collected_amount, returned_amount, retained_amount, reservation:reservations(reference, status, customer:customers(phone))")
         .eq("company_id", companyId)
         .gt("collected_amount", 0)
         .limit(50),
@@ -3061,7 +3073,7 @@ export async function getLiveAlerts(companyId: string, options: LiveAlertOptions
         .limit(25),
       supabase
         .from("reservations")
-        .select("id, reference, status, customer:customers(full_name, license_expires_on)")
+        .select("id, reference, status, customer:customers(full_name, license_expires_on, phone)")
         .eq("company_id", companyId)
         .in("status", ["active", "confirmed"])
         .limit(50),
@@ -3082,33 +3094,37 @@ export async function getLiveAlerts(companyId: string, options: LiveAlertOptions
     ])
 
   for (const r of overdueRes.data ?? []) {
-    const customer = r.customer as unknown as { full_name: string } | null
+    const customer = r.customer as unknown as { full_name: string; phone: string | null } | null
+    const href = `/reservations/${r.id}`
     alerts.push({
       key: `rental_overdue:${r.id}`,
       type: "rental_overdue",
       urgency: "overdue",
       title: `${r.reference} is overdue for return`,
       description: `${customer?.full_name ?? "Customer"} — expected back ${formatInTimeZoneShort(r.return_at)}`,
-      href: `/reservations/${r.id}`,
+      href,
       dueDate: r.return_at,
+      actions: callAndOpenActions(customer?.phone, "Open rental", href),
     })
   }
 
   for (const r of balanceRes.data ?? []) {
-    const customer = r.customer as unknown as { full_name: string } | null
+    const customer = r.customer as unknown as { full_name: string; phone: string | null } | null
+    const href = `/reservations/${r.id}`
     alerts.push({
       key: `outstanding_balance:${r.id}`,
       type: "outstanding_balance",
       urgency: "due_now",
       title: `${r.reference} has an outstanding balance`,
       description: `${customer?.full_name ?? "Customer"} owes ${Number(r.remaining_balance)} MAD`,
-      href: `/reservations/${r.id}`,
+      href,
       dueDate: null,
+      actions: callAndOpenActions(customer?.phone, "Open rental", href),
     })
   }
 
   for (const d of depositRes.data ?? []) {
-    const reservation = d.reservation as unknown as { reference: string; status: string } | null
+    const reservation = d.reservation as unknown as { reference: string; status: string; customer: { phone: string | null } | null } | null
     if (reservation?.status !== "completed") continue
     const held = depositHeldMad({
       collectedMad: Number(d.collected_amount),
@@ -3116,14 +3132,16 @@ export async function getLiveAlerts(companyId: string, options: LiveAlertOptions
       retainedMad: Number(d.retained_amount),
     })
     if (held <= 0) continue
+    const href = `/reservations/${d.reservation_id}`
     alerts.push({
       key: `deposit_unresolved:${d.reservation_id}`,
       type: "deposit_unresolved",
       urgency: "due_now",
       title: `Deposit not yet resolved for ${reservation.reference}`,
       description: `${held} MAD still held`,
-      href: `/reservations/${d.reservation_id}`,
+      href,
       dueDate: null,
+      actions: callAndOpenActions(reservation.customer?.phone, "Open rental", href),
     })
   }
 
@@ -3131,14 +3149,16 @@ export async function getLiveAlerts(companyId: string, options: LiveAlertOptions
     const vehicle = m.vehicle as unknown as { make: string; model: string } | null
     const days = daysUntilFn(m.scheduled_on as string, nowMs)
     const urgency = urgencyForDaysUntil(days)
+    const href = `/maintenance/${m.id}`
     alerts.push({
       key: `maintenance_${urgency === "overdue" ? "overdue" : "due"}:${m.id}`,
       type: urgency === "overdue" ? "maintenance_overdue" : "maintenance_due",
       urgency,
       title: `${vehicle ? `${vehicle.make} ${vehicle.model}` : "Vehicle"} — ${String(m.type).replace("_", " ")}`,
       description: `Scheduled ${m.scheduled_on}`,
-      href: `/maintenance/${m.id}`,
+      href,
       dueDate: m.scheduled_on as string,
+      actions: [{ label: "Open maintenance record", href, kind: "link" }],
     })
   }
 
@@ -3153,44 +3173,50 @@ export async function getLiveAlerts(companyId: string, options: LiveAlertOptions
       if (!date) continue
       const days = daysUntilFn(date, nowMs)
       if (days > options.documentExpiryWarningDays) continue
+      const href = `/fleet/${v.id}`
       alerts.push({
         key: `vehicle_document_expiring:${v.id}:${field}`,
         type: "vehicle_document_expiring",
         urgency: urgencyForDaysUntil(days),
         title: `${v.make} ${v.model} — ${label.toLowerCase()} ${days < 0 ? "expired" : "expiring"}`,
         description: `${label} ${days < 0 ? "expired" : "expires"} ${date}`,
-        href: `/fleet/${v.id}`,
+        href,
         dueDate: date,
+        actions: [{ label: "Open vehicle", href, kind: "link" }],
       })
     }
   }
 
   for (const r of licenceRes.data ?? []) {
-    const customer = r.customer as unknown as { full_name: string; license_expires_on: string | null } | null
+    const customer = r.customer as unknown as { full_name: string; license_expires_on: string | null; phone: string | null } | null
     if (!customer?.license_expires_on) continue
     const days = daysUntilFn(customer.license_expires_on, nowMs)
     if (days > options.documentExpiryWarningDays) continue
+    const href = `/reservations/${r.id}`
     alerts.push({
       key: `licence_expiring:${r.id}`,
       type: "licence_expiring",
       urgency: urgencyForDaysUntil(days),
       title: `${customer.full_name} — driving licence ${days < 0 ? "expired" : "expiring"}`,
       description: `Reservation ${r.reference}`,
-      href: `/reservations/${r.id}`,
+      href,
       dueDate: customer.license_expires_on,
+      actions: callAndOpenActions(customer.phone, "Open rental", href),
     })
   }
 
   for (const d of damageRes.data ?? []) {
     const vehicle = d.vehicle as unknown as { make: string; model: string } | null
+    const href = `/damages/${d.id}`
     alerts.push({
       key: `damage_recorded:${d.id}`,
       type: "damage_recorded",
       urgency: "due_now",
       title: `${vehicle ? `${vehicle.make} ${vehicle.model}` : "Vehicle"} — damage needs review`,
       description: d.description,
-      href: `/damages/${d.id}`,
+      href,
       dueDate: null,
+      actions: [{ label: "Review damage", href, kind: "link" }],
     })
   }
 
@@ -3206,6 +3232,10 @@ export async function getLiveAlerts(companyId: string, options: LiveAlertOptions
       title: `${v.make} ${v.model} is unavailable but booked soon`,
       description: `${upcoming.reference} — reassign or resolve availability`,
       href: `/fleet/${v.id}`,
+      actions: [
+        { label: "Open vehicle", href: `/fleet/${v.id}`, kind: "link" },
+        { label: "Open booking", href: `/reservations/${upcoming.id}`, kind: "link" },
+      ],
       dueDate: upcoming.pickup_at,
     })
   }
@@ -3218,9 +3248,9 @@ function formatInTimeZoneShort(iso: string): string {
 }
 
 const URGENCY_TO_PRIORITY: Record<LiveAlert["urgency"], NotificationItem["priority"]> = {
-  due_soon: "normal",
-  due_now: "high",
-  overdue: "urgent",
+  due_soon: "important",
+  due_now: "operational",
+  overdue: "critical",
 }
 
 export interface NotificationFeed {
@@ -3255,6 +3285,7 @@ export async function getNotificationFeed(
       description: a.description,
       priority: URGENCY_TO_PRIORITY[a.urgency],
       href: a.href,
+      actions: a.actions,
       isRead: false,
       createdAt: a.dueDate ?? new Date().toISOString(),
     }))
@@ -3269,6 +3300,7 @@ export async function getNotificationFeed(
       description: e.description,
       priority: e.priority,
       href: e.href,
+      actions: e.actions,
       isRead: e.isRead,
       createdAt: e.createdAt,
     }))
@@ -3291,14 +3323,14 @@ async function getStoredNotificationEvents(
   companyId: string,
   userId: string
 ): Promise<
-  { id: string; type: NotificationType; title: string; description: string | null; priority: NotificationItem["priority"]; href: string | null; isRead: boolean; createdAt: string }[]
+  { id: string; type: NotificationType; title: string; description: string | null; priority: NotificationItem["priority"]; href: string | null; actions: NotificationAction[]; isRead: boolean; createdAt: string }[]
 > {
   if (isMockMode()) return []
 
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("notifications")
-    .select("id, type, title, description, priority, link_href, read_at, created_at")
+    .select("id, type, title, description, priority, link_href, actions, read_at, created_at")
     .eq("company_id", companyId)
     .eq("user_id", userId)
     .is("key", null)
@@ -3313,6 +3345,7 @@ async function getStoredNotificationEvents(
     description: r.description,
     priority: r.priority as NotificationItem["priority"],
     href: r.link_href,
+    actions: (r.actions ?? []) as unknown as NotificationAction[],
     isRead: Boolean(r.read_at),
     createdAt: r.created_at,
   }))

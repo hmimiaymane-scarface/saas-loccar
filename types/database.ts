@@ -154,6 +154,7 @@ export type Database = {
           description: string | null
           priority: string
           link_href: string | null
+          actions: Record<string, unknown>[]
           read_at: Timestamp | null
           created_at: Timestamp
         }
@@ -167,6 +168,7 @@ export type Database = {
           description?: string | null
           priority?: string
           link_href?: string | null
+          actions?: Record<string, unknown>[]
           read_at?: Timestamp | null
           created_at?: Timestamp
         }
