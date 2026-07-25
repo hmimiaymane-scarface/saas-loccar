@@ -2490,7 +2490,7 @@ export async function getCustomerDetail(companyId: string, customerId: string): 
 // ---------------------------------------------------------------------
 
 const MAINTENANCE_SELECT =
-  "id, vehicle_id, type, priority, status, description, scheduled_on, started_on, completed_on, odometer_km, estimated_cost, actual_cost, supplier, next_service_on, next_service_odometer_km, receipt_path, notes, created_by, created_at, vehicle:vehicles(make, model, registration_number)"
+  "id, vehicle_id, type, priority, status, description, scheduled_on, started_on, completed_on, odometer_km, estimated_cost, actual_cost, supplier, next_service_on, next_service_odometer_km, receipt_path, notes, created_by, created_at, assigned_employee_id, vehicle:vehicles(make, model, registration_number)"
 
 function mapMaintenanceRecordRow(row: {
   id: string
@@ -2512,6 +2512,7 @@ function mapMaintenanceRecordRow(row: {
   notes: string | null
   created_by: string | null
   created_at: string
+  assigned_employee_id: string | null
   vehicle: { make: string; model: string; registration_number: string } | null
 }): Omit<MaintenanceRecord, "createdByName" | "hasLinkedExpense" | "receiptUrl"> & {
   createdBy: string | null
@@ -2539,6 +2540,7 @@ function mapMaintenanceRecordRow(row: {
     notes: row.notes,
     createdBy: row.created_by,
     createdAt: row.created_at,
+    assignedEmployeeId: row.assigned_employee_id,
   }
 }
 

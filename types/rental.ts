@@ -159,7 +159,7 @@ export const ENTITY_TYPES = [
 
 export type EntityType = (typeof ENTITY_TYPES)[number]
 
-export type EmployeeRole = "owner" | "manager" | "agent" | "accountant" | "driver"
+export type EmployeeRole = "owner" | "manager" | "agent" | "accountant" | "driver" | "cleaner" | "mechanic"
 
 export type CompanyStatus = "trial" | "active" | "suspended"
 
@@ -634,6 +634,11 @@ export interface MaintenanceRecord {
   createdByName: string | null
   createdAt: string
   hasLinkedExpense: boolean
+  /** Roadmap phase 17 — which employee (if any) is doing this
+   * maintenance/cleaning job. Null means unassigned, visible to any
+   * mechanic/cleaner, the same as every record before this field
+   * existed. Mirrors reservations.assignedEmployeeId from phase 16. */
+  assignedEmployeeId: string | null
 }
 
 export interface ReservationConflict {

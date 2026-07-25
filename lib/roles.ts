@@ -9,7 +9,9 @@ export const ROLE_DESCRIPTIONS: Record<EmployeeRole, string> = {
   manager: "Runs day-to-day operations — reservations, fleet, maintenance and the team.",
   agent: "Handles bookings, pickups and returns.",
   accountant: "Records payments and expenses, and views financial reports.",
-  driver: "Read-only access — no write actions yet.",
+  driver: "Sees only their own assigned deliveries — no customer or payment data.",
+  cleaner: "Sees only their own assigned cleaning tasks — no customer or payment data.",
+  mechanic: "Sees only their own assigned maintenance jobs — no customer or payment data.",
 }
 
 export const ROLE_LABELS: Record<EmployeeRole, string> = {
@@ -18,4 +20,6 @@ export const ROLE_LABELS: Record<EmployeeRole, string> = {
   agent: "Agent",
   accountant: "Accountant",
   driver: "Driver",
+  cleaner: "Cleaner",
+  mechanic: "Mechanic",
 }

@@ -33,7 +33,7 @@ export interface NavItem {
   roles: EmployeeRole[]
 }
 
-const ALL_ROLES: EmployeeRole[] = ["owner", "manager", "agent", "accountant", "driver"]
+const ALL_ROLES: EmployeeRole[] = ["owner", "manager", "agent", "accountant", "driver", "cleaner", "mechanic"]
 
 export const primaryNav: NavItem[] = [
   {
@@ -90,7 +90,7 @@ export const primaryNav: NavItem[] = [
     href: "/maintenance",
     icon: Wrench,
     description: "Maintenance history and alerts",
-    roles: ["owner", "manager"],
+    roles: ["owner", "manager", "mechanic"],
   },
   {
     title: "Documents",

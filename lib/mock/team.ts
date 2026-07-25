@@ -23,6 +23,28 @@ export const teamMembers: TeamMember[] = [
     branchName: "Main branch — Guéliz",
     createdAt: "2026-05-02T09:00:00Z",
   },
+  {
+    membershipId: "mem_3",
+    userId: "emp_3",
+    fullName: "Khadija Idrissi",
+    email: "khadija@atlasrentcar.ma",
+    role: "cleaner",
+    status: "active",
+    branchId: "branch_1",
+    branchName: "Main branch — Guéliz",
+    createdAt: "2026-06-15T09:00:00Z",
+  },
+  {
+    membershipId: "mem_4",
+    userId: "emp_4",
+    fullName: "Rachid Fassi",
+    email: "rachid@atlasrentcar.ma",
+    role: "mechanic",
+    status: "active",
+    branchId: "branch_1",
+    branchName: "Main branch — Guéliz",
+    createdAt: "2026-06-15T09:00:00Z",
+  },
 ]
 
 export const pendingInvitations: TeamInvitation[] = [

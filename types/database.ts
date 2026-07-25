@@ -524,6 +524,7 @@ export type Database = {
           receipt_path: string | null
           notes: string | null
           created_by: string | null
+          assigned_employee_id: string | null
 
           created_at: Timestamp
           updated_at: Timestamp
@@ -548,8 +549,81 @@ export type Database = {
           receipt_path?: string | null
           notes?: string | null
           created_by?: string | null
+          assigned_employee_id?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["maintenance_records"]["Insert"]>
+        Relationships: []
+      }
+      role_permission_defaults: {
+        Row: {
+          role: string
+          permission_key: string
+          allowed: boolean
+        }
+        Insert: {
+          role: string
+          permission_key: string
+          allowed?: boolean
+        }
+        Update: Partial<Database["public"]["Tables"]["role_permission_defaults"]["Insert"]>
+        Relationships: []
+      }
+      employee_permission_overrides: {
+        Row: {
+          id: string
+          company_id: string
+          user_id: string
+          permission_key: string
+          allowed: boolean
+          granted_by: string | null
+          reason: string
+          expires_at: Timestamp | null
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          user_id: string
+          permission_key: string
+          allowed: boolean
+          granted_by?: string | null
+          reason: string
+          expires_at?: string | null
+          created_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["employee_permission_overrides"]["Insert"]>
+        Relationships: []
+      }
+      approval_requests: {
+        Row: {
+          id: string
+          company_id: string
+          type: string
+          entity_type: string | null
+          entity_id: string | null
+          requested_by: string
+          payload: Record<string, unknown>
+          status: string
+          reason: string
+          reviewed_by: string | null
+          reviewed_at: Timestamp | null
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          type: string
+          entity_type?: string | null
+          entity_id?: string | null
+          requested_by: string
+          payload?: Record<string, unknown>
+          status?: string
+          reason: string
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["approval_requests"]["Insert"]>
         Relationships: []
       }
       activity_log: {
