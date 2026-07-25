@@ -1395,6 +1395,25 @@ export type Database = {
         Args: { p_membership_id: string }
         Returns: undefined
       }
+      has_permission: {
+        Args: { target_company_id: string; key: string }
+        Returns: boolean
+      }
+      grant_permission_override: {
+        Args: {
+          p_company_id: string
+          p_user_id: string
+          p_permission_key: string
+          p_allowed: boolean
+          p_reason: string
+          p_expires_at?: string | null
+        }
+        Returns: Database["public"]["Tables"]["employee_permission_overrides"]["Row"]
+      }
+      revoke_permission_override: {
+        Args: { p_override_id: string }
+        Returns: undefined
+      }
       get_invitation_preview: {
         Args: { p_token: string }
         Returns: {
