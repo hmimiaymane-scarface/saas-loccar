@@ -84,10 +84,18 @@ export interface AskAiInput<TSchema extends z.ZodTypeAny> {
    * really there. */
   schema: TSchema
   /** Roles allowed to make this specific call — same allow-list
-   * convention as lib/auth/guard.ts#requireRole, the only permission
-   * model this codebase has today (see docs/ai-service.md). Checked
-   * before any model call is made. */
+   * convention as lib/auth/guard.ts#requireRole. Checked before any
+   * model call is made. */
   allowedRoles: EmployeeRole[]
+  /** Roadmap phase 17 — a caller that needs finer granularity than
+   * `allowedRoles` (e.g. "any role can ask, but only if they can
+   * actually see financial data") can additionally name a
+   * has_permission() key here. Checked with the same has_permission()
+   * RPC the RLS layer uses, via the `supabase` client already passed
+   * to this function — a system caller skips this too, same reasoning
+   * as the allowedRoles bypass above. Optional: most askAI() callers
+   * are adequately gated by allowedRoles alone. */
+  requiredPermission?: string
   /** Optional provider override; defaults to resolveAvailableProvider(). */
   provider?: AiProvider
 }
@@ -154,6 +162,16 @@ export async function askAI<TSchema extends z.ZodTypeAny>(
 ): Promise<AskAiResult<z.infer<TSchema>>> {
   if (session.role !== "system" && !input.allowedRoles.includes(session.role)) {
     return { ok: false, error: "permission_denied", message: "Your role doesn't have access to this AI capability." }
+  }
+
+  if (session.role !== "system" && input.requiredPermission) {
+    const { data: allowed } = await supabase.rpc("has_permission", {
+      target_company_id: session.company.id,
+      key: input.requiredPermission,
+    })
+    if (!allowed) {
+      return { ok: false, error: "permission_denied", message: "Your role doesn't have access to this AI capability." }
+    }
   }
 
   const provider = input.provider ?? resolveAvailableProvider()

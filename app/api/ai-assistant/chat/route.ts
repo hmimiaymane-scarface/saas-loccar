@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     return new Response("Too many requests — wait a moment before sending another message.", { status: 429 })
   }
 
-  const tools = buildTools(session, conversationId)
+  const tools = await buildTools(session, conversationId)
   const modelMessages = await convertToModelMessages(messages)
 
   const result = streamText({

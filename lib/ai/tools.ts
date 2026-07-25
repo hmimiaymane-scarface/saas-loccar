@@ -52,14 +52,42 @@ async function createProposal(
   return { proposalId: data.id as string, summary }
 }
 
+/** Roadmap phase 17 — the AI layer had zero role/permission checks
+ * before this: any signed-in user could ask for a reservation's payment
+ * total, or propose a payment/maintenance change, regardless of
+ * whether has_permission() would let them do the equivalent thing
+ * through the UI. Resolved once per buildTools() call (not per tool
+ * call) and closed over by every tool below, mirroring how `companyId`
+ * is already closed over — one round-trip per permission key per
+ * conversation turn, not one per tool invocation. */
+async function resolveToolPermissions(session: SessionContext) {
+  const supabase = await createClient()
+  const companyId = session.company.id
+  const keys = ["view_financial_reports", "edit_reservations", "record_payments", "manage_maintenance"] as const
+  const results = await Promise.all(
+    keys.map((key) => supabase.rpc("has_permission", { target_company_id: companyId, key }))
+  )
+  const permissions: Record<(typeof keys)[number], boolean> = {
+    view_financial_reports: false,
+    edit_reservations: false,
+    record_payments: false,
+    manage_maintenance: false,
+  }
+  keys.forEach((key, i) => {
+    permissions[key] = Boolean(results[i].data)
+  })
+  return permissions
+}
+
 /** Builds the full tool set for one chat turn, closed over the current
  * session (so every tool is automatically scoped to this company via
  * the same session-bound Supabase client + RLS every other page and
  * action already uses — a tool can never see or touch another
  * company's data) and the active conversation (so proposals land in the
  * right thread). */
-export function buildTools(session: SessionContext, conversationId: string) {
+export async function buildTools(session: SessionContext, conversationId: string) {
   const companyId = session.company.id
+  const permissions = await resolveToolPermissions(session)
 
   return {
     search_customers: tool({
@@ -114,8 +142,12 @@ export function buildTools(session: SessionContext, conversationId: string) {
           startDate: b.startDate,
           endDate: b.endDate,
           status: b.status,
-          totalMad: b.payment.totalDueMad,
-          remainingMad: b.payment.remainingMad,
+          // Roadmap phase 17 acceptance criterion: a role without
+          // view_financial_reports (e.g. cleaner, mechanic) never sees
+          // payment totals through the AI assistant, not just in the UI.
+          ...(permissions.view_financial_reports
+            ? { totalMad: b.payment.totalDueMad, remainingMad: b.payment.remainingMad }
+            : {}),
         }))
       },
     }),
@@ -130,8 +162,8 @@ export function buildTools(session: SessionContext, conversationId: string) {
           fullName: detail.fullName,
           phone: detail.phone,
           totalBookings: detail.reservations.length,
-          outstandingBalanceMad: detail.outstandingBalanceMad,
           hasActiveRental: Boolean(detail.activeRental),
+          ...(permissions.view_financial_reports ? { outstandingBalanceMad: detail.outstandingBalanceMad } : {}),
         }
       },
     }),
@@ -179,6 +211,7 @@ export function buildTools(session: SessionContext, conversationId: string) {
         customerLabel: z.string().describe("Customer's name — for the summary shown to the human"),
       }),
       execute: async (input) => {
+        if (!permissions.edit_reservations) return { error: "Your role doesn't have permission to create reservations." }
         if (!input.customerId && !(input.quickCustomerName && input.quickCustomerPhone)) {
           return { error: "Need either an existing customerId or a quickCustomerName and quickCustomerPhone." }
         }
@@ -207,6 +240,7 @@ export function buildTools(session: SessionContext, conversationId: string) {
         notes: z.string().optional(),
       }),
       execute: async (input) => {
+        if (!permissions.record_payments) return { error: "Your role doesn't have permission to record payments." }
         const summary = `Record ${input.amountMad} MAD (${input.method}) on ${input.reservationReference}`
         return createProposal(session, conversationId, "record_payment", summary, { ...input })
       },
@@ -220,6 +254,7 @@ export function buildTools(session: SessionContext, conversationId: string) {
         reason: z.string().optional(),
       }),
       execute: async (input) => {
+        if (!permissions.edit_reservations) return { error: "Your role doesn't have permission to cancel reservations." }
         const summary = `Cancel reservation ${input.reservationReference}${input.reason ? ` — ${input.reason}` : ""}`
         return createProposal(session, conversationId, "cancel_reservation", summary, { ...input })
       },
@@ -237,6 +272,7 @@ export function buildTools(session: SessionContext, conversationId: string) {
         estimatedCostMad: z.number().nonnegative().optional(),
       }),
       execute: async (input) => {
+        if (!permissions.manage_maintenance) return { error: "Your role doesn't have permission to schedule maintenance." }
         const summary = `Schedule ${input.type.replace(/_/g, " ")} for ${input.vehicleLabel}${input.scheduledOn ? ` on ${input.scheduledOn}` : ""}`
         return createProposal(session, conversationId, "schedule_maintenance", summary, { ...input })
       },
