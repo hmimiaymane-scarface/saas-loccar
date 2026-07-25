@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import type { EmployeeRole } from "@/types/rental"
 import { mobilePrimaryNav, navForRole } from "@/lib/navigation"
 import { isActivePath } from "@/components/layout/nav-item"
-import { QuickActionsSheet } from "@/components/layout/quick-actions-sheet"
+import { QuickActionsSheet, quickActionsForRole } from "@/components/layout/quick-actions-sheet"
 
 /**
  * Roadmap phase 16 requirements 3-5 — the mobile shell's real
@@ -25,6 +25,7 @@ function MobileBottomNav({ role }: { role: EmployeeRole }) {
   const items = navForRole(mobilePrimaryNav, role)
   const leftItems = items.slice(0, Math.ceil(items.length / 2))
   const rightItems = items.slice(Math.ceil(items.length / 2))
+  const hasQuickActions = quickActionsForRole(role).length > 0
 
   return (
     <nav
@@ -37,15 +38,17 @@ function MobileBottomNav({ role }: { role: EmployeeRole }) {
         ))}
 
         <div className="flex w-16 shrink-0 items-center justify-center">
-          <QuickActionsSheet>
-            <button
-              type="button"
-              aria-label="Quick actions"
-              className="flex size-14 -translate-y-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95"
-            >
-              <Plus className="size-6" />
-            </button>
-          </QuickActionsSheet>
+          {hasQuickActions && (
+            <QuickActionsSheet role={role}>
+              <button
+                type="button"
+                aria-label="Quick actions"
+                className="flex size-14 -translate-y-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95"
+              >
+                <Plus className="size-6" />
+              </button>
+            </QuickActionsSheet>
+          )}
         </div>
 
         {rightItems.map((item) => (

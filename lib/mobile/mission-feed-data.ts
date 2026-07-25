@@ -3,12 +3,26 @@ import { resolveReportPeriod } from "@/lib/reports"
 import { getOpenOperationsFeedItems } from "@/lib/operations-feed/data"
 import { bookings as mockBookings } from "@/lib/mock/bookings"
 import { inspections as mockInspections } from "@/lib/mock/inspections"
+import { maintenanceRecords as mockMaintenanceRecords } from "@/lib/mock/maintenance-records"
 import { isSupabaseConfigured } from "@/lib/env"
-import type { MissionReservationInput, MissionFeedItemInput } from "@/lib/mobile/mission-feed"
+import type { EmployeeRole } from "@/types/rental"
+import type { MissionReservationInput, MissionFeedItemInput, MissionMaintenanceInput } from "@/lib/mobile/mission-feed"
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 
 const RELEVANT_STATUSES = ["confirmed", "pending", "active"]
+const OPEN_MAINTENANCE_STATUSES = ["planned", "scheduled", "in_progress", "waiting_for_parts"]
+
+/** Roadmap phase 17 — cleaner/mechanic get maintenance_records instead
+ * of reservations on their mission feed (they have no
+ * view_reservations grant and nothing there is relevant to their job);
+ * every other role keeps the exact reservations-based feed from before
+ * this phase. */
+function maintenanceTypeForRole(role: EmployeeRole): "cleaning" | "non_cleaning" | null {
+  if (role === "cleaner") return "cleaning"
+  if (role === "mechanic") return "non_cleaning"
+  return null
+}
 
 /** Mirrors lib/data.ts's own private isMockMode() (not exported from
  * there) — same two conditions, kept in sync deliberately rather than
@@ -31,11 +45,64 @@ export async function getMobileMissionFeedInputs(
   supabase: SupabaseServerClient | null,
   companyId: string,
   employeeUserId: string,
-  timeZone: string
-): Promise<{ reservations: MissionReservationInput[]; feedItems: MissionFeedItemInput[]; nowIso: string }> {
+  timeZone: string,
+  role: EmployeeRole
+): Promise<{ reservations: MissionReservationInput[]; feedItems: MissionFeedItemInput[]; maintenanceJobs: MissionMaintenanceInput[]; nowIso: string }> {
   const nowIso = new Date().toISOString()
   const { fromIso, toIso } = resolveReportPeriod("today", timeZone)
   const isToday = (iso: string) => iso >= fromIso && iso < toIso
+  const maintenanceType = maintenanceTypeForRole(role)
+
+  if (maintenanceType) {
+    if (isMockMode() || !supabase) {
+      const maintenanceJobs: MissionMaintenanceInput[] = mockMaintenanceRecords
+        .filter((m) => (maintenanceType === "cleaning" ? m.type === "cleaning" : m.type !== "cleaning"))
+        .filter((m) => OPEN_MAINTENANCE_STATUSES.includes(m.status))
+        .filter((m) => m.assignedEmployeeId === null || m.assignedEmployeeId === employeeUserId)
+        .map((m) => ({
+          id: m.id,
+          vehicleLabel: m.vehicleLabel,
+          type: m.type,
+          priority: m.priority,
+          status: m.status,
+          scheduledOn: m.scheduledOn,
+        }))
+      return { reservations: [], feedItems: [], maintenanceJobs, nowIso }
+    }
+
+    const typeFilter =
+      maintenanceType === "cleaning" ? "type.eq.cleaning" : `type.neq.cleaning`
+    const { data: maintenanceRows, error: maintenanceError } = await supabase
+      .from("maintenance_records")
+      .select("id, type, priority, status, scheduled_on, assigned_employee_id, vehicle:vehicles(make, model)")
+      .eq("company_id", companyId)
+      .in("status", OPEN_MAINTENANCE_STATUSES)
+      .or(`assigned_employee_id.eq.${employeeUserId},assigned_employee_id.is.null`)
+      .or(typeFilter)
+
+    if (maintenanceError) throw maintenanceError
+
+    const maintenanceJobs: MissionMaintenanceInput[] = (maintenanceRows ?? []).map((row) => {
+      const r = row as unknown as {
+        id: string
+        type: string
+        priority: string
+        status: string
+        scheduled_on: string | null
+        vehicle: { make: string; model: string } | null
+      }
+      return {
+        id: r.id,
+        vehicleLabel: r.vehicle ? `${r.vehicle.make} ${r.vehicle.model}` : "Unassigned vehicle",
+        type: r.type,
+        priority: r.priority as MissionMaintenanceInput["priority"],
+        status: r.status,
+        scheduledOn: r.scheduled_on,
+      }
+    })
+
+    return { reservations: [], feedItems: [], maintenanceJobs, nowIso }
+  }
 
   if (isMockMode() || !supabase) {
     const relevant = mockBookings.filter(
@@ -64,7 +131,7 @@ export async function getMobileMissionFeedInputs(
         contractAwaitingSignature: false,
       }
     })
-    return { reservations, feedItems: [], nowIso }
+    return { reservations, feedItems: [], maintenanceJobs: [], nowIso }
   }
 
   const { data: reservationRows, error } = await supabase
@@ -140,5 +207,5 @@ export async function getMobileMissionFeedInputs(
       priorityTier: item.priorityTier,
     }))
 
-  return { reservations, feedItems: relevantFeedItems, nowIso }
+  return { reservations, feedItems: relevantFeedItems, maintenanceJobs: [], nowIso }
 }

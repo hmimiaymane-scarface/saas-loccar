@@ -193,7 +193,11 @@ export const mobilePrimaryNav: NavItem[] = [
     href: "/reservations",
     icon: ClipboardList,
     description: "Booking requests and confirmed reservations",
-    roles: ["owner", "manager", "agent"],
+    // Roadmap phase 17 — driver added: has_permission() now scopes
+    // their reservations read to assigned-only, so this tab is safe to
+    // show (they just see a narrower list, never the company-wide one
+    // owner/manager/agent get).
+    roles: ["owner", "manager", "agent", "driver"],
   },
   {
     title: "Fleet",
@@ -208,6 +212,16 @@ export const mobilePrimaryNav: NavItem[] = [
     icon: Users,
     description: "Customer records, licences and documents",
     roles: ["owner", "manager", "agent"],
+  },
+  {
+    title: "Tasks",
+    href: "/maintenance",
+    icon: Wrench,
+    description: "Maintenance and cleaning jobs assigned to you",
+    // Roadmap phase 17 — cleaner/mechanic's field equivalent of
+    // Reservations/Fleet/Customers: the one operational tab their role
+    // actually needs, scoped by RLS to assigned-or-unassigned records.
+    roles: ["cleaner", "mechanic"],
   },
   {
     title: "Inbox",

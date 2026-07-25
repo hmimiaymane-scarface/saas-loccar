@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { buildMissionFeed, type MissionReservationInput, type MissionFeedItemInput } from "../mission-feed"
+import { buildMissionFeed, type MissionReservationInput, type MissionFeedItemInput, type MissionMaintenanceInput } from "../mission-feed"
 
 const NOW = "2026-07-21T10:00:00+01:00"
 
@@ -128,6 +128,23 @@ describe("buildMissionFeed", () => {
   })
 
   it("returns an empty list when there is nothing relevant today", () => {
+    expect(buildMissionFeed({ reservations: [], feedItems: [], nowIso: NOW })).toEqual([])
+  })
+
+  it("surfaces a cleaner/mechanic's maintenance jobs as cards, urgent priority reading as critical", () => {
+    const maintenanceJobs: MissionMaintenanceInput[] = [
+      { id: "m1", vehicleLabel: "Dacia Logan", type: "cleaning", priority: "urgent", status: "scheduled", scheduledOn: "2026-07-21" },
+      { id: "m2", vehicleLabel: "Toyota Hilux", type: "oil_change", priority: "low", status: "in_progress", scheduledOn: null },
+    ]
+    const cards = buildMissionFeed({ reservations: [], feedItems: [], maintenanceJobs, nowIso: NOW })
+
+    expect(cards).toHaveLength(2)
+    expect(cards[0]).toMatchObject({ id: "maint-m1", tone: "critical" })
+    expect(cards[0].title).toContain("Dacia Logan")
+    expect(cards[1]).toMatchObject({ id: "maint-m2", tone: "informational", subtitle: "In progress" })
+  })
+
+  it("omitting maintenanceJobs behaves exactly as before this phase (empty, not an error)", () => {
     expect(buildMissionFeed({ reservations: [], feedItems: [], nowIso: NOW })).toEqual([])
   })
 })
