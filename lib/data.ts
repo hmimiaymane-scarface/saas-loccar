@@ -22,6 +22,9 @@
 import { isSupabaseConfigured } from "@/lib/env"
 import { createClient } from "@/lib/supabase/server"
 import { callAndOpenActions } from "@/lib/notifications/actions"
+import { agePriority } from "@/lib/notifications/aging"
+import { filterByFinancialAccess } from "@/lib/notifications/permission-filter"
+import type { InsightPriority } from "@/lib/tone"
 import { vehicles as mockVehicles } from "@/lib/mock/vehicles"
 import { customers as mockCustomers } from "@/lib/mock/customers"
 import { bookings as mockBookings } from "@/lib/mock/bookings"
@@ -3268,10 +3271,11 @@ export async function getNotificationFeed(
   userId: string,
   options: LiveAlertOptions & { mutedTypes: string[] }
 ): Promise<NotificationFeed> {
-  const [liveAlerts, dismissedKeys, eventRows] = await Promise.all([
+  const [liveAlerts, dismissedKeys, eventRows, hasFinancialAccess] = await Promise.all([
     getLiveAlerts(companyId, options),
     getDismissedAlertKeys(userId),
     getStoredNotificationEvents(companyId, userId),
+    hasFinancialReportsAccess(companyId),
   ])
 
   const mutedSet = new Set(options.mutedTypes)
@@ -3305,10 +3309,46 @@ export async function getNotificationFeed(
       createdAt: e.createdAt,
     }))
 
-  const items = [...liveItems, ...eventItems].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  // requirement 7: a role without view_financial_reports (Cleaner/
+  // Mechanic by default) never receives a payment-shaped notification —
+  // filtered here, not just hidden by the UI.
+  const visibleItems = filterByFinancialAccess([...liveItems, ...eventItems], hasFinancialAccess)
+
+  // requirement 6: unresolved items rise in priority the longer they sit
+  // — never applied to something already read/dismissed.
+  const now = new Date()
+  const aged = visibleItems.map((item) => ({
+    ...item,
+    priority: item.isRead ? item.priority : agePriority(item.priority, item.createdAt, now),
+  }))
+
+  const items = aged.sort((a, b) => {
+    const rankDiff = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]
+    if (rankDiff !== 0) return rankDiff
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
   const unreadCount = items.filter((i) => !i.isRead).length
 
   return { items, unreadCount }
+}
+
+const PRIORITY_RANK: Record<InsightPriority, number> = {
+  critical: 0,
+  operational: 1,
+  important: 2,
+  informational: 3,
+}
+
+/** Mock mode has no per-employee permission model to check against (the
+ * fixed mock session always represents a full-access persona) — mirrors
+ * every other lib/data.ts function's mock branch. In live mode this
+ * reuses the exact has_permission() RPC call phase 17's AI-tool
+ * permission gating already established (lib/ai/tools.ts#resolveToolPermissions). */
+async function hasFinancialReportsAccess(companyId: string): Promise<boolean> {
+  if (isMockMode()) return true
+  const supabase = await createClient()
+  const { data } = await supabase.rpc("has_permission", { target_company_id: companyId, key: "view_financial_reports" })
+  return Boolean(data)
 }
 
 async function getDismissedAlertKeys(userId: string): Promise<Set<string>> {
