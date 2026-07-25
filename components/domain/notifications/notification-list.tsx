@@ -12,6 +12,14 @@ import { toneClasses, insightPriorityTone } from "@/lib/tone"
 import { Button } from "@/components/ui/button"
 import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
 
+/** Items arrive already sorted priority-first (see
+ * lib/data.ts#getNotificationFeed — roadmap phase 18 requirement 6), so
+ * a day's items can appear out of chronological order relative to each
+ * other's *day groups* if grouped in first-encountered order. Day
+ * sections themselves stay newest-first (the familiar, predictable
+ * axis); each section's own items keep the priority order they arrived
+ * in — a Critical item still surfaces above an Informational one within
+ * the same day. */
 function groupByDate(items: NotificationItem[]) {
   const groups = new Map<string, NotificationItem[]>()
   for (const item of items) {
@@ -19,7 +27,7 @@ function groupByDate(items: NotificationItem[]) {
     if (!groups.has(day)) groups.set(day, [])
     groups.get(day)!.push(item)
   }
-  return Array.from(groups.entries())
+  return Array.from(groups.entries()).sort(([dayA], [dayB]) => dayB.localeCompare(dayA))
 }
 
 function NotificationList({ initialItems }: { initialItems: NotificationItem[] }) {
