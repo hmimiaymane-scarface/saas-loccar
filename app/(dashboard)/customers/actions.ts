@@ -268,7 +268,8 @@ export async function updateCustomerProfile(
  * unilaterally mid-dispute. */
 export async function setCustomerStatus(
   customerId: string,
-  status: (typeof STATUSES)[number]
+  status: (typeof STATUSES)[number],
+  reason?: string
 ): Promise<{ error?: string }> {
   try {
     const session = await requireSession()
@@ -277,6 +278,13 @@ export async function setCustomerStatus(
     const supabase = await createClient()
 
     if (!STATUSES.includes(status)) throw new ActionError("Invalid status.")
+    // Blacklisting a customer (blocking them) is a sensitive operation —
+    // a reason must be on record, same as activate_rental()'s
+    // p_override_reason precedent. Un-blocking and flagging aren't
+    // gated the same way; they're reversible, lower-stakes calls.
+    if (status === "blocked" && !reason?.trim()) {
+      throw new ActionError("A reason is required to block a customer.")
+    }
 
     const { data: existing, error: fetchError } = await supabase
       .from("customers")
@@ -303,7 +311,8 @@ export async function setCustomerStatus(
       entityType: "customer",
       entityId: customerId,
       title: `Customer marked ${status}`,
-      metadata: { before: { status: existing.status }, after: { status } },
+      description: reason?.trim() || null,
+      metadata: { before: { status: existing.status }, after: { status }, reason: reason?.trim() || null },
     })
 
     revalidatePath(`/customers/${customerId}`)

@@ -49,12 +49,19 @@ function DepositPanel({
       setError("Enter a valid amount.")
       return
     }
+    // Returning or retaining part of a deposit is a sensitive
+    // operation — a reason must be on record either way (retainDeposit
+    // already required this; returning money back is no less sensitive).
+    if ((mode === "return" || mode === "retain") && !notes.trim()) {
+      setError(mode === "return" ? "Enter a reason for returning the deposit." : "Enter a reason for retaining the deposit.")
+      return
+    }
     setError(null)
     startTransition(async () => {
       let result: { error?: string }
       if (mode === "expected") result = await setExpectedDeposit(reservationId, value)
       else if (mode === "collect") result = await collectDeposit(reservationId, value, method)
-      else if (mode === "return") result = await returnDeposit(reservationId, value, method, notes || undefined)
+      else if (mode === "return") result = await returnDeposit(reservationId, value, method, notes)
       else result = await retainDeposit(reservationId, value, notes)
 
       if (result.error) setError(result.error)
@@ -110,7 +117,7 @@ function DepositPanel({
           )}
           {(mode === "return" || mode === "retain") && (
             <Input
-              placeholder={mode === "retain" ? "Reason for retaining (required)" : "Notes (optional)"}
+              placeholder={mode === "retain" ? "Reason for retaining (required)" : "Reason for returning (required)"}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />

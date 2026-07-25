@@ -311,6 +311,7 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
   const [chargeDescription, setChargeDescription] = useState("")
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash")
   const [depositReturnAmount, setDepositReturnAmount] = useState("")
+  const [depositReturnReason, setDepositReturnReason] = useState("")
   const [depositRetainAmount, setDepositRetainAmount] = useState("")
   const [depositRetainReason, setDepositRetainReason] = useState("")
 
@@ -349,14 +350,19 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       setStepError("Enter an amount to return.")
       return
     }
+    if (!depositReturnReason.trim()) {
+      setStepError("Enter a reason for returning the deposit.")
+      return
+    }
     setStepError(null)
-    const result = await returnDeposit(reservation.id, amount, paymentMethod)
+    const result = await returnDeposit(reservation.id, amount, paymentMethod, depositReturnReason)
     if (result.error) {
       setStepError(result.error)
       return
     }
     setDeposit((d) => (d ? { ...d, returnedMad: d.returnedMad + amount } : d))
     setDepositReturnAmount("")
+    setDepositReturnReason("")
   }
 
   async function submitDepositRetain() {
@@ -784,13 +790,18 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
                 <span className="text-foreground">{formatMad(deposit?.retainedMad ?? 0)}</span>
               </div>
               <Separator />
-              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
                 <Input
                   type="number"
                   step="0.01"
                   placeholder="Amount to return (MAD)"
                   value={depositReturnAmount}
                   onChange={(e) => setDepositReturnAmount(e.target.value)}
+                />
+                <Input
+                  placeholder="Reason"
+                  value={depositReturnReason}
+                  onChange={(e) => setDepositReturnReason(e.target.value)}
                 />
                 <Button type="button" variant="outline" onClick={() => startTransition(submitDepositReturn)} disabled={isPending}>
                   Return

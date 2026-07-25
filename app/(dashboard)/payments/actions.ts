@@ -222,7 +222,7 @@ export async function returnDeposit(
   reservationId: string,
   amount: number,
   method: PaymentMethod,
-  notes?: string
+  reason: string
 ): Promise<{ error?: string }> {
   try {
     const session = await requireSession()
@@ -231,6 +231,7 @@ export async function returnDeposit(
     const supabase = await createClient()
 
     if (amount <= 0) throw new ActionError("Amount must be greater than zero.")
+    if (!reason.trim()) throw new ActionError("A reason is required to return a deposit.")
 
     const { data: reservation } = await supabase
       .from("reservations")
@@ -249,7 +250,7 @@ export async function returnDeposit(
 
     const { error: depositError } = await supabase
       .from("deposits")
-      .update({ returned_amount: returned, status, notes: notes ?? deposit.notes, returned_at: new Date().toISOString() })
+      .update({ returned_amount: returned, status, notes: reason, returned_at: new Date().toISOString() })
       .eq("id", deposit.id)
 
     if (depositError) return { error: friendlyDbError(depositError) }
@@ -261,7 +262,7 @@ export async function returnDeposit(
       transaction_type: "deposit_return",
       amount,
       method,
-      notes,
+      notes: reason,
       recorded_by: session.userId,
     })
     if (paymentError) return { error: friendlyDbError(paymentError) }
@@ -273,7 +274,7 @@ export async function returnDeposit(
       entityType: "reservation",
       entityId: reservationId,
       title: "Deposit returned",
-      description: notes ?? null,
+      description: reason,
       metadata: { reservation_id: reservationId },
     })
 
