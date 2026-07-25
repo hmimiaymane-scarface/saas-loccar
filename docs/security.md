@@ -15,10 +15,11 @@ bypassed or buggy.
 
 A user gets access to a company through a row in `company_memberships`
 (`company_id`, `user_id`, `role`, `status`, `branch_id`). Roles: `owner`,
-`manager`, `agent`, `accountant`, `driver`. Status: `active` or
-`suspended`. A user may belong to multiple companies (multiple membership
-rows) — the schema supports this today even though the current UI assumes
-one company per user.
+`manager`, `agent`, `accountant`, `driver`, `cleaner`, `mechanic` (the last
+two added in roadmap phase 17 — see `docs/permissions.md` for what changed
+and why). Status: `active` or `suspended`. A user may belong to multiple
+companies (multiple membership rows) — the schema supports this today even
+though the current UI assumes one company per user.
 
 **A suspended membership grants nothing.** The four RLS helper functions
 below all filter on `status = 'active'`, so suspension is enforced in
@@ -83,20 +84,31 @@ emails (not stored on `profiles`) without granting direct access to
 
 ## Per-table access
 
+**`customers`, `reservations`, `payments`, `expenses`, `maintenance_records`
+no longer use a hardcoded role list — see `docs/permissions.md`.** As of
+roadmap phase 17, every SELECT/INSERT/UPDATE policy on those five tables
+calls `has_permission(company_id, key)` instead of
+`company_role(company_id) in (...)`, so "who can read/write what" is a
+per-role default (overridable per employee) rather than something fixed in
+the RLS source. `docs/permissions.md` has the authoritative, current table;
+this file only covers what's unchanged since before that phase:
+
 | Table | Read | Write | Delete |
 |---|---|---|---|
 | `companies` | members | owner/manager (update only) | — (not exposed) |
 | `company_memberships` | own row, or owner/manager of the company | — (RPC only, see above) | — (RPC only) |
 | `invitations` | owner/manager, or the invitee previewing their own (via RPC) | — (RPC only) | — |
 | `notifications` | own rows only (every row is per-user) | own rows only | — |
-| `branches`, `vehicles`, `maintenance_records` | members | owner/manager | owner/manager (branches: owner only) |
-| `customers`, `reservations` | members | owner/manager/agent | owner/manager |
-| `payments` | members | owner/manager/agent/accountant | owner/manager |
-| `expenses` | members | owner/manager/accountant/agent (insert only — see below) | owner/manager |
+| `branches`, `vehicles` | members | owner/manager | owner/manager (branches: owner only) |
 | `deposits`, `documents`, `damages`, `inspections`, `media`, `checklist_template_items` | members | see the handoff-phase migrations (`20260719*`) — same coarse-RLS-plus-fine-action-check pattern | owner/manager where applicable |
 | `activity_log` | members | any member (insert only) | nobody — append-only |
+| `role_permission_defaults`, `employee_permission_overrides`, `approval_requests` | members | RPC only — see `docs/permissions.md` | — |
 
-`driver` is read-only across every table in this phase.
+DELETE on `customers`/`reservations`/`payments`/`expenses`/`maintenance_records`
+is unchanged: still `is_company_manager_or_owner(company_id)` directly, not
+routed through `has_permission()` — deletion of core records stays a
+stable owner/manager invariant, not something made per-employee overridable
+in this phase.
 
 **`expenses` INSERT is intentionally wider than UPDATE/DELETE.** RLS
 allows `agent` to *record* an expense (whether that's actually offered in
@@ -209,8 +221,14 @@ RLS, and the same server actions as the rest of the app.
   step routes through the same gate, not around it.
 - Every "read" tool runs on the current user's own session-bound
   Supabase client, so RLS scopes results exactly as it would for any
-  other page — a tool call can never see another company's data, and
-  never sees more than the signed-in user's role already permits.
+  other page — a tool call can never see another company's data. As of
+  roadmap phase 17, financial fields on `find_reservation`/
+  `get_customer_history` and the payment/reservation/maintenance
+  proposal tools are also gated by `has_permission()` (see
+  `docs/permissions.md`) — before that phase this file's claim that a
+  tool call "never sees more than the signed-in user's role already
+  permits" was aspirational, not actually enforced: `lib/ai/tools.ts`
+  had no role or permission checks of its own at all.
 - `ai_conversations`/`ai_messages`/`ai_proposed_actions` are private to
   the user having the conversation (owner/manager get read-only
   oversight, matching the rest of the app's "coarse RLS" pattern) — see
@@ -231,7 +249,10 @@ RLS, and the same server actions as the rest of the app.
   RLS level; access is company-wide once a role permits an action. Most
   target companies have exactly one branch, so this is deferred rather
   than solved partially.
-- `driver` has no write path yet, by design.
+- `driver`, `cleaner`, and `mechanic` have no general write path — each
+  is scoped to its own assigned-or-unassigned operational rows (see
+  `docs/permissions.md`), not company-wide reads/writes the way
+  owner/manager/agent/accountant are.
 - An agent who records an expense (when their company allows it) cannot
   attach a receipt to it or edit it afterward — see the `expenses` section
   above. They can still view the expense they created.
