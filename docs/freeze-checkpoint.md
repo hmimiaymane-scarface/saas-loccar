@@ -79,10 +79,18 @@ configured.
 
 ## Known unverified / open gaps (carried forward, not fixed by this freeze)
 
-1. **Nothing has ever run against a live Postgres database.** All 62
-   migrations exist only as files — never applied to any real Supabase
-   project. This is the top item for whoever starts productization:
-   the entire stack's first real integration test is still ahead.
+1. ~~**Nothing has ever run against a live Postgres database.**~~
+   **Resolved by productization wave 1 phase 5.** All 62 migrations (as
+   of this freeze) are now applied to the real linked project
+   (`ooamtywsirpbsfmqsiix`) — plus one more found and fixed in the
+   process (`20260807090000_fix_role_permission_defaults_rls.sql`, a
+   genuine gap: `role_permission_defaults` had RLS disabled entirely,
+   leaving it open to arbitrary writes via Supabase's default
+   anon/authenticated table grants). See `docs/security.md`'s own note
+   on this. Extensions, functions, triggers, generated columns, and
+   storage buckets/policies were all cross-checked against the live
+   catalogs and matched. Left as originally written below for the
+   historical record of what this freeze actually covered.
 2. `/reservations/[id]/contract-preview` crashes with an unhandled
    error in mock mode (found in phase 20's own final walkthrough, not
    yet fixed).

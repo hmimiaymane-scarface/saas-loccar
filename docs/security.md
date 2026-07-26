@@ -16,22 +16,36 @@ bypassed or buggy.
 Roadmap phase 19 added `lib/__tests__/cross-tenant-isolation.test.ts` — a
 dedicated suite proving the application-layer query functions behind
 `customer_intelligence`, `vehicle_intelligence`, `operations_feed_items`,
-`activity_log`, `contract_template_versions`, and `approval_requests`
-never return another company's row for a matching entity/customer/
-vehicle id, even when seeded side-by-side in the same fake client. This
-tests **application-layer discipline** — that every one of these
-functions still includes its `company_id` filter — not RLS itself,
-which remains the real security boundary (see above) and can't be
-exercised without a live Postgres project, the same limitation every
-phase since 03 has carried. Not every phase-01-18 table has a matching
-TS accessor to test this way: `role_permission_defaults`/
-`employee_permission_overrides` are only ever read by the SQL
-`has_permission()` function itself; `notifications`' company-scoping is
-straightforward to audit by inspection but pulls in enough unrelated
-machinery (the `has_permission()` RPC, the live-alerts fan-out) that a
-matching harness wasn't proportionate to this pass; `document_extractions`
-has no bulk-list-by-company reader — every read is scoped by an already
-company-gated `document_id`.
+`activity_log`, `contract_template_versions`, `getTeamMembers`'s
+override-fetch (productization wave 1 phase 3), and `approval_requests`
+(until productization wave 1 phase 2 removed its UI) never return
+another company's row for a matching entity/customer/vehicle id, even
+when seeded side-by-side in the same fake client. This tests
+**application-layer discipline** — that every one of these functions
+still includes its `company_id` filter — not RLS itself. Not every
+phase-01-18 table has a matching TS accessor to test this way:
+`role_permission_defaults` is only ever read by the SQL
+`has_permission()` function itself (and has no `company_id` to leak
+across in the first place — see the table below); `notifications`'
+company-scoping is straightforward to audit by inspection but pulls in
+enough unrelated machinery (the `has_permission()` RPC, the live-alerts
+fan-out) that a matching harness wasn't proportionate to this pass;
+`document_extractions` has no bulk-list-by-company reader — every read
+is scoped by an already company-gated `document_id`.
+
+**Productization wave 1 phase 5** finally applied every migration to a
+real Supabase project and queried its live `pg_class`/`pg_policies`
+catalogs directly — the first time RLS itself (not just the
+application-layer discipline above) was actually exercised, rather than
+audited by reading migration files. It found one real gap this way:
+`role_permission_defaults` had RLS disabled entirely, meaning Supabase's
+default full-table grants to `anon`/`authenticated` (present on every
+table regardless of RLS — see below) were completely unguarded, letting
+any caller insert/update/delete/truncate it via the REST API. Fixed in
+`20260807090000_fix_role_permission_defaults_rls.sql`: RLS enabled, one
+`select`-only policy (`using (true)` — the table has no `company_id`,
+so open reads were always fine), no write policy at all. No other public
+table had this gap.
 
 ## Membership, roles, and suspension
 
@@ -125,7 +139,8 @@ this file only covers what's unchanged since before that phase:
 | `deposits`, `damages`, `inspections`, `media`, `checklist_template_items` | members | see the handoff-phase migrations (`20260719*`) — same coarse-RLS-plus-fine-action-check pattern | owner/manager where applicable |
 | `documents` | `has_permission(company_id, 'download_documents')` (roadmap phase 19 — see "Document security" below) | front-desk roles (`20260719090800_handoff_rls.sql`, untouched by phase 19) | owner/manager |
 | `activity_log` | members | any member (insert only) | nobody — append-only |
-| `role_permission_defaults`, `employee_permission_overrides`, `approval_requests` | members | RPC only — see `docs/permissions.md` | — |
+| `role_permission_defaults` | anyone (no `company_id` — identical for every company, nothing to isolate) | — (manual migration only, never the app) | — |
+| `employee_permission_overrides`, `approval_requests` | members | RPC only — see `docs/permissions.md` | — |
 | `document_extractions` | members | server-side only (the extraction pipeline itself, phase 03-04) | — |
 | `ai_usage_log` | members | server-side only (`askAI()`, phase 05) | — |
 | `customer_intelligence`, `vehicle_intelligence` | members | server-side only (recompute jobs, phase 06/08) | — |

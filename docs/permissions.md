@@ -232,6 +232,22 @@ The full 16-key catalog stays engine-only and unexposed — an "Advanced"
 panel surfacing it directly was explicitly out of scope for this phase
 ("optional later controls" per the brief) and hasn't been built.
 
+## Productization wave 1 phase 5 — a real RLS gap found on the live project
+
+Applying every migration to a real Supabase project for the first time
+found `role_permission_defaults` had RLS disabled entirely — the one
+public table this was true for. Supabase grants full table privileges
+(`INSERT`/`UPDATE`/`DELETE`/`TRUNCATE`, not just `SELECT`) to
+`anon`/`authenticated` by default regardless of RLS; with no RLS and no
+narrower grants, any caller could have rewritten or wiped the whole
+permission engine's role defaults directly via the REST API. Fixed in
+`20260807090000_fix_role_permission_defaults_rls.sql`: RLS enabled, a
+single `select`-only policy (`using (true)` — this table has no
+`company_id`, so open reads were always the intended behavior), no
+write policy at all, matching the "hand-maintained, migration-only"
+convention `lib/permissions/catalog.ts` already documents for the
+equivalent TS-side list.
+
 ## Verification
 
 `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` clean
