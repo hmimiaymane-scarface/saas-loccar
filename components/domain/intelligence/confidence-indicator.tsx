@@ -33,7 +33,7 @@ function ConfidenceIndicator({ percent, className }: ConfidenceIndicatorProps) {
         className
       )}
     >
-      <Icon className={cn("size-3.5", isQuiet ? "text-muted-foreground" : tone.icon)} />
+      <Icon aria-hidden="true" className={cn("size-3.5", isQuiet ? "text-muted-foreground" : tone.icon)} />
       {Math.round(percent)}% confident
     </span>
   )

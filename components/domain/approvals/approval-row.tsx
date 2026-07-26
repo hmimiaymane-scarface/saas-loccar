@@ -86,7 +86,7 @@ function StatusBadge({ status }: { status: ApprovalRequest["status"] }) {
   if (status === "approved") {
     return (
       <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium", toneClasses.positive.badge)}>
-        <CheckCircle2 className="size-3" />
+        <CheckCircle2 aria-hidden="true" className="size-3" />
         Approved
       </span>
     )
@@ -94,14 +94,14 @@ function StatusBadge({ status }: { status: ApprovalRequest["status"] }) {
   if (status === "rejected") {
     return (
       <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium", toneClasses.critical.badge)}>
-        <XCircle className="size-3" />
+        <XCircle aria-hidden="true" className="size-3" />
         Rejected
       </span>
     )
   }
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium", toneClasses.warning.badge)}>
-      <Clock className="size-3" />
+      <Clock aria-hidden="true" className="size-3" />
       Pending
     </span>
   )

@@ -25,7 +25,7 @@ function EntityTimeline({ items, className }: EntityTimelineProps) {
         return (
           <li key={item.id} className="flex items-start gap-3">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <Icon className="size-4" />
+              <Icon aria-hidden="true" className="size-4" />
             </div>
             <div className="flex min-w-0 flex-col gap-0.5">
               <p className="text-sm text-foreground">{item.description || item.title}</p>

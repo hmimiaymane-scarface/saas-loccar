@@ -46,7 +46,7 @@ function NotificationBell({ notifications, unreadCount }: { notifications: Notif
                 href={n.href ?? "/notifications"}
                 className="flex items-start gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-muted"
               >
-                <span className={cn("mt-1.5 size-1.5 shrink-0 rounded-full", n.isRead ? "bg-transparent" : PRIORITY_DOT[n.priority])} />
+                <span aria-hidden="true" className={cn("mt-1.5 size-1.5 shrink-0 rounded-full", n.isRead ? "bg-transparent" : PRIORITY_DOT[n.priority])} />
                 <div className="flex min-w-0 flex-col">
                   <span className="truncate text-foreground">{n.title}</span>
                   <span className="text-xs text-muted-foreground">{formatRelativeTime(n.createdAt)}</span>

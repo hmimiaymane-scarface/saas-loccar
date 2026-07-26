@@ -35,7 +35,7 @@ function AiRecommendationCard({
     <Card className={className}>
       <CardContent className="flex flex-col gap-3">
         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <Sparkles className="size-3.5" />
+          <Sparkles aria-hidden="true" className="size-3.5" />
           AI recommendation
         </div>
         <p className="text-sm text-foreground">{observation}</p>
