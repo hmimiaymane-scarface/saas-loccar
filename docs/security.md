@@ -11,6 +11,28 @@ reaches Postgres with a valid but low-privilege session, RLS is what stops
 it from touching another company's rows, even if every layer above it were
 bypassed or buggy.
 
+## Cross-tenant isolation testing
+
+Roadmap phase 19 added `lib/__tests__/cross-tenant-isolation.test.ts` — a
+dedicated suite proving the application-layer query functions behind
+`customer_intelligence`, `vehicle_intelligence`, `operations_feed_items`,
+`activity_log`, `contract_template_versions`, and `approval_requests`
+never return another company's row for a matching entity/customer/
+vehicle id, even when seeded side-by-side in the same fake client. This
+tests **application-layer discipline** — that every one of these
+functions still includes its `company_id` filter — not RLS itself,
+which remains the real security boundary (see above) and can't be
+exercised without a live Postgres project, the same limitation every
+phase since 03 has carried. Not every phase-01-18 table has a matching
+TS accessor to test this way: `role_permission_defaults`/
+`employee_permission_overrides` are only ever read by the SQL
+`has_permission()` function itself; `notifications`' company-scoping is
+straightforward to audit by inspection but pulls in enough unrelated
+machinery (the `has_permission()` RPC, the live-alerts fan-out) that a
+matching harness wasn't proportionate to this pass; `document_extractions`
+has no bulk-list-by-company reader — every read is scoped by an already
+company-gated `document_id`.
+
 ## Membership, roles, and suspension
 
 A user gets access to a company through a row in `company_memberships`
@@ -100,9 +122,18 @@ this file only covers what's unchanged since before that phase:
 | `invitations` | owner/manager, or the invitee previewing their own (via RPC) | — (RPC only) | — |
 | `notifications` | own rows only (every row is per-user) | own rows only | — |
 | `branches`, `vehicles` | members | owner/manager | owner/manager (branches: owner only) |
-| `deposits`, `documents`, `damages`, `inspections`, `media`, `checklist_template_items` | members | see the handoff-phase migrations (`20260719*`) — same coarse-RLS-plus-fine-action-check pattern | owner/manager where applicable |
+| `deposits`, `damages`, `inspections`, `media`, `checklist_template_items` | members | see the handoff-phase migrations (`20260719*`) — same coarse-RLS-plus-fine-action-check pattern | owner/manager where applicable |
+| `documents` | `has_permission(company_id, 'download_documents')` (roadmap phase 19 — see "Document security" below) | front-desk roles (`20260719090800_handoff_rls.sql`, untouched by phase 19) | owner/manager |
 | `activity_log` | members | any member (insert only) | nobody — append-only |
 | `role_permission_defaults`, `employee_permission_overrides`, `approval_requests` | members | RPC only — see `docs/permissions.md` | — |
+| `document_extractions` | members | server-side only (the extraction pipeline itself, phase 03-04) | — |
+| `ai_usage_log` | members | server-side only (`askAI()`, phase 05) | — |
+| `customer_intelligence`, `vehicle_intelligence` | members | server-side only (recompute jobs, phase 06/08) | — |
+| `contract_templates`, `contract_template_versions`, `contracts`, `contract_signatures`, `contract_amendments` | members | see `docs/contract-lifecycle.md` (phase 10-11 — role gates on template/contract mutation, immutable-by-construction versioning) | owner/manager where applicable |
+| `operations_feed_items` | members | server-side only (the cron-driven observer job, phase 12 — see `lib/supabase/admin.ts`) | — |
+| `webauthn_credentials` | own rows only (no company-wide visibility for a personal biometric credential, phase 16) | own rows only, via the WebAuthn routes | own rows only |
+
+All ten of the above (phases 03-16) were confirmed to have RLS enabled during this phase 19 hardening pass — none had ever been added to this table before, purely a documentation lag, not an isolation gap.
 
 DELETE on `customers`/`reservations`/`payments`/`expenses`/`maintenance_records`
 is unchanged: still `is_company_manager_or_owner(company_id)` directly, not
@@ -241,6 +272,74 @@ RLS, and the same server actions as the rest of the app.
   guards against a runaway loop or accidental resubmission storm; no
   external rate-limit service is used.
 
+## Document security
+
+Roadmap phase 19 (bible Chapter 14 §9/§10/§12, Chapter 7 §15) audited
+the document-intelligence pipeline (phases 03-04) and the storage layer
+end to end. Three real gaps found and fixed:
+
+- **Upload validation was 100% client-side.** `lib/storage.ts#validateFile()`
+  existed and was real, but every one of its call sites was a client
+  component — the server actions that persist the resulting DB row
+  (`createDocumentRecord`, `attachInspectionMedia`, `attachDamageMedia`)
+  accepted `mimeType`/`fileSizeBytes` as plain client-supplied strings
+  with zero re-validation. All three now call
+  `lib/storage.ts#validateUploadForCompany()` (also re-checks the
+  storage path's company prefix) before persisting anything. **Honest
+  limitation**: this validates *metadata*, not the actual uploaded
+  bytes — uploads go directly browser → Supabase Storage, so a server
+  action never sees the file itself, only what the client reports about
+  it. Real content-sniffing would mean routing uploads through a
+  server-side proxy or a Storage webhook — a materially larger
+  architecture change than this hardening pass's scope.
+- **Documents had zero access logging**, unlike contracts
+  (`contract_viewed`/`printed`/`downloaded`, phase 11). Every document
+  view/download now logs a `document_viewed`/`document_downloaded`
+  event (`app/(dashboard)/documents/actions.ts#logDocumentAccess`,
+  client-triggered since a document has no detail page of its own to
+  log from server-side render the way a contract does).
+- **`download_documents` was a dead permission key.** Phase 17 seeded it
+  into `role_permission_defaults` but nothing ever called
+  `has_permission(..., 'download_documents')` anywhere — the `documents`
+  table's SELECT policy was untouched by phase 17's own RLS rewrite and
+  stayed plain `is_company_member(company_id)`, meaning cleaner/mechanic
+  could read every customer's identity documents despite phase 17
+  deliberately keeping those two roles out of customer/financial data
+  everywhere else. Now wired into the real SELECT policy; role defaults
+  re-seeded so owner/manager/agent/accountant/driver keep the access
+  they already had, and cleaner/mechanic correctly don't — a deliberate
+  tightening for those two roles, not a preservation-only change.
+
+**Masked/redacted previews were evaluated and explicitly declined this
+pass**, per the phase brief's own escape hatch ("if too large a lift,
+at minimum log + permission-check"). A CSS-only blur-until-clicked
+would be security theater: the full-resolution image is already fully
+downloaded to the browser via the signed URL by the time any blur
+renders, trivially bypassed via dev tools. Real masking needs
+server-side image processing — redacting regions before the client ever
+receives bytes — a materially larger lift than this pass's scope.
+
+## Secrets & encryption
+
+**Secrets audit (roadmap phase 19), clean**: `.env.example` holds only
+blank placeholders; `.env.local` is gitignored and was never committed
+in this repo's history (`git log --all --diff-filter=A -- "*.env*"`
+returns only `.env.example` itself); a repo-wide grep for key-shaped
+literals (`sk-`/`re_`-style prefixes, `_KEY=`/`_SECRET=`/`_TOKEN=`
+literal assignments) found no real credential anywhere in tracked
+source — every API key/credential (`OPENAI_API_KEY`,
+`ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`) is read
+through `process.env` via `lib/env.ts`, never hardcoded.
+
+**Encryption**: this app has no application-level encryption of its own
+to extend, and doesn't need one — sensitive data (extracted OCR
+identity fields, signature records, contract PDFs) rides entirely on
+Supabase's platform-level protection: TLS in transit for every
+connection, encryption at rest for both Postgres and Storage, managed
+by the platform rather than this codebase. There is no second,
+app-level copy or mechanism to reconcile against this — inventing one
+would be redundant, not more secure.
+
 ## Known limitations (intentional, for a future phase)
 
 - No per-branch access restriction (e.g. an agent scoped to one branch) —
@@ -260,3 +359,23 @@ RLS, and the same server actions as the rest of the app.
   are always a current snapshot, never reconstructed as of a past date —
   see `lib/reports.ts`'s module comment for why (no historical balance
   snapshots yet, on purpose).
+- **The mobile PWA's idle timeout is client-side only** (`hooks/use-idle-redirect.ts`,
+  30 minutes, standalone-display-mode only — it correctly never fires
+  for a plain desktop or mobile-browser-tab session). It redirects to
+  sign-in; it does not revoke the underlying Supabase session
+  server-side (the hook's own comment says as much). A stolen or
+  unattended device's session cookie remains technically valid until
+  its natural Supabase expiry, not until the idle redirect fires.
+- **`lib/supabase/admin.ts`'s service-role client is scoped by convention,
+  not by code.** Its doc comment names the two allowed callers (the
+  operations-feed cron job, WebAuthn's `authenticate-verify`) but
+  nothing in the type system stops a third caller from importing
+  `createAdminClient()` — it bypasses RLS entirely for whoever calls it.
+  Confirmed (roadmap phase 19) that both existing callers use it
+  narrowly and correctly; this is a real architectural trust boundary
+  worth knowing about before adding a third caller casually.
+- WebAuthn `register-verify` has no rate-limiting (only
+  `authenticate-verify` does, added roadmap phase 19) — it already
+  requires an authenticated session, a fundamentally lower-risk surface
+  with no "guess whose credential this is" attack the way an
+  unauthenticated sign-in attempt has.
