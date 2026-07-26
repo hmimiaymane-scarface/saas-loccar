@@ -4,9 +4,8 @@ import { useState } from "react"
 import { Menu } from "lucide-react"
 
 import type { RentalCompany, EmployeeRole } from "@/types/rental"
-import { primaryNav, secondaryNav, navForRole } from "@/lib/navigation"
+import { primaryNav, navForRole } from "@/lib/navigation"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
   SheetContent,
@@ -43,8 +42,6 @@ function MobileNav({ company, role }: { company: RentalCompany; role: EmployeeRo
         </SheetHeader>
         <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-6 pb-6">
           <NavList items={navForRole(primaryNav, role)} onNavigate={() => setOpen(false)} />
-          <Separator />
-          <NavList items={navForRole(secondaryNav, role)} onNavigate={() => setOpen(false)} />
         </div>
       </SheetContent>
     </Sheet>

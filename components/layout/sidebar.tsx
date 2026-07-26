@@ -4,10 +4,9 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { RentalCompany, EmployeeRole } from "@/types/rental"
-import { primaryNav, secondaryNav, navForRole } from "@/lib/navigation"
+import { primaryNav, navForRole } from "@/lib/navigation"
 import { CompanyIdentity } from "@/components/layout/company-identity"
 import { NavList } from "@/components/layout/nav-list"
-import { Separator } from "@/components/ui/separator"
 
 interface SidebarProps {
   company: RentalCompany
@@ -28,8 +27,6 @@ function Sidebar({ company, role, collapsed, onToggleCollapse }: SidebarProps) {
 
       <div className="flex flex-1 flex-col gap-6 overflow-y-auto">
         <NavList items={navForRole(primaryNav, role)} collapsed={collapsed} />
-        <Separator />
-        <NavList items={navForRole(secondaryNav, role)} collapsed={collapsed} />
       </div>
 
       <button
