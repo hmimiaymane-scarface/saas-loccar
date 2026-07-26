@@ -36,6 +36,15 @@ export interface NavItem {
 
 const ALL_ROLES: EmployeeRole[] = ["owner", "manager", "agent", "accountant", "driver", "cleaner", "mechanic"]
 
+// Productization wave 1 phase 2 — the visible product only has two
+// roles (Owner, Staff/"manager"); every nav item that used to carry a
+// narrower workforce-role subset (agent/accountant/driver/mechanic)
+// collapses to this pair instead. ALL_ROLES stays as the full 7-value
+// list (unchanged) for the couple of items every role has always
+// shared — kept as-is rather than narrowed, since it costs nothing and
+// still renders correctly for any legacy row that isn't owner/manager.
+const OWNER_AND_STAFF: EmployeeRole[] = ["owner", "manager"]
+
 export const primaryNav: NavItem[] = [
   {
     title: "Overview",
@@ -49,84 +58,84 @@ export const primaryNav: NavItem[] = [
     href: "/calendar",
     icon: CalendarDays,
     description: "Availability and reservation calendar",
-    roles: ["owner", "manager", "agent", "driver"],
+    roles: OWNER_AND_STAFF,
   },
   {
     title: "Reservations",
     href: "/reservations",
     icon: ClipboardList,
     description: "Booking requests and confirmed reservations",
-    roles: ["owner", "manager", "agent"],
+    roles: OWNER_AND_STAFF,
   },
   {
     title: "Fleet",
     href: "/fleet",
     icon: Car,
     description: "Vehicles, status and daily rates",
-    roles: ["owner", "manager", "agent"],
+    roles: OWNER_AND_STAFF,
   },
   {
     title: "Customers",
     href: "/customers",
     icon: Users,
     description: "Customer records, licences and documents",
-    roles: ["owner", "manager", "agent"],
+    roles: OWNER_AND_STAFF,
   },
   {
     title: "Payments",
     href: "/payments",
     icon: Wallet,
     description: "Paid, partial and unpaid balances",
-    roles: ["owner", "manager", "accountant"],
+    roles: OWNER_AND_STAFF,
   },
   {
     title: "Expenses",
     href: "/expenses",
     icon: Receipt,
     description: "Fuel, maintenance and other running costs",
-    roles: ["owner", "manager", "accountant"],
+    roles: OWNER_AND_STAFF,
   },
   {
     title: "Maintenance",
     href: "/maintenance",
     icon: Wrench,
     description: "Maintenance history and alerts",
-    roles: ["owner", "manager", "mechanic"],
+    roles: OWNER_AND_STAFF,
   },
   {
     title: "Documents",
     href: "/documents",
     icon: FileText,
     description: "Contracts and files, uploaded by your team",
-    roles: ["owner", "manager", "agent"],
+    roles: OWNER_AND_STAFF,
   },
   {
     title: "Contracts",
     href: "/contracts",
     icon: ScrollText,
     description: "Generated rental agreements — search, sign, amend, archive",
-    roles: ["owner", "manager", "agent"],
+    roles: OWNER_AND_STAFF,
   },
   {
     title: "Contract Templates",
     href: "/contract-templates",
     icon: FileSignature,
     description: "Reusable rental agreement templates and variable mappings",
-    roles: ["owner", "manager"],
+    roles: OWNER_AND_STAFF,
   },
   {
-    title: "Employees",
+    title: "Team",
     href: "/employees",
     icon: UserCog,
-    description: "Team members, roles and permissions",
-    roles: ["owner", "manager"],
+    description: "Invite a collaborator to help run the business",
+    roles: OWNER_AND_STAFF,
   },
   {
     title: "Reports",
     href: "/reports",
     icon: BarChart3,
     description: "Business performance over time",
-    roles: ["owner", "manager", "accountant"],
+    roles: OWNER_AND_STAFF,
   },
 ]
 
@@ -193,35 +202,21 @@ export const mobilePrimaryNav: NavItem[] = [
     href: "/reservations",
     icon: ClipboardList,
     description: "Booking requests and confirmed reservations",
-    // Roadmap phase 17 — driver added: has_permission() now scopes
-    // their reservations read to assigned-only, so this tab is safe to
-    // show (they just see a narrower list, never the company-wide one
-    // owner/manager/agent get).
-    roles: ["owner", "manager", "agent", "driver"],
+    roles: OWNER_AND_STAFF,
   },
   {
     title: "Fleet",
     href: "/fleet",
     icon: Car,
     description: "Vehicles, status and daily rates",
-    roles: ["owner", "manager", "agent"],
+    roles: OWNER_AND_STAFF,
   },
   {
     title: "Customers",
     href: "/customers",
     icon: Users,
     description: "Customer records, licences and documents",
-    roles: ["owner", "manager", "agent"],
-  },
-  {
-    title: "Tasks",
-    href: "/maintenance",
-    icon: Wrench,
-    description: "Maintenance and cleaning jobs assigned to you",
-    // Roadmap phase 17 — cleaner/mechanic's field equivalent of
-    // Reservations/Fleet/Customers: the one operational tab their role
-    // actually needs, scoped by RLS to assigned-or-unassigned records.
-    roles: ["cleaner", "mechanic"],
+    roles: OWNER_AND_STAFF,
   },
   {
     title: "Inbox",

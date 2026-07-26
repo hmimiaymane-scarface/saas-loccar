@@ -20,7 +20,9 @@ interface QuickAction {
   roles: EmployeeRole[]
 }
 
-const FRONT_DESK_ROLES: EmployeeRole[] = ["owner", "manager", "agent"]
+// Productization wave 1 phase 2 — only Owner/Staff exist as reachable
+// roles now, so every quick action is available to both alike.
+const FRONT_DESK_ROLES: EmployeeRole[] = ["owner", "manager"]
 
 /** Roadmap phase 16 requirement 5 — the 6 named quick actions, each
  * routed to an existing flow (no new destination pages). "Start
@@ -33,7 +35,7 @@ const QUICK_ACTIONS: QuickAction[] = [
   { label: "Scan Document", href: "/documents", icon: ScanLine, roles: FRONT_DESK_ROLES },
   { label: "Start Inspection", href: "/reservations?status=confirmed", icon: ClipboardCheck, roles: FRONT_DESK_ROLES },
   { label: "Return Vehicle", href: "/reservations?status=active", icon: Undo2, roles: FRONT_DESK_ROLES },
-  { label: "Capture Damage", href: "/damages/new", icon: Camera, roles: [...FRONT_DESK_ROLES, "mechanic"] },
+  { label: "Capture Damage", href: "/damages/new", icon: Camera, roles: FRONT_DESK_ROLES },
   { label: "Search Customer", href: "/customers", icon: UserSearch, roles: FRONT_DESK_ROLES },
 ]
 
