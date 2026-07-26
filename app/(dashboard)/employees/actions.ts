@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { requiredString, optionalString, requiredEnum } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
+import { setStaffAccessSwitch } from "@/lib/permissions/service"
 import type { EmployeeRole } from "@/types/rental"
 
 const TEAM_MANAGE_ROLES = ["owner", "manager"] as const
@@ -113,6 +114,43 @@ export async function reactivateMemberAction(membershipId: string): Promise<{ er
     return {}
   } catch (err) {
     if (err instanceof ActionError) return { error: err.message }
+    throw err
+  }
+}
+
+/** Productization wave 1 phase 3 — flips one of the 3 simple Staff
+ * access switches (see lib/permissions/service.ts). `targetRole` comes
+ * from the client's already-loaded TeamMember (member-row.tsx only
+ * ever renders this control for `role === "manager"` rows to begin
+ * with); checked again here as defense in depth, since
+ * grant_permission_override() itself only guards the actor's role, not
+ * the target's — nothing stops an owner's access from being "restricted"
+ * at the database layer otherwise. */
+export async function setStaffAccessAction(
+  userId: string,
+  targetRole: EmployeeRole,
+  switchId: string,
+  allowed: boolean
+): Promise<{ error?: string }> {
+  try {
+    const session = await requireSession()
+    requireRole(session, [...TEAM_MANAGE_ROLES])
+
+    if (session.userId === userId) {
+      return { error: "You cannot change your own access." }
+    }
+    if (targetRole === "owner") {
+      return { error: "Owners always have full access." }
+    }
+
+    const supabase = await createClient()
+    await setStaffAccessSwitch(supabase, session.company.id, userId, switchId, allowed)
+
+    revalidatePath("/employees")
+    return {}
+  } catch (err) {
+    if (err instanceof ActionError) return { error: err.message }
+    if (err instanceof Error) return { error: friendlyDbError(err) }
     throw err
   }
 }
