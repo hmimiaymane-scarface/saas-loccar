@@ -31,7 +31,6 @@ import { bookings as mockBookings } from "@/lib/mock/bookings"
 import { maintenanceRecords as mockMaintenanceRecords } from "@/lib/mock/maintenance-records"
 import { expenses as mockExpenses } from "@/lib/mock/expenses"
 import { teamMembers as mockTeamMembers, pendingInvitations as mockPendingInvitations } from "@/lib/mock/team"
-import { mockApprovalRequests } from "@/lib/mock/approval-requests"
 import { recentActivity as mockRecentActivity } from "@/lib/mock/activity"
 import { branches as mockBranches } from "@/lib/mock/branches"
 import { checklistTemplate as mockChecklistTemplate } from "@/lib/mock/checklist"
@@ -107,7 +106,6 @@ import type {
   TeamMember,
   TeamInvitation,
   EmployeeRole,
-  ApprovalRequest,
   ActivityType,
   MediaFile,
   OverallCondition,
@@ -3864,40 +3862,6 @@ export async function getPendingInvitations(companyId: string): Promise<TeamInvi
     token: i.token,
     expiresAt: i.expires_at,
     createdAt: i.created_at,
-  }))
-}
-
-export async function getApprovalRequests(companyId: string): Promise<ApprovalRequest[]> {
-  if (isMockMode()) return mockApprovalRequests
-
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from("approval_requests")
-    .select("id, type, entity_type, entity_id, requested_by, payload, status, reason, reviewed_by, reviewed_at, created_at")
-    .eq("company_id", companyId)
-    .order("created_at", { ascending: false })
-
-  if (error) throw error
-
-  const nameMap = await resolveProfileNames(supabase, [
-    ...(data ?? []).map((r) => r.requested_by),
-    ...(data ?? []).map((r) => r.reviewed_by),
-  ])
-
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    type: r.type as ApprovalRequest["type"],
-    entityType: r.entity_type,
-    entityId: r.entity_id,
-    requestedById: r.requested_by,
-    requestedByName: nameMap.get(r.requested_by) ?? null,
-    payload: (r.payload as Record<string, unknown>) ?? {},
-    status: r.status as ApprovalRequest["status"],
-    reason: r.reason,
-    reviewedById: r.reviewed_by,
-    reviewedByName: r.reviewed_by ? nameMap.get(r.reviewed_by) ?? null : null,
-    reviewedAt: r.reviewed_at,
-    createdAt: r.created_at,
   }))
 }
 

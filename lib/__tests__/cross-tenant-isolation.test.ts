@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
 import { makeFakeSupabase } from "./helpers/fake-supabase"
 
@@ -27,21 +27,19 @@ import { makeFakeSupabase } from "./helpers/fake-supabase"
  * building a matching fake-client harness for it isn't proportionate to
  * this pass; `document_extractions` has no bulk-list-by-company reader
  * — every read is scoped by an already company-gated `document_id`.
+ *
+ * `approval_requests`: covered here until productization wave 1 phase 2
+ * removed the visible approval-workflow UI (and its `getApprovalRequests`
+ * accessor) from the product — the table and its RPCs still exist at
+ * the database level to reduce rewrite risk, but there is no longer a
+ * TS reader to test against. Same class of gap as the others above.
  */
-
-vi.mock("@/lib/env", () => ({ isSupabaseConfigured: true, requireSupabaseEnv: () => ({}) }))
-
-const clientHolder: { current: unknown } = vi.hoisted(() => ({ current: null }))
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: async () => clientHolder.current,
-}))
 
 import { getCustomerIntelligence } from "@/lib/customer-intelligence-store"
 import { getVehicleIntelligence } from "@/lib/vehicle-intelligence-store"
 import { getOpenOperationsFeedItems } from "@/lib/operations-feed/data"
 import { getEventsForEntity } from "@/lib/activity-log"
 import { getTemplateVersion } from "@/lib/contracts/template-store"
-import { getApprovalRequests } from "@/lib/data"
 import type { SessionContext } from "@/lib/auth/session"
 
 function sessionFor(companyId: string): SessionContext {
@@ -130,21 +128,5 @@ describe("cross-tenant isolation — contract_template_versions", () => {
     })
     const result = await getTemplateVersion(client, COMPANY_A, "ver_1")
     expect(result).toBeNull()
-  })
-})
-
-describe("cross-tenant isolation — approval_requests", () => {
-  it("never returns another company's approval requests", async () => {
-    clientHolder.current = makeFakeSupabase({
-      approval_requests: [
-        { id: "req_b", company_id: COMPANY_B, type: "large_discount", entity_type: "reservation", entity_id: "res_1", requested_by: "user-x", payload: {}, status: "pending", reason: "B's request", reviewed_by: null, reviewed_at: null, created_at: "2026-01-01" },
-        { id: "req_a", company_id: COMPANY_A, type: "large_discount", entity_type: "reservation", entity_id: "res_2", requested_by: "user-y", payload: {}, status: "pending", reason: "A's request", reviewed_by: null, reviewed_at: null, created_at: "2026-01-01" },
-      ],
-      profiles: [],
-    }).client
-
-    const result = await getApprovalRequests(COMPANY_A)
-    expect(result).toHaveLength(1)
-    expect(result[0].id).toBe("req_a")
   })
 })
