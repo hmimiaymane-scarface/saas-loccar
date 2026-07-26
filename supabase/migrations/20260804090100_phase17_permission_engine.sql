@@ -241,7 +241,12 @@ create policy "Permitted roles can view expenses"
   on public.expenses for select
   using (public.has_permission(company_id, 'view_financial_reports'));
 
-drop policy "Finance roles can record expenses" on public.expenses;
+-- Renamed to "Finance-adjacent roles can record expenses" by
+-- 20260720090600_settings_and_rls.sql — dropping the original
+-- "Finance roles can record expenses" name here would fail against a
+-- real project with that migration already applied (found applying
+-- this phase's migrations to a live project for the first time).
+drop policy "Finance-adjacent roles can record expenses" on public.expenses;
 create policy "Permitted roles can record expenses"
   on public.expenses for insert
   with check (public.has_permission(company_id, 'record_payments'));
