@@ -268,3 +268,50 @@ role-specific views (phase 17's cleaner/mechanic/driver mobile homes) use the
 identical `InsightFeedItem`/score/badge components as the owner/manager
 desktop views — a user switching between them sees the same visual language,
 not a different app.
+
+## Final end-to-end walkthrough (acceptance criterion)
+
+Driven live in the browser (mock mode), not just inferred from passing
+tests, per this phase's own acceptance criterion:
+
+- **Owner login → Command Center**: `/overview` renders the Morning
+  Briefing, Needs Attention list (correct priority icons/colors), Revenue
+  today/this month, Today's timeline, and the Fleet visual grid — all
+  correctly. Business Pulse/Health Overview correctly render nothing
+  rather than crashing, since they need live Supabase data this
+  environment doesn't have. Zero console errors.
+- **Returning-customer fast path**: `/customers/cus_2` → "Start rental"
+  correctly lands on `/reservations/new?customerId=cus_2` with the
+  customer pre-selected and the "Returning customer, fast path —
+  licence and ID are on file and valid" banner shown, exactly as phase
+  9 designed it.
+- **Pickup inspection with AI damage check**: confirmed unreachable in
+  mock mode — `startInspection` unconditionally calls `createClient()`
+  in a mount effect, throwing before any UI renders. This is a
+  pre-existing, already-documented limitation from phases 15-16 (not
+  something this phase introduced or is in scope to fix), reconfirmed
+  here rather than assumed.
+- **Contract generation**: a **new finding** from this walkthrough —
+  clicking "Generate contract" from a reservation navigates to
+  `/reservations/[id]/contract-preview`, which crashes with an
+  unhandled runtime error in mock mode (`requireSupabaseEnv()` thrown,
+  uncaught) rather than degrading gracefully. This is a different, more
+  abrupt failure than the same limitation on `/contract-templates`/
+  `/contracts`, which phase 10 explicitly wrapped in `isSupabaseConfigured`
+  + try/catch for a clean fallback — this specific route was evidently
+  missed by that fix. Out of this phase's scope to fix (design
+  tokens/component docs/AI tone/accessibility/AGENTS.md, not contract
+  flow bugs), but flagged here rather than silently passed over,
+  exactly what this final walkthrough exists to catch.
+- **Mobile home as an employee role**: `/home` renders correctly in a
+  real 390×844 mobile viewport (bottom tab bar, FAB, empty-state
+  mission feed) for the current mock session. Mock mode is fixed to a
+  single (owner) identity, so switching to a non-owner role's mission
+  feed wasn't re-verified here — already covered by phase 17's own
+  dedicated per-role browser pass (cleaner/mechanic/driver, documented
+  in that phase's commits).
+
+**Net result**: the roadmap's pieces genuinely work together as one
+product for the paths this environment can exercise — the one real gap
+found is narrow, pre-existing (not introduced by phases 17-20), and
+named above rather than glossed over.
