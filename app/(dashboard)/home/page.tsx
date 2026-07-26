@@ -26,14 +26,13 @@ export default async function HomePage() {
   let cards: ReturnType<typeof buildMissionFeed> = []
   try {
     const supabase = isSupabaseConfigured ? await createClient() : null
-    const { reservations, feedItems, maintenanceJobs, nowIso } = await getMobileMissionFeedInputs(
+    const { reservations, feedItems, nowIso } = await getMobileMissionFeedInputs(
       supabase,
       session.company.id,
       session.userId,
-      session.company.timezone,
-      session.role
+      session.company.timezone
     )
-    cards = buildMissionFeed({ reservations, feedItems, maintenanceJobs, nowIso })
+    cards = buildMissionFeed({ reservations, feedItems, nowIso })
   } catch {
     cards = []
   }

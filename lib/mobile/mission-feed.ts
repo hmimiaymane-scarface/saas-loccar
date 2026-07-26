@@ -39,20 +39,6 @@ export interface MissionFeedItemInput {
   priorityTier: PriorityTier
 }
 
-/** Roadmap phase 17 — cleaner/mechanic's mission feed is built from
- * their assigned (or unassigned) maintenance_records rows instead of
- * reservations; see lib/mobile/mission-feed-data.ts for which query
- * runs per role. Every other role's feed is unaffected — this input is
- * simply empty for them, same as `feedItems` already is in mock mode. */
-export interface MissionMaintenanceInput {
-  id: string
-  vehicleLabel: string
-  type: string
-  priority: "low" | "normal" | "high" | "urgent"
-  status: string
-  scheduledOn: string | null
-}
-
 export type MissionCardTone = "critical" | "operational" | "informational"
 
 export interface MissionCard {
@@ -141,27 +127,6 @@ function reservationCards(reservation: MissionReservationInput, nowIso: string):
   return cards
 }
 
-function maintenanceCards(job: MissionMaintenanceInput): MissionCard[] {
-  const title = `${job.type.replace(/_/g, " ")} — ${job.vehicleLabel}`
-  const tone: MissionCardTone = job.priority === "urgent" ? "critical" : job.priority === "high" ? "operational" : "informational"
-  const subtitle =
-    job.status === "in_progress" || job.status === "waiting_for_parts"
-      ? "In progress"
-      : job.scheduledOn
-        ? `Scheduled ${job.scheduledOn}`
-        : "Not yet scheduled"
-
-  return [
-    {
-      id: `maint-${job.id}`,
-      title,
-      subtitle,
-      href: `/maintenance/${job.id}`,
-      tone,
-    },
-  ]
-}
-
 const FEED_TONE_BY_TIER: Record<PriorityTier, MissionCardTone> = {
   critical: "critical",
   operational: "operational",
@@ -188,15 +153,11 @@ function feedItemCard(item: MissionFeedItemInput): MissionCard {
 export function buildMissionFeed(input: {
   reservations: MissionReservationInput[]
   feedItems: MissionFeedItemInput[]
-  maintenanceJobs?: MissionMaintenanceInput[]
   nowIso: string
 }): MissionCard[] {
   const cards: MissionCard[] = []
   for (const reservation of input.reservations) {
     cards.push(...reservationCards(reservation, input.nowIso))
-  }
-  for (const job of input.maintenanceJobs ?? []) {
-    cards.push(...maintenanceCards(job))
   }
   for (const item of input.feedItems) {
     cards.push(feedItemCard(item))

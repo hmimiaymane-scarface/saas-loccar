@@ -195,6 +195,12 @@ every other role's feed is unchanged. `lib/mobile/mission-feed.ts`
 a `maintenanceCards()` builder — urgent priority reads as a critical
 card, same tone convention as the reservation-overdue case.
 
+**Superseded by productization wave 1 phase 2**: the visible product
+no longer has a cleaner/mechanic role, so this branch, the
+`maintenanceJobs` input, and `maintenanceCards()` were all deleted —
+every role now gets the same reservation-centric mission feed. Left
+here as a record of the phase-17 decision, not current behavior.
+
 ## Verification
 
 `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` clean
