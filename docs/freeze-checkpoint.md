@@ -103,6 +103,19 @@ configured.
     condition" signal beyond inspection ratings/maintenance status.
 11. No communication-history (calls/messages) log against a customer
     profile — no messaging concept exists in the system.
+12. **Every team-management mutation crashes in mock mode** — invite,
+    role change, suspend/reactivate, remove, and (as of productization
+    wave 1 phase 3) the new Staff access switches all call
+    `createClient()` unconditionally with no `isMockMode()`
+    short-circuit, so each throws "Supabase is not configured" the
+    moment it's clicked (confirmed directly: `suspendMemberAction`
+    crashes with the same error, unrelated to phase 3's own change).
+    Reads (the Team page's member list, invite form, the new Access
+    panel's switch states) all render correctly in mock mode; only the
+    write actions are affected. Pre-existing since whichever phase
+    built `app/(dashboard)/employees/actions.ts` — only surfaced now
+    because phase 3's browser pass was the first to actually click a
+    mutating control on this page in mock mode.
 
 Full detail on all of the above: `Desktop/RentalOS Project Overview.txt`
 (written the same day as this freeze, for the founder/engineers/board
