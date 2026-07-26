@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { createClient } from "@/lib/supabase/server"
 import { recordEvent } from "@/lib/activity-log"
-import { STORAGE_BUCKET } from "@/lib/storage"
+import { STORAGE_BUCKET, ACCEPTED_DOCUMENT_MIME_TYPES, validateUploadForCompany } from "@/lib/storage"
 import { findSupersededDocument } from "@/lib/documents"
 import type { DocumentCategory } from "@/types/rental"
 
@@ -41,6 +41,23 @@ export async function createDocumentRecord(
     if (!input.reservationId && !input.customerId && !input.vehicleId) {
       throw new ActionError("A document must be linked to a reservation, customer or vehicle.")
     }
+
+    // Roadmap phase 19 — the browser already ran this same check (see
+    // every DocumentScanCapture/DocumentUploadRow call site), but an
+    // honest client is the only thing that ever enforced it before this:
+    // nothing stopped a direct call to this action from recording any
+    // mimeType/fileSizeBytes string. Re-validates the metadata server-
+    // side; can't verify the actual uploaded bytes, since they go
+    // straight browser -> Storage and this action never sees them (see
+    // docs/security.md's "Document security" section for why real
+    // content-sniffing would need a bigger upload-path change).
+    const uploadError = validateUploadForCompany(
+      companyId,
+      input.storagePath,
+      { type: input.mimeType, size: input.fileSizeBytes },
+      ACCEPTED_DOCUMENT_MIME_TYPES
+    )
+    if (uploadError) throw new ActionError(uploadError)
 
     if (input.idempotencyKey) {
       const { data: existing } = await supabase

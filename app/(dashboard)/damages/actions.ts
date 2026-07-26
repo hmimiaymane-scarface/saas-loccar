@@ -6,6 +6,7 @@ import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib
 import { requiredString, optionalString, optionalNumber, requiredEnum } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
 import { recordEvent } from "@/lib/activity-log"
+import { ACCEPTED_IMAGE_MIME_TYPES, validateUploadForCompany } from "@/lib/storage"
 import { recomputeVehicleIntelligenceBestEffort } from "@/lib/vehicle-intelligence-store"
 import { recomputeCustomerIntelligenceBestEffort } from "@/lib/customer-intelligence-store"
 import type { DamageCategory, DamageSeverity, DamageStatus } from "@/types/rental"
@@ -226,6 +227,12 @@ export async function attachDamageMedia(
     requireRole(session, [...DAMAGE_ROLES])
     const companyId = session.company.id
     const supabase = await createClient()
+
+    // Roadmap phase 19 — see the equivalent check in
+    // app/(dashboard)/documents/actions.ts#createDocumentRecord for why
+    // this can't be trusted from the client alone.
+    const uploadError = validateUploadForCompany(companyId, storagePath, { type: mimeType, size: fileSizeBytes }, ACCEPTED_IMAGE_MIME_TYPES)
+    if (uploadError) throw new ActionError(uploadError)
 
     const { data, error } = await supabase
       .from("media")

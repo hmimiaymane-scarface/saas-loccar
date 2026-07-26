@@ -62,3 +62,37 @@ export function validateFile(file: FileLike, acceptedMimeTypes: string[]): strin
   }
   return null
 }
+
+/**
+ * Roadmap phase 19 — every upload-recording server action
+ * (createDocumentRecord, attachInspectionMedia, attachDamageMedia) called
+ * `validateFile()` and re-checked the storage path's company prefix
+ * inline, identically, three times. `validateFile()` alone was never
+ * enough on its own: before this phase, ONLY client components ever
+ * called it — the server actions that persist the resulting DB row
+ * trusted `mimeType`/`fileSizeBytes` as plain client-supplied strings.
+ * This is the one place both checks live now, so all three server
+ * actions run the identical gate and it's unit-testable without mocking
+ * a server action's auth/DB dependencies.
+ *
+ * Doesn't (can't) verify the actual uploaded bytes — uploads go
+ * directly browser -> Supabase Storage, so a server action never sees
+ * them, only the metadata the client reports about them. Real content
+ * verification would mean routing uploads through a server-side proxy
+ * or a Storage webhook — a materially larger architecture change than
+ * this hardening pass's scope (see docs/security.md's "Document
+ * security" section).
+ */
+export function validateUploadForCompany(
+  companyId: string,
+  storagePath: string,
+  file: FileLike,
+  acceptedMimeTypes: string[]
+): string | null {
+  const fileError = validateFile(file, acceptedMimeTypes)
+  if (fileError) return fileError
+  if (!storagePath.startsWith(`${companyId}/`)) {
+    return "That file path doesn't belong to your company."
+  }
+  return null
+}

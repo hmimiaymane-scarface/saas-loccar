@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { createClient } from "@/lib/supabase/server"
 import { recordEvent } from "@/lib/activity-log"
-import { STORAGE_BUCKET } from "@/lib/storage"
+import { STORAGE_BUCKET, ACCEPTED_IMAGE_MIME_TYPES, validateUploadForCompany } from "@/lib/storage"
 import { compareInspectionPhotos } from "@/lib/damage-detection"
 import type {
   Cleanliness,
@@ -197,6 +197,12 @@ export async function attachInspectionMedia(
     requireRole(session, [...INSPECTION_ROLES])
     const companyId = session.company.id
     const supabase = await createClient()
+
+    // Roadmap phase 19 — see the equivalent check in
+    // app/(dashboard)/documents/actions.ts#createDocumentRecord for why
+    // this can't be trusted from the client alone.
+    const uploadError = validateUploadForCompany(companyId, storagePath, { type: mimeType, size: fileSizeBytes }, ACCEPTED_IMAGE_MIME_TYPES)
+    if (uploadError) throw new ActionError(uploadError)
 
     if (idempotencyKey) {
       const { data: existing } = await supabase
