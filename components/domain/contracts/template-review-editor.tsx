@@ -8,6 +8,7 @@ import type { TemplateSection, SectionCondition, ConditionOperator } from "@/lib
 import type { VariableMapping } from "@/lib/contracts/template-store"
 import { CONTRACT_VARIABLE_CATALOG } from "@/lib/contracts/variables"
 import { saveEditedVersionAction } from "@/app/(dashboard)/contract-templates/actions"
+import { toneClasses } from "@/lib/tone"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
@@ -145,7 +146,7 @@ function TemplateReviewEditor({
       )}
 
       {isActive && (
-        <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+        <p className={`rounded-2xl px-4 py-3 text-sm ${toneClasses.warning.badge}`}>
           This version is currently active. Saving creates a new version instead of changing this one — activate it to make it live.
         </p>
       )}

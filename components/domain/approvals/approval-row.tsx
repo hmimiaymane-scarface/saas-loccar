@@ -6,6 +6,8 @@ import { CheckCircle2, XCircle, Clock } from "lucide-react"
 import { resolveApprovalRequest } from "@/app/(dashboard)/approvals/actions"
 import type { ApprovalRequest, ApprovalRequestType } from "@/types/rental"
 import { formatDateTime } from "@/lib/format"
+import { cn } from "@/lib/utils"
+import { toneClasses } from "@/lib/tone"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { SensitiveActionConfirmDialog } from "@/components/domain/shared/sensitive-action-confirm-dialog"
@@ -77,10 +79,13 @@ function ApprovalRow({ request, canReview }: { request: ApprovalRequest; canRevi
   )
 }
 
+// Roadmap phase 20 — was hand-rolled emerald/red/amber classes that
+// exactly duplicated toneClasses.positive/critical/warning.badge; now
+// reuses lib/tone.ts directly instead of a second color map.
 function StatusBadge({ status }: { status: ApprovalRequest["status"] }) {
   if (status === "approved") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
+      <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium", toneClasses.positive.badge)}>
         <CheckCircle2 className="size-3" />
         Approved
       </span>
@@ -88,14 +93,14 @@ function StatusBadge({ status }: { status: ApprovalRequest["status"] }) {
   }
   if (status === "rejected") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-500/10 dark:text-red-400">
+      <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium", toneClasses.critical.badge)}>
         <XCircle className="size-3" />
         Rejected
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium", toneClasses.warning.badge)}>
       <Clock className="size-3" />
       Pending
     </span>

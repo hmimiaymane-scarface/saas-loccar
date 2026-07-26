@@ -6,6 +6,12 @@ import {
   Ban,
   AlertTriangle,
   Circle,
+  FileEdit,
+  ClipboardCheck,
+  Send,
+  PenLine,
+  Flag,
+  Archive,
   type LucideIcon,
 } from "lucide-react"
 import type {
@@ -18,6 +24,7 @@ import type {
   MaintenancePriority,
   AlertUrgency,
 } from "@/types/rental"
+import { contractStatusLabel, type ContractStatus } from "@/lib/contracts/lifecycle"
 
 /**
  * Single source of truth for status -> label / icon / color across the app.
@@ -390,6 +397,64 @@ export const alertUrgencyConfig: Record<AlertUrgency, StatusVisual> = {
   overdue: {
     label: "Overdue",
     icon: AlertTriangle,
+    dot: "bg-red-500",
+    badge: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+  },
+}
+
+// Roadmap phase 20 — moved from a private BADGE_CLASS/ICON pair in
+// components/domain/contracts/contract-status-badge.tsx, which
+// duplicated exactly the pattern this file already centralizes for
+// every other status enum. Label still comes from
+// lib/contracts/lifecycle.ts#contractStatusLabel() (the one place
+// contract status labels are defined — also used for error messages
+// and the search filter dropdown, not just this badge).
+export const contractStatusConfig: Record<ContractStatus, StatusVisual> = {
+  draft: {
+    label: contractStatusLabel("draft"),
+    icon: FileEdit,
+    dot: "bg-zinc-400",
+    badge: "bg-zinc-100 text-zinc-600 dark:bg-zinc-500/10 dark:text-zinc-400",
+  },
+  prepared: {
+    label: contractStatusLabel("prepared"),
+    icon: ClipboardCheck,
+    dot: "bg-sky-500",
+    badge: "bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400",
+  },
+  awaiting_signature: {
+    label: contractStatusLabel("awaiting_signature"),
+    icon: Send,
+    dot: "bg-amber-500",
+    badge: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  },
+  signed: {
+    label: contractStatusLabel("signed"),
+    icon: PenLine,
+    dot: "bg-violet-500",
+    badge: "bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400",
+  },
+  active: {
+    label: contractStatusLabel("active"),
+    icon: CheckCircle2,
+    dot: "bg-emerald-500",
+    badge: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+  },
+  completed: {
+    label: contractStatusLabel("completed"),
+    icon: Flag,
+    dot: "bg-blue-500",
+    badge: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
+  },
+  archived: {
+    label: contractStatusLabel("archived"),
+    icon: Archive,
+    dot: "bg-zinc-400",
+    badge: "bg-zinc-100 text-zinc-600 dark:bg-zinc-500/10 dark:text-zinc-400",
+  },
+  cancelled: {
+    label: contractStatusLabel("cancelled"),
+    icon: Ban,
     dot: "bg-red-500",
     badge: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400",
   },
