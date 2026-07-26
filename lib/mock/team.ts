@@ -16,6 +16,7 @@ export const teamMembers: TeamMember[] = [
     branchId: null,
     branchName: null,
     createdAt: "2026-01-10T09:00:00Z",
+    overrides: [],
   },
   {
     membershipId: "mem_2",
@@ -27,6 +28,9 @@ export const teamMembers: TeamMember[] = [
     branchId: "branch_1",
     branchName: "Main branch — Guéliz",
     createdAt: "2026-05-02T09:00:00Z",
+    // No overrides yet — all 3 Staff access switches read ON, matching
+    // her actual default access today (productization wave 1 phase 3).
+    overrides: [],
   },
 ]
 

@@ -89,6 +89,13 @@ export function makeFakeSupabase(seed: Record<string, Record<string, unknown>[]>
 
   const client = {
     from: (table: string) => queryBuilder(table),
+    // Minimal stub — no store function this suite covers asserts on an
+    // RPC's return value, only on whether the surrounding query stays
+    // company-scoped. Real per-RPC behavior (grant_permission_override,
+    // etc.) has its own dedicated tests elsewhere; this just keeps a
+    // caller like getTeamMembers (which also calls get_member_emails)
+    // from throwing on an unimplemented method.
+    rpc: () => Promise.resolve({ data: [], error: null }),
   }
 
   return { client: client as never, tables }

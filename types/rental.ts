@@ -8,6 +8,7 @@
  */
 
 import type { InsightPriority } from "@/lib/tone"
+import type { PermissionOverrideInput } from "@/lib/permissions/resolve"
 
 export type Currency = string
 
@@ -796,6 +797,12 @@ export interface TeamMember {
   branchId: string | null
   branchName: string | null
   createdAt: string
+  /** Productization wave 1 phase 3 — every employee_permission_overrides
+   * row for this member, regardless of key/expiry; lib/permissions/service.ts's
+   * isSwitchOn() derives each Staff access switch's on/off state from
+   * this list. Always empty for a role other than "manager" (owners
+   * have no switches to show). */
+  overrides: PermissionOverrideInput[]
 }
 
 export type InvitationStatus = "pending" | "accepted" | "revoked" | "expired"

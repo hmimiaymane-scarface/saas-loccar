@@ -25,6 +25,7 @@ import { callAndOpenActions } from "@/lib/notifications/actions"
 import { agePriority } from "@/lib/notifications/aging"
 import { filterByFinancialAccess } from "@/lib/notifications/permission-filter"
 import type { InsightPriority } from "@/lib/tone"
+import type { PermissionOverrideInput } from "@/lib/permissions/resolve"
 import { vehicles as mockVehicles } from "@/lib/mock/vehicles"
 import { customers as mockCustomers } from "@/lib/mock/customers"
 import { bookings as mockBookings } from "@/lib/mock/bookings"
@@ -3817,6 +3818,11 @@ export async function getTeamMembers(companyId: string): Promise<TeamMember[]> {
 
   const userIds = (data ?? []).map((m) => m.user_id)
   const emailMap = new Map<string, string>()
+  // Productization wave 1 phase 3 — every override for these members,
+  // grouped by user id, so lib/permissions/service.ts's isSwitchOn()
+  // can derive each Staff member's 3 access-switch states. One batched
+  // query, not N+1.
+  const overridesByUserId = new Map<string, PermissionOverrideInput[]>()
   if (userIds.length > 0) {
     // auth.users isn't directly queryable from the client role; profiles
     // doesn't carry email, so this goes through the same admin-safe path
@@ -3824,6 +3830,25 @@ export async function getTeamMembers(companyId: string): Promise<TeamMember[]> {
     // the equivalent pattern on the invitations side.
     const { data: authUsers } = await supabase.rpc("get_member_emails", { p_user_ids: userIds })
     for (const row of authUsers ?? []) emailMap.set(row.user_id, row.email)
+
+    const { data: overrideRows, error: overridesError } = await supabase
+      .from("employee_permission_overrides")
+      .select("user_id, permission_key, allowed, expires_at, created_at")
+      .eq("company_id", companyId)
+      .in("user_id", userIds)
+
+    if (overridesError) throw overridesError
+
+    for (const row of overrideRows ?? []) {
+      const list = overridesByUserId.get(row.user_id) ?? []
+      list.push({
+        permissionKey: row.permission_key,
+        allowed: row.allowed,
+        expiresAt: row.expires_at,
+        createdAt: row.created_at,
+      })
+      overridesByUserId.set(row.user_id, list)
+    }
   }
 
   return (data ?? []).map((m) => ({
@@ -3836,6 +3861,7 @@ export async function getTeamMembers(companyId: string): Promise<TeamMember[]> {
     branchId: m.branch_id,
     branchName: (m.branch as unknown as { name: string } | null)?.name ?? null,
     createdAt: m.created_at,
+    overrides: overridesByUserId.get(m.user_id) ?? [],
   }))
 }
 

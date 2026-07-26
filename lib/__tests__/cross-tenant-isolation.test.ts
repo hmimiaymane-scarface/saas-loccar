@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { makeFakeSupabase } from "./helpers/fake-supabase"
 
@@ -18,15 +18,18 @@ import { makeFakeSupabase } from "./helpers/fake-supabase"
  * ever ships.
  *
  * Scope note — not every phase-01-18 table has a TS accessor to test:
- * `role_permission_defaults`/`employee_permission_overrides` are only
- * ever read by the SQL `has_permission()` function itself (no TS reader
- * queries across companies to leak from); `notifications` is covered by
+ * `role_permission_defaults` is only ever read by the SQL
+ * `has_permission()` function itself (no TS reader queries across
+ * companies to leak from); `notifications` is covered by
  * lib/data.ts#getNotificationFeed, whose company-scoping is
  * straightforward to audit by inspection but pulls in enough unrelated
  * machinery (has_permission() RPC calls, the live-alerts fan-out) that
  * building a matching fake-client harness for it isn't proportionate to
  * this pass; `document_extractions` has no bulk-list-by-company reader
  * — every read is scoped by an already company-gated `document_id`.
+ * `employee_permission_overrides` gained a TS reader in productization
+ * wave 1 phase 3 (`getTeamMembers`'s override-fetch, feeding the Staff
+ * access switches) — see its own describe block below.
  *
  * `approval_requests`: covered here until productization wave 1 phase 2
  * removed the visible approval-workflow UI (and its `getApprovalRequests`
@@ -40,7 +43,19 @@ import { getVehicleIntelligence } from "@/lib/vehicle-intelligence-store"
 import { getOpenOperationsFeedItems } from "@/lib/operations-feed/data"
 import { getEventsForEntity } from "@/lib/activity-log"
 import { getTemplateVersion } from "@/lib/contracts/template-store"
+import { getTeamMembers } from "@/lib/data"
 import type { SessionContext } from "@/lib/auth/session"
+
+// getTeamMembers (unlike every other function this suite covers) takes
+// no client parameter — it calls createClient() internally, same shape
+// as lib/__tests__/activity-log.test.ts's createCustomer test. Forcing
+// isSupabaseConfigured true routes it down the live-query path instead
+// of the mock-data short-circuit every other test in this file never
+// needed to disturb.
+const clientHolder = vi.hoisted(() => ({ current: null as unknown as ReturnType<typeof makeFakeSupabase>["client"] }))
+
+vi.mock("@/lib/env", () => ({ isSupabaseConfigured: true }))
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => clientHolder.current }))
 
 function sessionFor(companyId: string): SessionContext {
   return {
@@ -128,5 +143,24 @@ describe("cross-tenant isolation — contract_template_versions", () => {
     })
     const result = await getTemplateVersion(client, COMPANY_A, "ver_1")
     expect(result).toBeNull()
+  })
+})
+
+describe("cross-tenant isolation — employee_permission_overrides (via getTeamMembers)", () => {
+  it("never attaches another company's override row to a shared user id", async () => {
+    clientHolder.current = makeFakeSupabase({
+      company_memberships: [
+        { id: "mem_a1", company_id: COMPANY_A, user_id: "user_shared", role: "manager", status: "active", branch_id: null, created_at: "2026-01-01", profile: { full_name: "Staffer" }, branch: null },
+      ],
+      employee_permission_overrides: [
+        { user_id: "user_shared", company_id: COMPANY_A, permission_key: "view_financial_reports", allowed: false, expires_at: null, created_at: "2026-01-01" },
+        { user_id: "user_shared", company_id: COMPANY_B, permission_key: "manage_employees", allowed: false, expires_at: null, created_at: "2026-01-01" },
+      ],
+    }).client
+
+    const result = await getTeamMembers(COMPANY_A)
+    expect(result).toHaveLength(1)
+    expect(result[0].overrides).toHaveLength(1)
+    expect(result[0].overrides[0]).toMatchObject({ permissionKey: "view_financial_reports", allowed: false })
   })
 })
