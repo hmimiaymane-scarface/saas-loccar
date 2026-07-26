@@ -36,10 +36,11 @@ describe("ACTIVITY_TYPES / ENTITY_TYPES", () => {
   // cross-referenced against the `activity_log` check constraints —
   // originally supabase/migrations/20260723090000_event_backbone.sql,
   // extended by 20260731090000_contract_lifecycle.sql (roadmap phase
-  // 11). If either side changes without the other, this is what
+  // 11) and 20260806090000_phase19_document_access_logging.sql (roadmap
+  // phase 19). If either side changes without the other, this is what
   // catches the drift instead of it surfacing as a runtime insert
   // failure.
-  it("matches the type check constraint (event backbone + phase 11's contract lifecycle extension)", () => {
+  it("matches the type check constraint (event backbone + phase 11's contract lifecycle extension + phase 19's document access logging)", () => {
     expect(ACTIVITY_TYPES).toEqual([
       "reservation_requested",
       "reservation_confirmed",
@@ -88,6 +89,8 @@ describe("ACTIVITY_TYPES / ENTITY_TYPES", () => {
       "contract_downloaded",
       "template_created",
       "template_version_activated",
+      "document_viewed",
+      "document_downloaded",
     ])
   })
 

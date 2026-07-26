@@ -57,7 +57,15 @@ pre-checks and unit tests (`lib/permissions/__tests__/resolve.test.ts`)
 | `manage_maintenance` | ✓ | — | — | — | — | ✓ (scoped) |
 | `manage_cleaning_tasks` | ✓ | — | — | — | ✓ (scoped) | — |
 | `view_assigned_deliveries` | — | — | — | ✓ | — | — |
-| `approve_refunds`, `generate_contracts`, `approve_contracts`, `download_documents`, `manage_employees`, `configure_integrations` | ✓ | — | — | — | — | — |
+| `download_documents` | ✓ | ✓ | ✓ | ✓ | — | — |
+| `approve_refunds`, `generate_contracts`, `approve_contracts`, `manage_employees`, `configure_integrations` | ✓ | — | — | — | — | — |
+
+`download_documents` was seeded owner/manager-only when this table was
+first written (no RLS precedent existed yet to preserve — see the
+paragraph below). Roadmap phase 19 actually wired it into the
+`documents` table's SELECT policy and re-seeded it to match what was
+already true for every role except cleaner/mechanic — see
+`docs/security.md`'s "Document security" section.
 
 "Scoped" means the RLS policy additionally restricts to rows where
 `assigned_employee_id` is null (unassigned, visible to anyone with the

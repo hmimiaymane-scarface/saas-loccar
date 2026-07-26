@@ -137,6 +137,13 @@ export const ACTIVITY_TYPES = [
   "contract_downloaded",
   "template_created",
   "template_version_activated",
+  // Roadmap phase 19 — documents (identity documents, licences,
+  // contracts' supporting paperwork) had no access logging at all
+  // before this, unlike contracts (contract_viewed/printed/downloaded
+  // above, phase 11). Bible Chapter 14 §9/§10 — every access to a
+  // sensitive document is logged with who/when.
+  "document_viewed",
+  "document_downloaded",
 ] as const
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number]

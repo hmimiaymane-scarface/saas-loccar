@@ -179,3 +179,44 @@ export async function deleteDocument(documentId: string): Promise<{ error?: stri
     throw err
   }
 }
+
+/**
+ * Roadmap phase 19 requirement 2 (bible Chapter 14 §9/§10 — sensitive
+ * documents need who/when access logging). Unlike contracts
+ * (logContractViewedAction, called server-side from the contract's own
+ * detail page on render), a document has no detail page of its own —
+ * DocumentListItem's link goes straight to a Storage signed URL — so
+ * this has to be a client-triggered call, same convention as
+ * logContractPrintedAction/logContractDownloadedAction being fired from
+ * an onClick rather than a page load. Best-effort: a failed log must
+ * never block the user from actually opening the document (see the
+ * `.catch(() => {})` at the call site).
+ */
+export async function logDocumentAccess(
+  documentId: string,
+  action: "viewed" | "downloaded"
+): Promise<void> {
+  const session = await requireSession()
+  const supabase = await createClient()
+
+  const { data: doc } = await supabase
+    .from("documents")
+    .select("original_filename, reservation_id, customer_id, vehicle_id")
+    .eq("id", documentId)
+    .eq("company_id", session.company.id)
+    .maybeSingle()
+
+  await recordEvent(supabase, {
+    companyId: session.company.id,
+    actorId: session.userId,
+    type: action === "viewed" ? "document_viewed" : "document_downloaded",
+    entityType: "document",
+    entityId: documentId,
+    title: `Document ${action}${doc ? `: ${doc.original_filename}` : ""}`,
+    metadata: {
+      ...(doc?.reservation_id ? { reservation_id: doc.reservation_id } : {}),
+      ...(doc?.customer_id ? { customer_id: doc.customer_id } : {}),
+      ...(doc?.vehicle_id ? { vehicle_id: doc.vehicle_id } : {}),
+    },
+  })
+}

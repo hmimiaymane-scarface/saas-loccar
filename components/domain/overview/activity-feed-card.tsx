@@ -93,6 +93,8 @@ const activityIcon: Record<ActivityType, LucideIcon> = {
   contract_downloaded: Download,
   template_created: FilePlus,
   template_version_activated: FileCheck2,
+  document_viewed: Eye,
+  document_downloaded: Download,
 }
 
 function ActivityFeedCard({ items }: { items: ActivityItem[] }) {
