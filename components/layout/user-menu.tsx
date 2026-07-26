@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { LogOut, Settings, UserRound } from "lucide-react"
+import { LogOut, MoreHorizontal, UserRound } from "lucide-react"
 
 import type { Employee } from "@/types/rental"
 import { initials } from "@/lib/format"
@@ -41,9 +41,9 @@ function UserMenu({ employee }: { employee: Employee }) {
         </DropdownMenuItem>
         {(employee.role === "owner" || employee.role === "manager") && (
           <DropdownMenuItem asChild>
-            <Link href="/settings">
-              <Settings />
-              Settings
+            <Link href="/more">
+              <MoreHorizontal />
+              More
             </Link>
           </DropdownMenuItem>
         )}

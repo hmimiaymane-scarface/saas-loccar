@@ -45,14 +45,19 @@ export default async function CalendarPage({
         title="Calendar"
         description="Pickups, returns and fleet occupancy for the week"
         actions={
-          canCreate ? (
-            <Button asChild>
-              <Link href="/reservations/new">
-                <Plus />
-                New reservation
-              </Link>
+          <>
+            <Button variant="outline" asChild>
+              <Link href="/reservations">View all reservations</Link>
             </Button>
-          ) : undefined
+            {canCreate && (
+              <Button asChild>
+                <Link href="/reservations/new">
+                  <Plus />
+                  New reservation
+                </Link>
+              </Button>
+            )}
+          </>
         }
       />
 
