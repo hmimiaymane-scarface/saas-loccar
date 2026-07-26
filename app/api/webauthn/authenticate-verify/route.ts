@@ -3,6 +3,7 @@ import { verifyAuthenticationResponse, type AuthenticationResponseJSON, type Web
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { resolveWebAuthnParty, WEBAUTHN_CHALLENGE_COOKIE } from "@/lib/webauthn/config"
+import { isLocked, recordFailedAttempt, resetLockout } from "@/lib/webauthn/lockout"
 
 function readCookie(request: Request, name: string): string | null {
   const header = request.headers.get("cookie") ?? ""
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
   const admin = createAdminClient()
   const { data: credentialRow } = await admin
     .from("webauthn_credentials")
-    .select("id, credential_id, public_key, counter, user_id")
+    .select("id, credential_id, public_key, counter, user_id, failed_attempts, locked_until")
     .eq("credential_id", body.response.id)
     .eq("user_id", userId)
     .maybeSingle()
@@ -61,14 +62,37 @@ export async function POST(request: Request) {
   if (!credentialRow) {
     return Response.json({ error: "That passkey isn't recognized." }, { status: 400 })
   }
+  // Rebound to a definitely-non-null const — a nested function closing
+  // over `credentialRow` directly wouldn't retain the null check above's
+  // narrowing (TS doesn't narrow a closed-over outer variable inside a
+  // function body), but a binding whose own declared type has no `null`
+  // in it is captured correctly regardless.
+  const credRow = credentialRow
+
+  // Roadmap phase 19 — no rate-limiting existed on this endpoint before
+  // this; see lib/webauthn/lockout.ts's own doc comment.
+  if (isLocked({ failedAttempts: credRow.failed_attempts, lockedUntil: credRow.locked_until })) {
+    return Response.json(
+      { error: "Too many failed attempts with this passkey. Try again later." },
+      { status: 429 }
+    )
+  }
 
   const credential: WebAuthnCredential = {
-    id: credentialRow.credential_id,
-    publicKey: new Uint8Array(Buffer.from(credentialRow.public_key, "base64url")),
-    counter: credentialRow.counter,
+    id: credRow.credential_id,
+    publicKey: new Uint8Array(Buffer.from(credRow.public_key, "base64url")),
+    counter: credRow.counter,
   }
 
   const { rpID, origin } = resolveWebAuthnParty(request)
+
+  async function recordFailure() {
+    const next = recordFailedAttempt({ failedAttempts: credRow.failed_attempts, lockedUntil: credRow.locked_until })
+    await admin
+      .from("webauthn_credentials")
+      .update({ failed_attempts: next.failedAttempts, locked_until: next.lockedUntil })
+      .eq("id", credRow.id)
+  }
 
   let verification
   try {
@@ -80,17 +104,25 @@ export async function POST(request: Request) {
       credential,
     })
   } catch {
+    await recordFailure()
     return Response.json({ error: "Could not verify that passkey. Try again." }, { status: 400 })
   }
 
   if (!verification.verified) {
+    await recordFailure()
     return Response.json({ error: "Could not verify that passkey. Try again." }, { status: 400 })
   }
 
+  const reset = resetLockout()
   await admin
     .from("webauthn_credentials")
-    .update({ counter: verification.authenticationInfo.newCounter, last_used_at: new Date().toISOString() })
-    .eq("id", credentialRow.id)
+    .update({
+      counter: verification.authenticationInfo.newCounter,
+      last_used_at: new Date().toISOString(),
+      failed_attempts: reset.failedAttempts,
+      locked_until: reset.lockedUntil,
+    })
+    .eq("id", credRow.id)
 
   const { data: userResult, error: userError } = await admin.auth.admin.getUserById(userId)
   if (userError || !userResult.user?.email) {

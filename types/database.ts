@@ -961,6 +961,8 @@ export type Database = {
           device_label: string | null
           created_at: Timestamp
           last_used_at: Timestamp | null
+          failed_attempts: number
+          locked_until: Timestamp | null
         }
         Insert: {
           id?: string
@@ -972,6 +974,8 @@ export type Database = {
           device_label?: string | null
           created_at?: Timestamp
           last_used_at?: Timestamp | null
+          failed_attempts?: number
+          locked_until?: Timestamp | null
         }
         Update: Partial<Database["public"]["Tables"]["webauthn_credentials"]["Insert"]>
         Relationships: []
