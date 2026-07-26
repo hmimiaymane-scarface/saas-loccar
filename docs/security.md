@@ -47,6 +47,42 @@ any caller insert/update/delete/truncate it via the REST API. Fixed in
 so open reads were always fine), no write policy at all. No other public
 table had this gap.
 
+**Productization wave 1 phase 6** went one step further than phase 19's
+suite (which proves application-layer discipline, not RLS itself — see
+its own opening paragraph) and phase 5's catalog inspection (which
+confirmed RLS was *enabled*, not that it actually *blocks* anything):
+`scripts/phase6-tenant-isolation.ts` creates two real companies, two
+real owner users and one real staff user via Supabase Auth on the live
+project, seeds one row in every table the phase named — vehicles,
+customers, reservations, payments, documents, and contracts (plus the
+`contract_templates`/`contract_template_versions` chain contracts
+requires) — for Company A, then signs in as each user through the
+**anon key**, exactly the path a real request takes (never the
+service-role key, which bypasses RLS), and attempts:
+
+- Cross-company **reads**: owner B (Company B) reading each of Company
+  A's six rows by id, and staff A (a Company A member) reading Company
+  B's vehicle.
+- Cross-company **writes**: owner B updating Company A's vehicle,
+  deleting Company A's customer, updating Company A's document, and
+  inserting a payment with a *forged* `company_id` claiming to belong
+  to Company A.
+- Positive controls: each user can still read their own company's data
+  (proves a false negative — RLS misconfigured to deny everything —
+  isn't what a passing run would look like).
+
+All 16 checks passed against the live project: every cross-company read
+returned zero rows, every cross-company write affected zero rows or was
+rejected outright by RLS, and Company A's data was independently
+confirmed unchanged afterward (not just "the write call returned an
+error" — the row's actual state was re-checked via the service-role
+client). The script tears down every company, membership, and the three
+auth.users rows it created in a `finally` block regardless of outcome,
+so it leaves no permanent trace on the project and can be re-run safely
+any time — `npx tsx scripts/phase6-tenant-isolation.ts` from the repo
+root (needs `.env.local`'s real project credentials, which it loads
+itself).
+
 ## Membership, roles, and suspension
 
 A user gets access to a company through a row in `company_memberships`
