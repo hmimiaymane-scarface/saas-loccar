@@ -4,7 +4,7 @@ import { getSessionContext } from "@/lib/auth/session"
 import { moreLinks, navForRole } from "@/lib/navigation"
 import { SectionHeader } from "@/components/domain/section-header"
 import { Card, CardContent } from "@/components/ui/card"
-import { NavList } from "@/components/layout/nav-list"
+import { NavLinkList } from "@/components/domain/nav-link-list"
 
 /**
  * Productization wave 1 phase 4 — the primary nav's "More" item and
@@ -23,7 +23,7 @@ export default async function MorePage() {
       <SectionHeader title="More" description="Everything else you need, one tap away" />
       <Card>
         <CardContent>
-          <NavList items={navForRole(moreLinks, session.role)} />
+          <NavLinkList items={navForRole(moreLinks, session.role)} />
         </CardContent>
       </Card>
     </>

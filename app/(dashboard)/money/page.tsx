@@ -4,7 +4,7 @@ import { getSessionContext } from "@/lib/auth/session"
 import { moneyLinks, navForRole } from "@/lib/navigation"
 import { SectionHeader } from "@/components/domain/section-header"
 import { Card, CardContent } from "@/components/ui/card"
-import { NavList } from "@/components/layout/nav-list"
+import { NavLinkList } from "@/components/domain/nav-link-list"
 
 /**
  * Productization wave 1 phase 4 — the primary nav's "Money" item. A
@@ -23,7 +23,7 @@ export default async function MoneyPage() {
       <SectionHeader title="Money" description="Payments and running costs" />
       <Card>
         <CardContent>
-          <NavList items={navForRole(moneyLinks, session.role)} />
+          <NavLinkList items={navForRole(moneyLinks, session.role)} />
         </CardContent>
       </Card>
     </>
