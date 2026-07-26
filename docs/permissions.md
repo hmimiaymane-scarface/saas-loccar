@@ -201,6 +201,37 @@ no longer has a cleaner/mechanic role, so this branch, the
 every role now gets the same reservation-centric mission feed. Left
 here as a record of the phase-17 decision, not current behavior.
 
+## Productization wave 1 phase 3 — the visible Staff access switches
+
+No UI was ever built on top of this engine in any version of the
+product — `role_permission_defaults`/`employee_permission_overrides`
+existed only as backend infrastructure until this phase. Rather than
+exposing the 16-key catalog directly, `lib/permissions/service.ts`
+groups it into 3 switches an owner sees on each Staff (`manager`-role)
+team member's row (`components/domain/employees/member-row.tsx`'s
+"Access" disclosure):
+
+| Switch | Permission keys |
+|---|---|
+| Can see financial information | `view_financial_reports` |
+| Can edit or delete important records | `edit_customers`, `edit_reservations`, `manage_vehicles`, `generate_contracts`, `approve_contracts`, `manage_maintenance`, `manage_cleaning_tasks`, `record_payments`, `approve_refunds`, `download_documents` |
+| Can manage settings, team and integrations | `manage_employees`, `configure_integrations` |
+
+`view_customers`/`view_reservations`/`view_assigned_deliveries` are not
+covered by any switch — baseline "can do the job" visibility every
+Staff member keeps unconditionally. A switch reads ON only if every one
+of its keys currently resolves true (`isSwitchOn()`); since `manager`'s
+role defaults are already all-true, every switch starts ON for a Staff
+member with no overrides — flipping one OFF writes a `false` override
+for its keys via the existing `grant_permission_override()` RPC (no
+engine or RLS changes this phase). The switches live on the member's
+row, not the invite form — `grant_permission_override()` requires an
+*active* membership, which an invitee doesn't have until they accept.
+
+The full 16-key catalog stays engine-only and unexposed — an "Advanced"
+panel surfacing it directly was explicitly out of scope for this phase
+("optional later controls" per the brief) and hasn't been built.
+
 ## Verification
 
 `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` clean
