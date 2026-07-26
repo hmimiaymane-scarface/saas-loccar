@@ -13,13 +13,19 @@ import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 
-const INVITABLE_ROLES: EmployeeRole[] = ["manager", "agent", "accountant", "driver", "cleaner", "mechanic", "owner"]
+// Productization wave 1 phase 2 — the visible product only offers two
+// roles: Owner and Staff (backed by the existing "manager" role, which
+// already has near-owner-equivalent permission defaults). The other 5
+// EmployeeRole values still exist at the database level (reduces
+// rewrite risk — see docs/permissions.md) but are no longer selectable
+// here.
+const INVITABLE_ROLES: EmployeeRole[] = ["manager", "owner"]
 
 const initialState: TeamActionState = {}
 
 function InviteForm({ branches, actorRole }: { branches: Branch[]; actorRole: EmployeeRole }) {
   const [state, formAction, isPending] = useActionState(inviteMember, initialState)
-  const [role, setRole] = useState<EmployeeRole>("agent")
+  const [role, setRole] = useState<EmployeeRole>("manager")
 
   return (
     <Card>

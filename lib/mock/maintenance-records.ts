@@ -24,7 +24,7 @@ export const maintenanceRecords: MaintenanceRecord[] = [
     createdAt: "2026-07-16T09:00:00Z",
     receiptUrl: null,
     hasLinkedExpense: false,
-    assignedEmployeeId: "emp_4",
+    assignedEmployeeId: null,
   },
   {
     id: "maint_2",
@@ -74,7 +74,7 @@ export const maintenanceRecords: MaintenanceRecord[] = [
     createdAt: "2026-07-10T08:30:00Z",
     receiptUrl: null,
     hasLinkedExpense: false,
-    assignedEmployeeId: "emp_4",
+    assignedEmployeeId: null,
   },
   {
     id: "maint_4",
@@ -124,7 +124,7 @@ export const maintenanceRecords: MaintenanceRecord[] = [
     createdAt: "2026-07-15T10:00:00Z",
     receiptUrl: null,
     hasLinkedExpense: false,
-    assignedEmployeeId: "emp_4",
+    assignedEmployeeId: null,
   },
   {
     id: "maint_6",
@@ -174,7 +174,7 @@ export const maintenanceRecords: MaintenanceRecord[] = [
     createdAt: "2026-06-01T09:00:00Z",
     receiptUrl: null,
     hasLinkedExpense: true,
-    assignedEmployeeId: "emp_4",
+    assignedEmployeeId: null,
   },
   {
     id: "maint_8",
@@ -199,6 +199,6 @@ export const maintenanceRecords: MaintenanceRecord[] = [
     createdAt: "2026-07-24T09:00:00Z",
     receiptUrl: null,
     hasLinkedExpense: false,
-    assignedEmployeeId: "emp_3",
+    assignedEmployeeId: null,
   },
 ]

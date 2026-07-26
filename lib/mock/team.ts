@@ -1,5 +1,10 @@
 import type { TeamMember, TeamInvitation } from "@/types/rental"
 
+// Productization wave 1 phase 2 — the demo roster only ever shows
+// Owner + Staff now, matching the simplified 2-role product (the old
+// roster mixed in agent/cleaner/mechanic mock members, which visibly
+// contradicted "a normal rental owner never sees concepts that imply a
+// large organization").
 export const teamMembers: TeamMember[] = [
   {
     membershipId: "mem_1",
@@ -17,41 +22,19 @@ export const teamMembers: TeamMember[] = [
     userId: "emp_2",
     fullName: "Sara Benkirane",
     email: "sara@atlasrentcar.ma",
-    role: "agent",
+    role: "manager",
     status: "active",
     branchId: "branch_1",
     branchName: "Main branch — Guéliz",
     createdAt: "2026-05-02T09:00:00Z",
-  },
-  {
-    membershipId: "mem_3",
-    userId: "emp_3",
-    fullName: "Khadija Idrissi",
-    email: "khadija@atlasrentcar.ma",
-    role: "cleaner",
-    status: "active",
-    branchId: "branch_1",
-    branchName: "Main branch — Guéliz",
-    createdAt: "2026-06-15T09:00:00Z",
-  },
-  {
-    membershipId: "mem_4",
-    userId: "emp_4",
-    fullName: "Rachid Fassi",
-    email: "rachid@atlasrentcar.ma",
-    role: "mechanic",
-    status: "active",
-    branchId: "branch_1",
-    branchName: "Main branch — Guéliz",
-    createdAt: "2026-06-15T09:00:00Z",
   },
 ]
 
 export const pendingInvitations: TeamInvitation[] = [
   {
     id: "inv_1",
-    email: "hamid.accountant@example.com",
-    role: "accountant",
+    email: "hamid@example.com",
+    role: "manager",
     branchId: null,
     branchName: null,
     status: "pending",

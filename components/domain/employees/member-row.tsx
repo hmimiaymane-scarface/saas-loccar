@@ -13,7 +13,13 @@ import { Button } from "@/components/ui/button"
 import { NativeSelect } from "@/components/ui/native-select"
 import { cn } from "@/lib/utils"
 
-const ROLE_OPTIONS: EmployeeRole[] = ["owner", "manager", "agent", "accountant", "driver", "cleaner", "mechanic"]
+// Productization wave 1 phase 2 — only Owner and Staff (the existing
+// "manager" role) are offered going forward; see invite-form.tsx's own
+// note. A member's own CURRENT role is always included too, even if
+// it's one of the 5 retired ones, so a legacy row never renders a
+// <select> with no matching option — they can still be moved to
+// Owner/Staff from here.
+const ROLE_OPTIONS: EmployeeRole[] = ["owner", "manager"]
 
 function MemberRow({
   member,
@@ -93,7 +99,7 @@ function MemberRow({
             disabled={isPending}
             onChange={(e) => changeRole(e.target.value as EmployeeRole)}
           >
-            {ROLE_OPTIONS.map((r) => {
+            {(ROLE_OPTIONS.includes(member.role) ? ROLE_OPTIONS : [...ROLE_OPTIONS, member.role]).map((r) => {
               const check = canChangeRole(actorRole, isSelf, member.role, isLastActiveOwner, r)
               return (
                 <option key={r} value={r} disabled={r !== member.role && !check.allowed}>
