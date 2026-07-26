@@ -69,6 +69,8 @@ function buildPrompt(extractedText: string): string {
     "",
     "Separately, list every distinct placeholder or blank you found in the original text (e.g. '[CUSTOMER NAME]', 'the Renter, ______') and which field it maps to.",
     "",
+    "Plain business language in any notes you write, never chat-bot voice.",
+    "",
     "=== TEMPLATE TEXT ===",
     extractedText,
   ].join("\n")

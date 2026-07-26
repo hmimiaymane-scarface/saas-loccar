@@ -41,7 +41,7 @@ export function buildInlineNudges(input: NudgeInput): InlineNudge[] {
     const labels = missing.map((key) => PHOTO_SLOTS.find((s) => s.key === key)?.label ?? key)
     nudges.push({
       id: "missing-photos",
-      message: `Don't forget: ${labels.join(", ").toLowerCase()} still need${labels.length === 1 ? "s" : ""} a photo.`,
+      message: `Missing required photo${labels.length === 1 ? "" : "s"}: ${labels.join(", ").toLowerCase()}.`,
       tone: "warning",
     })
   }
@@ -49,7 +49,7 @@ export function buildInlineNudges(input: NudgeInput): InlineNudge[] {
   if (input.vehicleDamageCount > 0) {
     nudges.push({
       id: "prior-damage",
-      message: `This vehicle already has ${input.vehicleDamageCount} damage record${input.vehicleDamageCount === 1 ? "" : "s"} on file — worth a quick look before you start.`,
+      message: `This vehicle has ${input.vehicleDamageCount} damage record${input.vehicleDamageCount === 1 ? "" : "s"} on file. Review before starting the inspection.`,
       tone: "info",
     })
   }

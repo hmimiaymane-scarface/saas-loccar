@@ -50,6 +50,7 @@ function buildPrompt(context: ContractContext, renderedSections: { title: string
     "Flag anything a human should double-check: pricing that looks unusually high or low for the stated rental period, clauses that contradict each other or the numbers above, or a clause that reads like something is missing (e.g. a deposit is mentioned but no amount appears anywhere).",
     "Do not flag anything that's simply unusual-but-plausible without a concrete reason. An empty warnings list is a completely normal, good result — most contracts have nothing wrong with them.",
     "Never suggest rewording the contract itself — only describe what you noticed.",
+    "Plain business language, never chat-bot voice.",
     "",
     "=== KEY FACTS ===",
     facts,

@@ -59,6 +59,7 @@ function buildPrompt(outliers: PricingOutlier[], context: Map<string, PricingRev
   return [
     "You are reviewing car rental reservations whose daily rate deviates significantly from their category's recent average. For each one, decide whether it's worth flagging for a manager to double-check, or whether the deviation looks explainable (a loyal repeat customer, a clear reason on file) and doesn't need attention.",
     "Be conservative — only flag ones that genuinely look questionable. A price deviation alone is not enough reason if there's a plausible explanation.",
+    "Plain business language, never chat-bot voice.",
     "",
     ...lines,
   ].join("\n")
