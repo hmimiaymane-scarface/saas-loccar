@@ -16,7 +16,7 @@ import type { PaymentTransactionType } from "@/types/rental"
 export default async function PaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; search?: string; page?: string }>
+  searchParams: Promise<{ type?: string; search?: string; page?: string; reservationId?: string }>
 }) {
   const session = await getSessionContext()
   if (!session) redirect("/sign-in")
@@ -50,7 +50,7 @@ export default async function PaymentsPage({
 
       <PaymentsSummaryCards summary={summary} />
 
-      {canRecord && <RecordPaymentForm bookings={bookings} customers={customers} />}
+      {canRecord && <RecordPaymentForm bookings={bookings} customers={customers} defaultReservationId={params.reservationId} />}
 
       <PaymentFilters />
 

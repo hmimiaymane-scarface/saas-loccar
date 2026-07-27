@@ -13,9 +13,24 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 
 const initialState: PaymentActionState = {}
 
-function RecordPaymentForm({ bookings, customers }: { bookings: Booking[]; customers: Customer[] }) {
+function RecordPaymentForm({
+  bookings,
+  customers,
+  defaultReservationId,
+}: {
+  bookings: Booking[]
+  customers: Customer[]
+  /** Productization wave 2 phase 12 — the Today timeline's "Payment
+   * expected" cards link here via `?reservationId=`, same
+   * pre-selection convention as `/reservations/new?customerId=`
+   * (roadmap phase 09's returning-customer fast path). Ignored if the
+   * id doesn't match a booking the form already has loaded. */
+  defaultReservationId?: string
+}) {
   const [state, formAction, isPending] = useActionState(recordPayment, initialState)
-  const [reservationId, setReservationId] = useState("")
+  const [reservationId, setReservationId] = useState(
+    defaultReservationId && bookings.some((b) => b.id === defaultReservationId) ? defaultReservationId : ""
+  )
   const selectedBooking = bookings.find((b) => b.id === reservationId)
 
   return (
