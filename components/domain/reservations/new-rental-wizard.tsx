@@ -17,6 +17,7 @@ import type {
 } from "@/types/rental"
 import type { AssignableEmployee } from "@/components/domain/reservations/reservation-form"
 import type { ExtractedFields } from "@/lib/document-extraction"
+import { confidenceTier } from "@/lib/tone"
 import type { DuplicateMatch } from "@/lib/customer-matching"
 import type { ReturningCustomerReadiness } from "@/lib/customer-readiness"
 import { fetchCustomers, checkCustomerByPhone, createReservationInWizard, activateRentalAction } from "@/app/(dashboard)/reservations/actions"
@@ -107,6 +108,25 @@ function textValue(fields: ExtractedFields | null, key: string): string {
   const field = fields?.[key]
   if (!field || field.value == null) return ""
   return String(field.value)
+}
+
+/** Phase 21 — how many of `keys` extracted at critical (low)
+ * confidence, behind the confidence-review summary line below. */
+function countCriticalFields(fields: ExtractedFields, keys: string[]): number {
+  return keys.filter((key) => confidenceTier(fields[key]?.confidence ?? 0) === "critical").length
+}
+
+/** "Understand immediately whether the photo is usable" — one
+ * sentence above the confidence rows instead of making the owner scan
+ * each row themselves to notice a problem. */
+function ConfidenceSummary({ criticalCount }: { criticalCount: number }) {
+  return (
+    <p className="text-xs text-muted-foreground">
+      {criticalCount === 0
+        ? "Looks good — nothing to review."
+        : `${criticalCount} field${criticalCount === 1 ? "" : "s"} need${criticalCount === 1 ? "s" : ""} a quick check.`}
+    </p>
+  )
 }
 
 /**
@@ -599,10 +619,13 @@ function NewRentalWizard({
                             </p>
                           )}
                           {idFields && (
-                            <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
-                              <DocumentConfidenceRow label="ID number" value={idDocumentNumber} confidence={idFields.idNumber?.confidence ?? 0} onChange={setIdDocumentNumber} />
-                              <DocumentConfidenceRow label="Date of birth" value={dateOfBirth} confidence={idFields.birthDate?.confidence ?? 0} onChange={setDateOfBirth} />
-                              <DocumentConfidenceRow label="Nationality" value={nationality} confidence={idFields.nationality?.confidence ?? 0} onChange={setNationality} />
+                            <div className="flex flex-col gap-2">
+                              <ConfidenceSummary criticalCount={countCriticalFields(idFields, ["idNumber", "birthDate", "nationality"])} />
+                              <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
+                                <DocumentConfidenceRow label="ID number" value={idDocumentNumber} confidence={idFields.idNumber?.confidence ?? 0} onChange={setIdDocumentNumber} />
+                                <DocumentConfidenceRow label="Date of birth" value={dateOfBirth} confidence={idFields.birthDate?.confidence ?? 0} onChange={setDateOfBirth} />
+                                <DocumentConfidenceRow label="Nationality" value={nationality} confidence={idFields.nationality?.confidence ?? 0} onChange={setNationality} />
+                              </div>
                             </div>
                           )}
                         </div>
@@ -616,9 +639,12 @@ function NewRentalWizard({
                             </p>
                           )}
                           {licenceFields && (
-                            <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
-                              <DocumentConfidenceRow label="Licence number" value={licenseNumber} confidence={licenceFields.licenceNumber?.confidence ?? 0} onChange={setLicenseNumber} />
-                              <DocumentConfidenceRow label="Expires on" value={licenseExpiresOn} confidence={licenceFields.expiryDate?.confidence ?? 0} onChange={setLicenseExpiresOn} />
+                            <div className="flex flex-col gap-2">
+                              <ConfidenceSummary criticalCount={countCriticalFields(licenceFields, ["licenceNumber", "expiryDate"])} />
+                              <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
+                                <DocumentConfidenceRow label="Licence number" value={licenseNumber} confidence={licenceFields.licenceNumber?.confidence ?? 0} onChange={setLicenseNumber} />
+                                <DocumentConfidenceRow label="Expires on" value={licenseExpiresOn} confidence={licenceFields.expiryDate?.confidence ?? 0} onChange={setLicenseExpiresOn} />
+                              </div>
                             </div>
                           )}
                         </div>

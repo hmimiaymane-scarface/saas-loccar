@@ -37,11 +37,31 @@ function textValue(fields: ExtractedFields | null, key: string): string {
   return String(field.value)
 }
 
+/** How many of `keys` extracted at critical (low) confidence — the
+ * count behind both phase 19's auto-advance signal and phase 21's
+ * confidence-review summary line. */
+function countCriticalFields(fields: ExtractedFields, keys: string[]): number {
+  return keys.filter((key) => confidenceTier(fields[key]?.confidence ?? 0) === "critical").length
+}
+
 /** Phase 19 — "nothing left to review" is the signal that a scanned
  * step can safely auto-advance; a single critical-confidence field
  * means the user still needs to see and fix it, so stay put. */
 function hasCriticalField(fields: ExtractedFields, keys: string[]): boolean {
-  return keys.some((key) => confidenceTier(fields[key]?.confidence ?? 0) === "critical")
+  return countCriticalFields(fields, keys) > 0
+}
+
+/** Phase 21 — "understand immediately whether the photo is usable":
+ * one sentence above the confidence rows instead of making the owner
+ * scan each row themselves to notice a problem. */
+function ConfidenceSummary({ criticalCount }: { criticalCount: number }) {
+  return (
+    <p className="text-xs text-muted-foreground">
+      {criticalCount === 0
+        ? "Looks good — nothing to review."
+        : `${criticalCount} field${criticalCount === 1 ? "" : "s"} need${criticalCount === 1 ? "s" : ""} a quick check.`}
+    </p>
+  )
 }
 
 function Field({
@@ -255,31 +275,36 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
                 </p>
               )}
               {idFields ? (
-                <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
-                  <DocumentConfidenceRow
-                    label="Full name"
-                    value={fullName}
-                    confidence={idFields.fullName?.confidence ?? 0}
-                    onChange={setFullName}
+                <div className="flex flex-col gap-2">
+                  <ConfidenceSummary
+                    criticalCount={countCriticalFields(idFields, ["fullName", "idNumber", "birthDate", "nationality"])}
                   />
-                  <DocumentConfidenceRow
-                    label="ID number"
-                    value={idDocumentNumber}
-                    confidence={idFields.idNumber?.confidence ?? 0}
-                    onChange={setIdDocumentNumber}
-                  />
-                  <DocumentConfidenceRow
-                    label="Date of birth"
-                    value={dateOfBirth}
-                    confidence={idFields.birthDate?.confidence ?? 0}
-                    onChange={setDateOfBirth}
-                  />
-                  <DocumentConfidenceRow
-                    label="Nationality"
-                    value={nationality}
-                    confidence={idFields.nationality?.confidence ?? 0}
-                    onChange={setNationality}
-                  />
+                  <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
+                    <DocumentConfidenceRow
+                      label="Full name"
+                      value={fullName}
+                      confidence={idFields.fullName?.confidence ?? 0}
+                      onChange={setFullName}
+                    />
+                    <DocumentConfidenceRow
+                      label="ID number"
+                      value={idDocumentNumber}
+                      confidence={idFields.idNumber?.confidence ?? 0}
+                      onChange={setIdDocumentNumber}
+                    />
+                    <DocumentConfidenceRow
+                      label="Date of birth"
+                      value={dateOfBirth}
+                      confidence={idFields.birthDate?.confidence ?? 0}
+                      onChange={setDateOfBirth}
+                    />
+                    <DocumentConfidenceRow
+                      label="Nationality"
+                      value={nationality}
+                      confidence={idFields.nationality?.confidence ?? 0}
+                      onChange={setNationality}
+                    />
+                  </div>
                 </div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -315,19 +340,22 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
                 </p>
               )}
               {licenceFields ? (
-                <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
-                  <DocumentConfidenceRow
-                    label="Licence number"
-                    value={licenseNumber}
-                    confidence={licenceFields.licenceNumber?.confidence ?? 0}
-                    onChange={setLicenseNumber}
-                  />
-                  <DocumentConfidenceRow
-                    label="Expires on"
-                    value={licenseExpiresOn}
-                    confidence={licenceFields.expiryDate?.confidence ?? 0}
-                    onChange={setLicenseExpiresOn}
-                  />
+                <div className="flex flex-col gap-2">
+                  <ConfidenceSummary criticalCount={countCriticalFields(licenceFields, ["licenceNumber", "expiryDate"])} />
+                  <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
+                    <DocumentConfidenceRow
+                      label="Licence number"
+                      value={licenseNumber}
+                      confidence={licenceFields.licenceNumber?.confidence ?? 0}
+                      onChange={setLicenseNumber}
+                    />
+                    <DocumentConfidenceRow
+                      label="Expires on"
+                      value={licenseExpiresOn}
+                      confidence={licenceFields.expiryDate?.confidence ?? 0}
+                      onChange={setLicenseExpiresOn}
+                    />
+                  </div>
                 </div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2">
