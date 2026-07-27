@@ -13,10 +13,12 @@ import type {
   FuelLevel,
   OverallCondition,
   PaymentMethod,
+  VehicleCategory,
 } from "@/types/rental"
 import type { AssignableEmployee } from "@/components/domain/reservations/reservation-form"
 import type { ExtractedFields } from "@/lib/document-extraction"
 import type { DuplicateMatch } from "@/lib/customer-matching"
+import type { ReturningCustomerReadiness } from "@/lib/customer-readiness"
 import { fetchCustomers, checkCustomerByPhone, createReservationInWizard, activateRentalAction } from "@/app/(dashboard)/reservations/actions"
 import { createCustomer } from "@/app/(dashboard)/customers/actions"
 import { createDocumentRecord } from "@/app/(dashboard)/documents/actions"
@@ -83,6 +85,15 @@ interface NewRentalWizardProps {
    * customer (e.g. from the Customer Command Center's "Start rental"),
    * so step 0 is skipped entirely instead of re-searching. */
   preselectedCustomer?: Customer
+  /** Passed straight through to Step 2's embedded `ReservationForm` —
+   * same `?vehicleId=`/`?rate=`/`?pickup=`/preferred-category/
+   * readiness pre-fill this route already supported before this
+   * phase, unchanged. */
+  defaultVehicleId?: string
+  defaultDailyRate?: number
+  defaultPickupDate?: string
+  defaultCategory?: VehicleCategory
+  returningCustomerReadiness?: ReturningCustomerReadiness
 }
 
 function textValue(fields: ExtractedFields | null, key: string): string {
@@ -116,6 +127,11 @@ function NewRentalWizard({
   canOverride,
   assignableEmployees = [],
   preselectedCustomer,
+  defaultVehicleId,
+  defaultDailyRate,
+  defaultPickupDate,
+  defaultCategory,
+  returningCustomerReadiness,
 }: NewRentalWizardProps) {
   const router = useRouter()
   const [step, setStep] = useState(() => resolveInitialStep([Boolean(preselectedCustomer), false, false, false, false]))
@@ -678,6 +694,11 @@ function NewRentalWizard({
             branches={branches}
             preselectedCustomer={selectedCustomer}
             assignableEmployees={assignableEmployees}
+            defaultVehicleId={defaultVehicleId}
+            defaultDailyRate={defaultDailyRate}
+            defaultPickupDate={defaultPickupDate}
+            defaultCategory={defaultCategory}
+            returningCustomerReadiness={returningCustomerReadiness}
             onSuccess={handleReservationCreated}
           />
         )}
