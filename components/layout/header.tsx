@@ -3,12 +3,11 @@
 import { usePathname } from "next/navigation"
 import { Search } from "lucide-react"
 
-import type { RentalCompany, Employee, EmployeeRole, NotificationItem } from "@/types/rental"
+import type { Employee, NotificationItem } from "@/types/rental"
 import { allNavItems } from "@/lib/navigation"
 import { isActivePath } from "@/components/layout/nav-item"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { MobileNav } from "@/components/layout/mobile-nav"
 import { UserMenu } from "@/components/layout/user-menu"
 import { NotificationBell } from "@/components/layout/notification-bell"
 
@@ -21,16 +20,12 @@ function useCurrentPageTitle() {
 }
 
 function Header({
-  company,
   employee,
-  role,
   notifications,
   unreadCount,
   onOpenSearch,
 }: {
-  company: RentalCompany
   employee: Employee
-  role: EmployeeRole
   notifications: NotificationItem[]
   unreadCount: number
   onOpenSearch: () => void
@@ -39,8 +34,6 @@ function Header({
 
   return (
     <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
-      <MobileNav company={company} role={role} />
-
       <h2 className="truncate font-heading text-base font-medium text-foreground lg:text-lg">
         {title}
       </h2>

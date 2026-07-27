@@ -36,9 +36,7 @@ function DesktopShell({
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header
-          company={company}
           employee={employee}
-          role={employee.role}
           notifications={notifications}
           unreadCount={unreadCount}
           onOpenSearch={onOpenSearch}

@@ -22,7 +22,10 @@ interface ShellProps {
  * separate route or redirect, so the URL a user is on is unaffected by
  * which shell wraps it. Both are mounted at once (one hidden via CSS)
  * rather than conditionally rendered, matching this codebase's existing
- * convention (the old `MobileNav` was always in the DOM too) and
+ * convention (the old hamburger-drawer `MobileNav` was always in the
+ * DOM too — deleted in productization wave 1 phase 10, confirmed dead:
+ * it only ever rendered inside `Header`, which only `DesktopShell`
+ * uses, whose own wrapper is CSS-hidden below the `lg` breakpoint) and
  * avoiding a hydration-timing flash of the wrong shell.
  *
  * The command palette's open/close state and its global Cmd/Ctrl+K
