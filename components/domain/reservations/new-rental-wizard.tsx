@@ -1,9 +1,18 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { Loader2, Search, UserRound, AlertTriangle } from "lucide-react"
 
-import type { Branch, Customer, PaymentMethod } from "@/types/rental"
+import type {
+  Branch,
+  ChecklistResponseValue,
+  ChecklistTemplateItem,
+  Cleanliness,
+  Customer,
+  FuelLevel,
+  OverallCondition,
+  PaymentMethod,
+} from "@/types/rental"
 import type { AssignableEmployee } from "@/components/domain/reservations/reservation-form"
 import type { ExtractedFields } from "@/lib/document-extraction"
 import type { DuplicateMatch } from "@/lib/customer-matching"
@@ -11,9 +20,11 @@ import { fetchCustomers, checkCustomerByPhone, createReservationInWizard } from 
 import { createCustomer } from "@/app/(dashboard)/customers/actions"
 import { createDocumentRecord } from "@/app/(dashboard)/documents/actions"
 import { recordPayment, collectDeposit } from "@/app/(dashboard)/payments/actions"
+import { startInspection, saveInspectionFields, saveChecklistResponse, attachInspectionMedia } from "@/app/(dashboard)/inspections/actions"
 import { buildStoragePath } from "@/lib/storage"
 import { uploadFile } from "@/lib/storage-client"
 import { resolveInitialStep } from "@/lib/workflow/steps"
+import { PHOTO_SLOTS } from "@/lib/inspections/photo-slots"
 import { useStepFocus } from "@/hooks/use-step-focus"
 import { formatMad } from "@/lib/format"
 import { Button } from "@/components/ui/button"
@@ -27,12 +38,38 @@ import { WizardFooter } from "@/components/domain/wizard-footer"
 import { DocumentConfidenceRow } from "@/components/domain/intelligence/document-confidence-row"
 import { DocumentScanCapture, type ScanCaptureResult } from "@/components/domain/customers/document-scan-capture"
 import { ReservationForm } from "@/components/domain/reservations/reservation-form"
+import { SegmentedSelector } from "@/components/domain/inspections/segmented-selector"
+import { ChecklistSection } from "@/components/domain/inspections/checklist-section"
+import { PhotoUploadGrid, type UploadedPhoto } from "@/components/domain/photo-upload-grid"
 
 const STEPS = [{ label: "Customer" }, { label: "Vehicle & price" }, { label: "Payment" }, { label: "Inspection" }, { label: "Contract" }]
 
+const FUEL_OPTIONS: { value: FuelLevel; label: string }[] = [
+  { value: "empty", label: "Empty" },
+  { value: "quarter", label: "¼" },
+  { value: "half", label: "½" },
+  { value: "three_quarter", label: "¾" },
+  { value: "full", label: "Full" },
+]
+
+const CLEANLINESS_OPTIONS: { value: Cleanliness; label: string }[] = [
+  { value: "clean", label: "Clean" },
+  { value: "average", label: "Average" },
+  { value: "dirty", label: "Dirty" },
+]
+
+const CONDITION_OPTIONS: { value: OverallCondition; label: string }[] = [
+  { value: "excellent", label: "Excellent" },
+  { value: "good", label: "Good" },
+  { value: "fair", label: "Fair" },
+  { value: "poor", label: "Poor" },
+]
+
 interface NewRentalWizardProps {
+  companyId: string
   companyTimezone: string
   branches: Branch[]
+  checklistTemplate: ChecklistTemplateItem[]
   assignableEmployees?: AssignableEmployee[]
   /** Roadmap phase 09's fast path — arriving here already knowing which
    * customer (e.g. from the Customer Command Center's "Start rental"),
@@ -63,7 +100,14 @@ function textValue(fields: ExtractedFields | null, key: string): string {
  * `useStepFocus`) — this app has no generic workflow engine, just this
  * one shared shell every stepped flow reuses.
  */
-function NewRentalWizard({ companyTimezone, branches, assignableEmployees = [], preselectedCustomer }: NewRentalWizardProps) {
+function NewRentalWizard({
+  companyId,
+  companyTimezone,
+  branches,
+  checklistTemplate,
+  assignableEmployees = [],
+  preselectedCustomer,
+}: NewRentalWizardProps) {
   const [step, setStep] = useState(() => resolveInitialStep([Boolean(preselectedCustomer), false, false, false, false]))
   const stepContainerRef = useStepFocus<HTMLDivElement>(step)
 
@@ -276,6 +320,59 @@ function NewRentalWizard({ companyTimezone, branches, assignableEmployees = [], 
       }
       setDepositCollectedMad((d) => d + amount)
       setDepositAmount("")
+    })
+  }
+
+  // Step 3 — Pickup inspection ----------------------------------------------
+  const [inspectionId, setInspectionId] = useState<string | null>(null)
+  const [inspectionStarting, setInspectionStarting] = useState(false)
+  const [odometerKm, setOdometerKm] = useState("")
+  const [fuelLevel, setFuelLevel] = useState<FuelLevel | null>(null)
+  const [cleanliness, setCleanliness] = useState<Cleanliness | null>(null)
+  const [overallCondition, setOverallCondition] = useState<OverallCondition | null>(null)
+  const [inspectionNotes, setInspectionNotes] = useState("")
+  const [checklistResponses, setChecklistResponses] = useState<Record<string, ChecklistResponseValue>>({})
+  const [photos, setPhotos] = useState<UploadedPhoto[]>([])
+  const [inspectionError, setInspectionError] = useState<string | null>(null)
+  const [inspectionPending, startInspectionTransition] = useTransition()
+  const startedInspectionForReservation = useRef<string | null>(null)
+
+  // Ensure a draft pickup inspection exists as soon as the reservation
+  // itself does, once this step is actually reached — mirrors
+  // PickupWizard's identical on-mount behavior.
+  function ensureInspectionStarted() {
+    if (!reservationId || inspectionId || inspectionStarting || startedInspectionForReservation.current === reservationId) return
+    startedInspectionForReservation.current = reservationId
+    setInspectionStarting(true)
+    startInspectionTransition(async () => {
+      const result = await startInspection(reservationId, "pickup")
+      setInspectionStarting(false)
+      if (result.inspectionId) setInspectionId(result.inspectionId)
+      else if (result.error) setInspectionError(result.error)
+    })
+  }
+
+  useEffect(() => {
+    if (step === 3) ensureInspectionStarted()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when the step or reservation actually changes
+  }, [step, reservationId])
+
+  function saveInspectionStep() {
+    if (!inspectionId) return
+    setInspectionError(null)
+    startInspectionTransition(async () => {
+      const result = await saveInspectionFields(inspectionId, {
+        odometerKm: odometerKm ? Number(odometerKm) : undefined,
+        fuelLevel: fuelLevel ?? undefined,
+        cleanliness: cleanliness ?? undefined,
+        overallCondition: overallCondition ?? undefined,
+        notes: inspectionNotes || undefined,
+      })
+      if (result.error) {
+        setInspectionError(result.error)
+        return
+      }
+      setStep(4)
     })
   }
 
@@ -547,14 +644,101 @@ function NewRentalWizard({ companyTimezone, branches, assignableEmployees = [], 
             <p className="text-xs text-muted-foreground">Payment and deposit are optional here — you can also record them later from the reservation page.</p>
           </div>
         )}
+
+        {step === 3 && (
+          <div className="flex flex-col gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Vehicle condition</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-5">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="odometer">Odometer (km)</Label>
+                  <Input id="odometer" type="number" value={odometerKm} onChange={(e) => setOdometerKm(e.target.value)} required />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Fuel level</Label>
+                  <SegmentedSelector options={FUEL_OPTIONS} value={fuelLevel} onChange={setFuelLevel} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Cleanliness</Label>
+                  <SegmentedSelector options={CLEANLINESS_OPTIONS} value={cleanliness} onChange={setCleanliness} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Overall condition</Label>
+                  <SegmentedSelector options={CONDITION_OPTIONS} value={overallCondition} onChange={setOverallCondition} />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Checklist</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ChecklistSection
+                  template={checklistTemplate}
+                  responses={checklistResponses}
+                  onChangeResponse={(item, value) => {
+                    setChecklistResponses((prev) => ({ ...prev, [item.key]: value }))
+                    if (inspectionId) void saveChecklistResponse(inspectionId, item.key, item.label, item.category, value)
+                  }}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Photos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {inspectionId && (
+                  <PhotoUploadGrid
+                    slots={PHOTO_SLOTS}
+                    companyId={companyId}
+                    pathSegments={["media", "inspections", inspectionId]}
+                    uploaded={photos}
+                    onUpload={async (slotKey, file, path) => {
+                      const result = await attachInspectionMedia(inspectionId, path, file.name, file.type, file.size, slotKey)
+                      if (!result.error) setPhotos((prev) => [...prev, { key: slotKey }])
+                      return result
+                    }}
+                  />
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Notes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <textarea
+                  value={inspectionNotes}
+                  onChange={(e) => setInspectionNotes(e.target.value)}
+                  rows={3}
+                  className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+                  placeholder="Anything worth noting about this pickup…"
+                />
+              </CardContent>
+            </Card>
+
+            {inspectionError && (
+              <p className="text-sm text-destructive" role="alert">
+                {inspectionError}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <WizardFooter
         onBack={() => setStep((s) => Math.max(0, s - 1))}
         backDisabled={step === 0 || step >= 2}
-        onContinue={step === 0 ? goToStep2 : step === 2 ? () => setStep(3) : undefined}
-        continueLabel={step === 2 ? "Continue to inspection" : undefined}
-        continueDisabled={step === 0 && (customerMode !== "search" || !selectedCustomer)}
+        onContinue={step === 0 ? goToStep2 : step === 2 ? () => setStep(3) : step === 3 ? saveInspectionStep : undefined}
+        continueLabel={step === 2 ? "Continue to inspection" : step === 3 ? "Continue to contract" : undefined}
+        continuePending={step === 3 && inspectionPending}
+        continueDisabled={(step === 0 && (customerMode !== "search" || !selectedCustomer)) || (step === 3 && inspectionPending)}
         hideContinue={step === 1}
       />
     </div>
