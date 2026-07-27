@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { CalendarNav } from "@/components/domain/calendar/calendar-nav"
 import { FleetTimeline } from "@/components/domain/calendar/fleet-timeline"
-import { DayAgenda } from "@/components/domain/calendar/day-agenda"
+import { MobileCalendar } from "@/components/domain/calendar/mobile-calendar"
 
 export default async function CalendarPage({
   searchParams,
@@ -94,7 +94,7 @@ export default async function CalendarPage({
       )}
 
       <FleetTimeline vehicles={vehicles} bookings={assigned} maintenanceBlocks={maintenanceBlocks} weekStart={weekStart} />
-      <DayAgenda bookings={bookings} maintenanceBlocks={maintenanceBlocks} weekStart={weekStart} />
+      <MobileCalendar vehicles={vehicles} bookings={bookings} maintenanceBlocks={maintenanceBlocks} weekStart={weekStart} />
     </>
   )
 }
