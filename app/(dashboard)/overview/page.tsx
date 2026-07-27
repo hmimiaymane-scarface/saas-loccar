@@ -15,6 +15,7 @@ import {
   getCustomerOverviewReport,
   getTeamMembers,
   getPendingInvitations,
+  hasFinancialReportsAccess,
 } from "@/lib/data"
 import { getExpiringDocuments } from "@/lib/documents"
 import { resolveReportPeriod } from "@/lib/reports"
@@ -22,6 +23,10 @@ import { getFleetHealthRollup, getCustomerHealthRollup, type ScoreRollup } from 
 import { getOpenOperationsFeedItems, type OperationsFeedItem } from "@/lib/operations-feed/data"
 import { computeBusinessPulse, type BusinessPulseSummary } from "@/lib/business-pulse"
 import { computeRevenueIntelligence, type RevenueIntelligenceResult } from "@/lib/revenue-intelligence"
+import { searchContracts, type ContractSearchResult } from "@/lib/contracts/template-store"
+import { getUpcomingReservationsMissingIdentityDocument } from "@/lib/customer-readiness-store"
+import { buildNeedsAttentionFeed, type MissingIdentityDocumentFlag } from "@/lib/needs-attention"
+import { filterByFinancialAccess } from "@/lib/notifications/permission-filter"
 import { isSupabaseConfigured } from "@/lib/env"
 import { createClient } from "@/lib/supabase/server"
 import { formatMad } from "@/lib/format"
@@ -30,9 +35,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { StatCard } from "@/components/domain/stat-card"
 import { TodayTimeline } from "@/components/domain/overview/today-timeline"
 import { FleetVisualGrid } from "@/components/domain/overview/fleet-visual-grid"
-import { BookingRequestsCard } from "@/components/domain/overview/booking-requests-card"
 import { ActivityFeedCard } from "@/components/domain/overview/activity-feed-card"
-import { NeedsAttentionCard } from "@/components/domain/overview/needs-attention-card"
+import { HomeSummaryStrip } from "@/components/domain/overview/home-summary-strip"
+import { NeedsAttentionSection } from "@/components/domain/overview/needs-attention-section"
 import { FinancialSummaryCard } from "@/components/domain/overview/financial-summary-card"
 import { MorningBriefing } from "@/components/domain/overview/morning-briefing"
 import { BusinessPulseGrid } from "@/components/domain/overview/business-pulse-grid"
@@ -58,6 +63,8 @@ async function loadIntelligenceExtras(session: SessionContext) {
     revenueThisMonthMad: 0,
     fleetHealth: { averageScore: 0, entityCount: 0, bandCounts: {} } as ScoreRollup,
     customerHealth: { averageScore: 0, entityCount: 0, bandCounts: {} } as ScoreRollup,
+    contractsAwaitingSignature: [] as ContractSearchResult[],
+    missingDocuments: [] as MissingIdentityDocumentFlag[],
   }
   if (!isSupabaseConfigured) return empty
 
@@ -84,6 +91,8 @@ async function loadIntelligenceExtras(session: SessionContext) {
       teamMembers,
       pendingInvitations,
       alertsForMaintenance,
+      contractsAwaitingSignatureResult,
+      missingDocuments,
     ] = await Promise.all([
       getOpenOperationsFeedItems(supabase, companyId),
       getFleetHealthRollup(supabase, companyId),
@@ -100,6 +109,8 @@ async function loadIntelligenceExtras(session: SessionContext) {
       getTeamMembers(companyId),
       getPendingInvitations(companyId),
       getLiveAlerts(companyId, { maintenanceReminderDays: session.company.maintenanceReminderDays, documentExpiryWarningDays: session.company.documentExpiryWarningDays }),
+      searchContracts(supabase, companyId, { status: "awaiting_signature" }, 1, 10),
+      getUpcomingReservationsMissingIdentityDocument(supabase, companyId),
     ])
 
     const pulse = computeBusinessPulse({
@@ -122,7 +133,16 @@ async function loadIntelligenceExtras(session: SessionContext) {
       { revenueMad: financialLastMonth.rentalPaymentsMad, occupancyRate: fleetPerfLastMonth.occupancyRate, averageDurationDays: reservationPerfLastMonth.averageDurationDays }
     )
 
-    return { feedItems, pulse, revenueIntel, revenueThisMonthMad: financialThisMonth.rentalPaymentsMad, fleetHealth, customerHealth }
+    return {
+      feedItems,
+      pulse,
+      revenueIntel,
+      revenueThisMonthMad: financialThisMonth.rentalPaymentsMad,
+      fleetHealth,
+      customerHealth,
+      contractsAwaitingSignature: contractsAwaitingSignatureResult.items,
+      missingDocuments,
+    }
   } catch {
     return empty
   }
@@ -134,7 +154,7 @@ export default async function OverviewPage() {
 
   const companyId = session.company.id
 
-  const [metrics, timeline, fleet, requests, activity, alerts, extras] = await Promise.all([
+  const [metrics, timeline, fleet, requests, activity, alerts, hasFinancialAccess, extras] = await Promise.all([
     getOverviewMetrics(companyId),
     getTodayTimeline(companyId),
     getFleetOverview(companyId),
@@ -144,24 +164,38 @@ export default async function OverviewPage() {
       maintenanceReminderDays: session.company.maintenanceReminderDays,
       documentExpiryWarningDays: session.company.documentExpiryWarningDays,
     }),
+    hasFinancialReportsAccess(companyId),
     loadIntelligenceExtras(session),
   ])
 
   const firstName = (session.profile.fullName ?? "there").split(" ")[0]
   const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })
 
-  // Bible Chapter 10 §2's five-level hierarchy: the operations feed's
-  // own priority tiers (phase 12) map onto levels 1/2/4 directly, so
-  // slicing one already-sorted list — rather than maintaining a
-  // second, separate "what's important" system — is what actually
-  // keeps critical items from ever getting buried.
-  const criticalFeedItems = extras.feedItems.filter((i) => i.priorityTier === "critical")
-  const operationalFeedItems = extras.feedItems.filter((i) => i.priorityTier === "operational")
+  // Bible Chapter 10 §2's five-level hierarchy: business_health-tier
+  // feed items still get their own separate Opportunities section
+  // (Level 4) — everything else "needs attention" (live alerts,
+  // critical/operational feed items, booking requests, contract
+  // signatures, missing documents) now merges into one Needs-You-Now
+  // list instead of several separately-rendered blocks (productization
+  // wave 1 phase 11). Financial-access filtering matches the
+  // Notification Center's own rule (requirement 7 there): a role
+  // without view_financial_reports never sees a payment-shaped card.
   const opportunityFeedItems = extras.feedItems.filter((i) => i.priorityTier === "business_health")
+  const visibleAlerts = filterByFinancialAccess(alerts, hasFinancialAccess)
+  const attentionCards = buildNeedsAttentionFeed({
+    alerts: visibleAlerts,
+    feedItems: extras.feedItems,
+    bookingRequests: requests,
+    contractsAwaitingSignature: extras.contractsAwaitingSignature,
+    missingDocuments: extras.missingDocuments,
+  })
 
   return (
     <>
       <SectionHeader title="Overview" description={`${today} — here's how things stand.`} />
+
+      {/* Top summary, before any analytics. */}
+      <HomeSummaryStrip metrics={metrics} />
 
       <MorningBriefing
         input={{
@@ -176,13 +210,9 @@ export default async function OverviewPage() {
         }}
       />
 
-      {/* Level 1 — Critical: impossible to miss, always first. */}
-      <NeedsAttentionCard alerts={alerts} />
-      {criticalFeedItems.length > 0 && (
-        <div className="rounded-3xl border border-red-200 bg-red-50/40 dark:border-red-500/30 dark:bg-red-500/5">
-          <OperationsFeedList items={criticalFeedItems} />
-        </div>
-      )}
+      {/* Needs You Now — impossible to miss, always first, every card
+          has a real action (productization wave 1 phase 11). */}
+      <NeedsAttentionSection cards={attentionCards} />
 
       {/* Level 2 — Today's Operations. */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -215,16 +245,6 @@ export default async function OverviewPage() {
       </div>
       <TodayTimeline entries={timeline} />
       <FleetVisualGrid vehicles={fleet} />
-      {operationalFeedItems.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Today needs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <OperationsFeedList items={operationalFeedItems} />
-          </CardContent>
-        </Card>
-      )}
 
       {/* Level 3 — Business Health. */}
       {extras.pulse && <BusinessPulseGrid pulse={extras.pulse} />}
@@ -256,7 +276,6 @@ export default async function OverviewPage() {
             knownOperatingResultMad={metrics.knownOperatingResultMad}
             depositsHeldMad={metrics.depositsHeldMad}
           />
-          <BookingRequestsCard requests={requests} />
         </div>
         <ActivityFeedCard items={activity} />
       </div>

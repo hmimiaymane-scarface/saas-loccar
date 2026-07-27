@@ -7,6 +7,16 @@ company." An intelligence upgrade of the existing, already-good-looking
 `NeedsAttentionCard`, `FinancialSummaryCard`, `BookingRequestsCard`,
 `ActivityFeedCard` are all preserved exactly as they were.
 
+> **Superseded by productization wave 1 phase 11.** `NeedsAttentionCard`,
+> `BookingRequestsCard`, and the separate `feed.critical`/`feed.operational`
+> render blocks described below no longer exist. Level 1 and the
+> operational half of Level 2 are now one merged `NeedsAttentionSection`
+> over `lib/needs-attention.ts#buildNeedsAttentionFeed()` — live alerts,
+> critical/operational feed items, booking requests, contracts awaiting
+> signature, and missing-identity-document flags, sorted into one
+> always-actioned list. Level 4 (`feed.business_health`, "Opportunities")
+> is untouched. See `docs/needs-attention.md` for the current shape.
+
 ## The five-level hierarchy, and one design decision that ties it together
 
 Requirement 1 asks for a fixed top-to-bottom priority order (Critical →
