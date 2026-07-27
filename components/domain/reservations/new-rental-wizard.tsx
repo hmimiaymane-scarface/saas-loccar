@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useRef, useState, useTransition } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Search, UserRound, AlertTriangle, CheckCircle2, PenLine } from "lucide-react"
+import { Loader2, Search, UserRound, AlertTriangle, CheckCircle2, PenLine, ZoomIn } from "lucide-react"
 
 import type {
   Branch,
@@ -44,6 +44,7 @@ import { WizardProgress } from "@/components/domain/wizard-progress"
 import { WizardFooter } from "@/components/domain/wizard-footer"
 import { DocumentConfidenceRow } from "@/components/domain/intelligence/document-confidence-row"
 import { DocumentScanCapture, type ScanCaptureResult } from "@/components/domain/customers/document-scan-capture"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { ReservationForm } from "@/components/domain/reservations/reservation-form"
 import { SegmentedSelector } from "@/components/domain/inspections/segmented-selector"
 import { ChecklistSection } from "@/components/domain/inspections/checklist-section"
@@ -114,6 +115,41 @@ function textValue(fields: ExtractedFields | null, key: string): string {
  * confidence, behind the confidence-review summary line below. */
 function countCriticalFields(fields: ExtractedFields, keys: string[]): number {
   return keys.filter((key) => confidenceTier(fields[key]?.confidence ?? 0) === "critical").length
+}
+
+/** Phase 22 — "original image remains easy to inspect": a small
+ * thumbnail of the exact photo that was scanned, tap/click opens it
+ * full-size in a Sheet so a low-confidence field can be checked
+ * against the real document instead of trusting the OCR guess blind. */
+function ScanThumbnail({ url, alt }: { url: string; alt: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`Inspect ${alt}`}
+        className="group relative size-12 shrink-0 overflow-hidden rounded-xl border border-border"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element -- object-URL preview of a locally-picked file, not a static/remote asset Next's Image component is for */}
+        <img src={url} alt={alt} className="size-full object-cover" />
+        <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-opacity group-hover:bg-black/30 group-hover:opacity-100">
+          <ZoomIn className="size-4" />
+        </span>
+      </button>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="bottom" className="max-h-[85vh]">
+          <SheetHeader>
+            <SheetTitle>{alt}</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-auto px-6 pb-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt={alt} className="w-full rounded-2xl object-contain" />
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  )
 }
 
 /** "Understand immediately whether the photo is usable" — one
@@ -195,11 +231,20 @@ function NewRentalWizard({
   const [dateOfBirth, setDateOfBirth] = useState("")
   const [nationality, setNationality] = useState("")
 
+  // Phase 22 — "original image remains easy to inspect": derived from
+  // the already-captured file via useMemo (React's own "you might not
+  // need an effect" guidance for state derivable during render) — a
+  // plain effect below only handles revoking the URL, never setState.
+  const idPreviewUrl = useMemo(() => (idScanFile ? URL.createObjectURL(idScanFile) : null), [idScanFile])
+  useEffect(() => () => { if (idPreviewUrl) URL.revokeObjectURL(idPreviewUrl) }, [idPreviewUrl])
+
   const [licenceFields, setLicenceFields] = useState<ExtractedFields | null>(null)
   const [licenceScanFile, setLicenceScanFile] = useState<File | null>(null)
   const [licenceScanNotice, setLicenceScanNotice] = useState<string | null>(null)
   const [licenseNumber, setLicenseNumber] = useState("")
   const [licenseExpiresOn, setLicenseExpiresOn] = useState("")
+  const licencePreviewUrl = useMemo(() => (licenceScanFile ? URL.createObjectURL(licenceScanFile) : null), [licenceScanFile])
+  useEffect(() => () => { if (licencePreviewUrl) URL.revokeObjectURL(licencePreviewUrl) }, [licencePreviewUrl])
 
   // Phase 22 — "never silently overwrite corrected user data": a field
   // the user has actually typed into is protected from being clobbered
@@ -644,7 +689,10 @@ function NewRentalWizard({
                       <div className="flex flex-col gap-4">
                         <div className="flex flex-col gap-2">
                           <Label>Identity document</Label>
-                          <DocumentScanCapture label="Scan ID / passport" onCaptured={handleIdCaptured} />
+                          <div className="flex items-start gap-3">
+                            <DocumentScanCapture label="Scan ID / passport" onCaptured={handleIdCaptured} />
+                            {idPreviewUrl && <ScanThumbnail url={idPreviewUrl} alt="Scanned identity document" />}
+                          </div>
                           {idScanNotice && (
                             <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
                               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
@@ -667,7 +715,10 @@ function NewRentalWizard({
                         </div>
                         <div className="flex flex-col gap-2">
                           <Label>Driving licence</Label>
-                          <DocumentScanCapture label="Scan driving licence" onCaptured={handleLicenceCaptured} />
+                          <div className="flex items-start gap-3">
+                            <DocumentScanCapture label="Scan driving licence" onCaptured={handleLicenceCaptured} />
+                            {licencePreviewUrl && <ScanThumbnail url={licencePreviewUrl} alt="Scanned driving licence" />}
+                          </div>
                           {licenceScanNotice && (
                             <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
                               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />

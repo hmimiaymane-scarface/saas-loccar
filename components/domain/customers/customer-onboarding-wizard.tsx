@@ -1,8 +1,8 @@
 "use client"
 
-import { useRef, useState, useTransition } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, AlertTriangle, Camera } from "lucide-react"
+import { Loader2, AlertTriangle, Camera, ZoomIn } from "lucide-react"
 
 import { createCustomer } from "@/app/(dashboard)/customers/actions"
 import { createDocumentRecord } from "@/app/(dashboard)/documents/actions"
@@ -23,6 +23,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { WizardProgress } from "@/components/domain/wizard-progress"
 import { WizardFooter } from "@/components/domain/wizard-footer"
 import { DocumentConfidenceRow } from "@/components/domain/intelligence/document-confidence-row"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { DocumentScanCapture, type ScanCaptureResult } from "@/components/domain/customers/document-scan-capture"
 
 const STEPS = [{ label: "Identity" }, { label: "Driving licence" }, { label: "Contact" }, { label: "Review" }]
@@ -49,6 +50,41 @@ function countCriticalFields(fields: ExtractedFields, keys: string[]): number {
  * means the user still needs to see and fix it, so stay put. */
 function hasCriticalField(fields: ExtractedFields, keys: string[]): boolean {
   return countCriticalFields(fields, keys) > 0
+}
+
+/** Phase 22 — "original image remains easy to inspect": a small
+ * thumbnail of the exact photo that was scanned, tap/click opens it
+ * full-size in a Sheet so a low-confidence field can be checked
+ * against the real document instead of trusting the OCR guess blind. */
+function ScanThumbnail({ url, alt }: { url: string; alt: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`Inspect ${alt}`}
+        className="group relative size-12 shrink-0 overflow-hidden rounded-xl border border-border"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element -- object-URL preview of a locally-picked file, not a static/remote asset Next's Image component is for */}
+        <img src={url} alt={alt} className="size-full object-cover" />
+        <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-opacity group-hover:bg-black/30 group-hover:opacity-100">
+          <ZoomIn className="size-4" />
+        </span>
+      </button>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="bottom" className="max-h-[85vh]">
+          <SheetHeader>
+            <SheetTitle>{alt}</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-auto px-6 pb-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt={alt} className="w-full rounded-2xl object-contain" />
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  )
 }
 
 /** Phase 21 — "understand immediately whether the photo is usable":
@@ -121,12 +157,22 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
   const [idScanFile, setIdScanFile] = useState<File | null>(null)
   const [idScanNotice, setIdScanNotice] = useState<string | null>(null)
 
+  // Phase 22 — "original image remains easy to inspect": derived from
+  // the already-captured file (no change needed to the capture
+  // handlers themselves) via useMemo (React's own "you might not need
+  // an effect" guidance for state derivable during render) — a plain
+  // effect below only handles revoking the URL, never setState.
+  const idPreviewUrl = useMemo(() => (idScanFile ? URL.createObjectURL(idScanFile) : null), [idScanFile])
+  useEffect(() => () => { if (idPreviewUrl) URL.revokeObjectURL(idPreviewUrl) }, [idPreviewUrl])
+
   // Driving licence -----------------------------------------------------
   const [licenseNumber, setLicenseNumber] = useState("")
   const [licenseExpiresOn, setLicenseExpiresOn] = useState("")
   const [licenceFields, setLicenceFields] = useState<ExtractedFields | null>(null)
   const [licenceScanFile, setLicenceScanFile] = useState<File | null>(null)
   const [licenceScanNotice, setLicenceScanNotice] = useState<string | null>(null)
+  const licencePreviewUrl = useMemo(() => (licenceScanFile ? URL.createObjectURL(licenceScanFile) : null), [licenceScanFile])
+  useEffect(() => () => { if (licencePreviewUrl) URL.revokeObjectURL(licencePreviewUrl) }, [licencePreviewUrl])
 
   // Phase 22 — "never silently overwrite corrected user data": a field
   // the user has actually typed into is protected from being clobbered
@@ -305,7 +351,10 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
               <CardDescription>Scan a national ID or passport, or enter the details by hand.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              <DocumentScanCapture label="Scan ID / passport" onCaptured={handleIdCaptured} />
+              <div className="flex items-start gap-3">
+                <DocumentScanCapture label="Scan ID / passport" onCaptured={handleIdCaptured} />
+                {idPreviewUrl && <ScanThumbnail url={idPreviewUrl} alt="Scanned identity document" />}
+              </div>
               {idScanNotice && (
                 <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
                   <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
@@ -377,7 +426,10 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
               <CardDescription>Optional — you can add this later. Scan it now, or enter the details by hand.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              <DocumentScanCapture label="Scan driving licence" onCaptured={handleLicenceCaptured} />
+              <div className="flex items-start gap-3">
+                <DocumentScanCapture label="Scan driving licence" onCaptured={handleLicenceCaptured} />
+                {licencePreviewUrl && <ScanThumbnail url={licencePreviewUrl} alt="Scanned driving licence" />}
+              </div>
               {licenceScanNotice && (
                 <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
                   <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
