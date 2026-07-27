@@ -119,13 +119,20 @@ function countCriticalFields(fields: ExtractedFields, keys: string[]): number {
 /** "Understand immediately whether the photo is usable" — one
  * sentence above the confidence rows instead of making the owner scan
  * each row themselves to notice a problem. */
-function ConfidenceSummary({ criticalCount }: { criticalCount: number }) {
+function ConfidenceSummary({ criticalCount, onNext }: { criticalCount: number; onNext?: () => void }) {
   return (
-    <p className="text-xs text-muted-foreground">
-      {criticalCount === 0
-        ? "Looks good — nothing to review."
-        : `${criticalCount} field${criticalCount === 1 ? "" : "s"} need${criticalCount === 1 ? "s" : ""} a quick check.`}
-    </p>
+    <div className="flex items-center justify-between gap-2">
+      <p className="text-xs text-muted-foreground">
+        {criticalCount === 0
+          ? "Looks good — nothing to review."
+          : `${criticalCount} field${criticalCount === 1 ? "" : "s"} need${criticalCount === 1 ? "s" : ""} a quick check.`}
+      </p>
+      {criticalCount > 0 && onNext && (
+        <Button type="button" variant="ghost" size="sm" onClick={onNext}>
+          Next issue
+        </Button>
+      )}
+    </div>
   )
 }
 
@@ -200,6 +207,25 @@ function NewRentalWizard({
   // its own key inline (rather than a shared factory function) so a
   // ref is only ever touched inside an actual event handler.
   const manuallyEditedRef = useRef<Set<string>>(new Set())
+
+  // Phase 22 — "jump directly between uncertain fields": each block's
+  // critical-tier rows are ref'd by key so "Next issue" can
+  // scrollIntoView + focus the next one, cycling back to the first
+  // after the last.
+  const idRowRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const [idIssueIndex, setIdIssueIndex] = useState(0)
+  const licenceRowRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const [licenceIssueIndex, setLicenceIssueIndex] = useState(0)
+
+  function goToNextIssue(fields: ExtractedFields, keys: string[], rowRefs: Record<string, HTMLDivElement | null>, index: number, setIndex: (i: number) => void) {
+    const criticalKeys = keys.filter((key) => confidenceTier(fields[key]?.confidence ?? 0) === "critical")
+    if (criticalKeys.length === 0) return
+    const nextIndex = (index + 1) % criticalKeys.length
+    setIndex(nextIndex)
+    const node = rowRefs[criticalKeys[nextIndex]]
+    node?.scrollIntoView({ behavior: "smooth", block: "center" })
+    node?.querySelector("input")?.focus()
+  }
 
   const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateMatch[]>([])
   const [createError, setCreateError] = useState<string | null>(null)
@@ -627,11 +653,14 @@ function NewRentalWizard({
                           )}
                           {idFields && (
                             <div className="flex flex-col gap-2">
-                              <ConfidenceSummary criticalCount={countCriticalFields(idFields, ["idNumber", "birthDate", "nationality"])} />
+                              <ConfidenceSummary
+                                criticalCount={countCriticalFields(idFields, ["idNumber", "birthDate", "nationality"])}
+                                onNext={() => goToNextIssue(idFields, ["idNumber", "birthDate", "nationality"], idRowRefs.current, idIssueIndex, setIdIssueIndex)}
+                              />
                               <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
-                                <DocumentConfidenceRow label="ID number" value={idDocumentNumber} confidence={idFields.idNumber?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("idNumber"); setIdDocumentNumber(v) }} />
-                                <DocumentConfidenceRow label="Date of birth" value={dateOfBirth} confidence={idFields.birthDate?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("birthDate"); setDateOfBirth(v) }} />
-                                <DocumentConfidenceRow label="Nationality" value={nationality} confidence={idFields.nationality?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("nationality"); setNationality(v) }} />
+                                <DocumentConfidenceRow ref={(el) => { idRowRefs.current.idNumber = el }} label="ID number" value={idDocumentNumber} confidence={idFields.idNumber?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("idNumber"); setIdDocumentNumber(v) }} />
+                                <DocumentConfidenceRow ref={(el) => { idRowRefs.current.birthDate = el }} label="Date of birth" value={dateOfBirth} confidence={idFields.birthDate?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("birthDate"); setDateOfBirth(v) }} />
+                                <DocumentConfidenceRow ref={(el) => { idRowRefs.current.nationality = el }} label="Nationality" value={nationality} confidence={idFields.nationality?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("nationality"); setNationality(v) }} />
                               </div>
                             </div>
                           )}
@@ -647,10 +676,13 @@ function NewRentalWizard({
                           )}
                           {licenceFields && (
                             <div className="flex flex-col gap-2">
-                              <ConfidenceSummary criticalCount={countCriticalFields(licenceFields, ["licenceNumber", "expiryDate"])} />
+                              <ConfidenceSummary
+                                criticalCount={countCriticalFields(licenceFields, ["licenceNumber", "expiryDate"])}
+                                onNext={() => goToNextIssue(licenceFields, ["licenceNumber", "expiryDate"], licenceRowRefs.current, licenceIssueIndex, setLicenceIssueIndex)}
+                              />
                               <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
-                                <DocumentConfidenceRow label="Licence number" value={licenseNumber} confidence={licenceFields.licenceNumber?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("licenceNumber"); setLicenseNumber(v) }} />
-                                <DocumentConfidenceRow label="Expires on" value={licenseExpiresOn} confidence={licenceFields.expiryDate?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("expiryDate"); setLicenseExpiresOn(v) }} />
+                                <DocumentConfidenceRow ref={(el) => { licenceRowRefs.current.licenceNumber = el }} label="Licence number" value={licenseNumber} confidence={licenceFields.licenceNumber?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("licenceNumber"); setLicenseNumber(v) }} />
+                                <DocumentConfidenceRow ref={(el) => { licenceRowRefs.current.expiryDate = el }} label="Expires on" value={licenseExpiresOn} confidence={licenceFields.expiryDate?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("expiryDate"); setLicenseExpiresOn(v) }} />
                               </div>
                             </div>
                           )}
