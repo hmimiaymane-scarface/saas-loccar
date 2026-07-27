@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState, useTransition } from "react"
-import { Loader2, Search, UserRound, AlertTriangle } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Loader2, Search, UserRound, AlertTriangle, CheckCircle2, PenLine } from "lucide-react"
 
 import type {
   Branch,
@@ -16,11 +17,14 @@ import type {
 import type { AssignableEmployee } from "@/components/domain/reservations/reservation-form"
 import type { ExtractedFields } from "@/lib/document-extraction"
 import type { DuplicateMatch } from "@/lib/customer-matching"
-import { fetchCustomers, checkCustomerByPhone, createReservationInWizard } from "@/app/(dashboard)/reservations/actions"
+import { fetchCustomers, checkCustomerByPhone, createReservationInWizard, activateRentalAction } from "@/app/(dashboard)/reservations/actions"
 import { createCustomer } from "@/app/(dashboard)/customers/actions"
 import { createDocumentRecord } from "@/app/(dashboard)/documents/actions"
 import { recordPayment, collectDeposit } from "@/app/(dashboard)/payments/actions"
-import { startInspection, saveInspectionFields, saveChecklistResponse, attachInspectionMedia } from "@/app/(dashboard)/inspections/actions"
+import { startInspection, saveInspectionFields, saveChecklistResponse, attachInspectionMedia, completeInspectionAction } from "@/app/(dashboard)/inspections/actions"
+import { generateContractAction, prepareContractAction, sendContractForSignatureAction, addSignatureAction } from "@/app/(dashboard)/contract-templates/actions"
+import { hasRequiredSignatures, type SignerType } from "@/lib/contracts/lifecycle"
+import { missingRequiredPhotoSlots } from "@/lib/inspections/rules"
 import { buildStoragePath } from "@/lib/storage"
 import { uploadFile } from "@/lib/storage-client"
 import { resolveInitialStep } from "@/lib/workflow/steps"
@@ -70,6 +74,10 @@ interface NewRentalWizardProps {
   companyTimezone: string
   branches: Branch[]
   checklistTemplate: ChecklistTemplateItem[]
+  /** Only owner/manager may activate a rental without a completed
+   * pickup inspection, with a mandatory reason — mirrors
+   * `activate_rental()`'s own DB-enforced rule exactly. */
+  canOverride: boolean
   assignableEmployees?: AssignableEmployee[]
   /** Roadmap phase 09's fast path — arriving here already knowing which
    * customer (e.g. from the Customer Command Center's "Start rental"),
@@ -105,9 +113,11 @@ function NewRentalWizard({
   companyTimezone,
   branches,
   checklistTemplate,
+  canOverride,
   assignableEmployees = [],
   preselectedCustomer,
 }: NewRentalWizardProps) {
+  const router = useRouter()
   const [step, setStep] = useState(() => resolveInitialStep([Boolean(preselectedCustomer), false, false, false, false]))
   const stepContainerRef = useStepFocus<HTMLDivElement>(step)
 
@@ -375,6 +385,103 @@ function NewRentalWizard({
       setStep(4)
     })
   }
+
+  // Step 4 — Contract & start rental -----------------------------------------
+  const [contractId, setContractId] = useState<string | null>(null)
+  const [signatures, setSignatures] = useState<{ signerType: SignerType; signerName: string }[]>([])
+  const [contractPending, startContractTransition] = useTransition()
+  const [contractError, setContractError] = useState<string | null>(null)
+
+  const [signerType, setSignerType] = useState<SignerType>("customer")
+  const [signerName, setSignerName] = useState("")
+  const [signerConfirmed, setSignerConfirmed] = useState(false)
+
+  const [showOverride, setShowOverride] = useState(false)
+  const [overrideReason, setOverrideReason] = useState("")
+  const [activatePending, startActivateTransition] = useTransition()
+  const [activateDone, setActivateDone] = useState(false)
+
+  const signedTypes = signatures.map((s) => s.signerType)
+  const availableSignerTypes = (["customer", "employee"] as SignerType[]).filter((t) => !signedTypes.includes(t))
+  const fullySigned = hasRequiredSignatures(signedTypes)
+
+  function generateAndSendContract() {
+    if (!reservationId) return
+    setContractError(null)
+    startContractTransition(async () => {
+      const generated = await generateContractAction(reservationId)
+      if (!generated.ok) {
+        setContractError(generated.error)
+        return
+      }
+      const prepared = await prepareContractAction(generated.contractId)
+      if (!prepared.ok) {
+        setContractError(prepared.error)
+        return
+      }
+      const sent = await sendContractForSignatureAction(generated.contractId)
+      if (!sent.ok) {
+        setContractError(sent.error)
+        return
+      }
+      setContractId(generated.contractId)
+    })
+  }
+
+  function submitSignature() {
+    if (!contractId || !signerName.trim() || !signerConfirmed) return
+    setContractError(null)
+    startContractTransition(async () => {
+      const result = await addSignatureAction({ contractId, signerType, signerName: signerName.trim() })
+      if (!result.ok) {
+        setContractError(result.error)
+        return
+      }
+      setSignatures((prev) => [...prev, { signerType, signerName: signerName.trim() }])
+      setSignerName("")
+      setSignerConfirmed(false)
+    })
+  }
+
+  function startRental(reason?: string) {
+    if (!inspectionId || !reservationId) return
+    setContractError(null)
+
+    const missingSlots = missingRequiredPhotoSlots(photos.map((p) => p.key))
+    if (missingSlots.length > 0 && !reason) {
+      const labels = missingSlots.map((key) => PHOTO_SLOTS.find((s) => s.key === key)?.label ?? key)
+      setContractError(`Missing required photos: ${labels.join(", ")}.`)
+      return
+    }
+
+    startActivateTransition(async () => {
+      const completeResult = await completeInspectionAction(inspectionId, reservationId)
+      if (completeResult.error && !reason) {
+        setContractError(completeResult.error)
+        return
+      }
+
+      const activateResult = await activateRentalAction(reservationId, reason)
+      if (activateResult.error) {
+        if (canOverride && !showOverride) {
+          setShowOverride(true)
+          setContractError(activateResult.error)
+          return
+        }
+        setContractError(activateResult.error)
+        return
+      }
+
+      setActivateDone(true)
+    })
+  }
+
+  // The one intentional navigation in this whole flow — the natural
+  // destination once the rental is actually active, not a mid-flow
+  // detour the rest of this wizard was built to eliminate.
+  useEffect(() => {
+    if (activateDone && reservationId) router.push(`/reservations/${reservationId}`)
+  }, [activateDone, reservationId, router])
 
   return (
     <div className="flex flex-col gap-6">
@@ -730,6 +837,125 @@ function NewRentalWizard({
             )}
           </div>
         )}
+
+        {step === 4 && (
+          <div className="flex flex-col gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Contract</CardTitle>
+                <CardDescription>Generate the rental agreement and collect signatures, without leaving this page.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                {!contractId ? (
+                  <Button type="button" onClick={generateAndSendContract} disabled={contractPending}>
+                    {contractPending && <Loader2 className="animate-spin" />}
+                    Generate & prepare contract
+                  </Button>
+                ) : (
+                  <>
+                    {signatures.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        {signatures.map((s) => (
+                          <div key={s.signerType} className="flex items-center gap-2 text-sm text-foreground">
+                            <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+                            {s.signerType === "customer" ? "Customer" : "Employee"}: {s.signerName}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {!fullySigned && availableSignerTypes.length > 0 && (
+                      <div className="flex flex-col gap-3 rounded-2xl border border-border p-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="flex flex-col gap-1.5">
+                            <Label htmlFor="signerType">Signer</Label>
+                            <NativeSelect id="signerType" value={signerType} onChange={(e) => setSignerType(e.target.value as SignerType)}>
+                              {availableSignerTypes.map((t) => (
+                                <option key={t} value={t}>
+                                  {t === "customer" ? "Customer" : "Employee"}
+                                </option>
+                              ))}
+                            </NativeSelect>
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <Label htmlFor="signerName">Full name</Label>
+                            <Input id="signerName" value={signerName} onChange={(e) => setSignerName(e.target.value)} placeholder="Type full legal name" />
+                          </div>
+                        </div>
+                        <label className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={signerConfirmed}
+                            onChange={(e) => setSignerConfirmed(e.target.checked)}
+                            className="mt-0.5 size-4 rounded border-border"
+                          />
+                          I confirm this represents {signerName.trim() || "the signer"}&apos;s agreement to this contract.
+                        </label>
+                        <div className="flex justify-end">
+                          <Button type="button" size="sm" disabled={contractPending || !signerName.trim() || !signerConfirmed} onClick={submitSignature}>
+                            {contractPending ? <Loader2 className="animate-spin" /> : <PenLine />}
+                            Record signature
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {fullySigned && (
+                      <p className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
+                        <CheckCircle2 className="size-4" />
+                        Contract fully signed.
+                      </p>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Start rental</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                {!fullySigned && contractId && (
+                  <p className="flex items-center gap-2 rounded-2xl bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                    <AlertTriangle className="size-4 shrink-0" />
+                    The contract isn&apos;t fully signed yet — you can still start the rental now and finish signing later.
+                  </p>
+                )}
+
+                {showOverride && (
+                  <div className="flex flex-col gap-2 rounded-2xl border border-amber-300 p-3 dark:border-amber-500/40">
+                    <p className="text-sm font-medium text-foreground">Override reason required</p>
+                    <textarea
+                      value={overrideReason}
+                      onChange={(e) => setOverrideReason(e.target.value)}
+                      rows={2}
+                      className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+                      placeholder="Why are you activating without a completed pickup inspection?"
+                    />
+                  </div>
+                )}
+
+                {contractError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {contractError}
+                  </p>
+                )}
+
+                <Button
+                  type="button"
+                  size="lg"
+                  disabled={activatePending || activateDone}
+                  onClick={() => startRental(showOverride ? overrideReason : undefined)}
+                >
+                  {activatePending && <Loader2 className="animate-spin" />}
+                  Start rental
+                </Button>
+                <p className="text-center text-xs text-muted-foreground">The vehicle will be marked rented and the reservation becomes active.</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
       <WizardFooter
@@ -739,7 +965,7 @@ function NewRentalWizard({
         continueLabel={step === 2 ? "Continue to inspection" : step === 3 ? "Continue to contract" : undefined}
         continuePending={step === 3 && inspectionPending}
         continueDisabled={(step === 0 && (customerMode !== "search" || !selectedCustomer)) || (step === 3 && inspectionPending)}
-        hideContinue={step === 1}
+        hideContinue={step === 1 || step === 4}
       />
     </div>
   )
