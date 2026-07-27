@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { assessReturningCustomerReadiness } from "@/lib/customer-readiness"
+import { assessReturningCustomerReadiness, findCustomersMissingIdentityDocument, type UpcomingPickupCustomer } from "@/lib/customer-readiness"
 
 const NOW = new Date("2026-07-21T12:00:00Z")
 
@@ -96,5 +96,52 @@ describe("assessReturningCustomerReadiness", () => {
     })
     expect(result.ready).toBe(false)
     expect(result.issues).toEqual([{ type: "identity_missing" }])
+  })
+})
+
+function pickupCustomer(overrides: Partial<UpcomingPickupCustomer> = {}): UpcomingPickupCustomer {
+  return {
+    customerId: "cus_1",
+    customerName: "Youssef Idrissi",
+    reservationId: "res_1",
+    pickupAt: "2026-07-22T10:00:00Z",
+    licenseExpiresAt: "2027-01-01",
+    documents: [],
+    ...overrides,
+  }
+}
+
+describe("findCustomersMissingIdentityDocument — phase 11 Needs-You-Now detector", () => {
+  it("flags a customer with an upcoming pickup and no identity document", () => {
+    const flags = findCustomersMissingIdentityDocument([pickupCustomer()], NOW)
+    expect(flags).toEqual([{ customerId: "cus_1", customerName: "Youssef Idrissi", reservationId: "res_1", pickupAt: "2026-07-22T10:00:00Z" }])
+  })
+
+  it("does not flag a customer with a valid identity document", () => {
+    const flags = findCustomersMissingIdentityDocument(
+      [pickupCustomer({ documents: [{ category: "identity_document", expiresOn: null }] })],
+      NOW
+    )
+    expect(flags).toHaveLength(0)
+  })
+
+  it("ignores a licence-only issue — that's a different fix, not a missing document", () => {
+    const flags = findCustomersMissingIdentityDocument(
+      [pickupCustomer({ licenseExpiresAt: null, documents: [{ category: "identity_document", expiresOn: null }] })],
+      NOW
+    )
+    expect(flags).toHaveLength(0)
+  })
+
+  it("dedupes a customer with two upcoming reservations, keeping the soonest pickup", () => {
+    const flags = findCustomersMissingIdentityDocument(
+      [
+        pickupCustomer({ reservationId: "res_later", pickupAt: "2026-07-24T10:00:00Z" }),
+        pickupCustomer({ reservationId: "res_sooner", pickupAt: "2026-07-22T09:00:00Z" }),
+      ],
+      NOW
+    )
+    expect(flags).toHaveLength(1)
+    expect(flags[0].reservationId).toBe("res_sooner")
   })
 })

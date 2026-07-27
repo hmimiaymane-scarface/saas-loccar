@@ -75,3 +75,65 @@ export function assessReturningCustomerReadiness(
 
   return { ready: issues.length === 0, issues }
 }
+
+/**
+ * Productization wave 1 phase 11 — the Home screen's "missing
+ * document" card is the same `identity_missing`/`identity_expired`
+ * signal above, just run across every customer with a pickup coming up
+ * soon instead of one customer at a time on the Customer Command
+ * Center. Pure by the same design: the DB-facing fetch lives in
+ * `lib/customer-readiness-store.ts`, this only decides what the
+ * already-fetched rows mean.
+ */
+export interface UpcomingPickupCustomer {
+  customerId: string
+  customerName: string
+  reservationId: string
+  pickupAt: string
+  licenseExpiresAt: string | null
+  documents: ReturningCustomerReadinessDocument[]
+}
+
+export interface MissingIdentityDocumentFlag {
+  customerId: string
+  customerName: string
+  reservationId: string
+  pickupAt: string
+}
+
+/**
+ * A customer with more than one upcoming reservation is only flagged
+ * once, keeping the soonest pickup — that's the one that actually
+ * needs attention first. Only the identity-document signal is
+ * surfaced here; a licence-expiry issue is a different fix (edit a
+ * date field, not upload a file) and already has its own advisory on
+ * the customer page.
+ */
+export function findCustomersMissingIdentityDocument(
+  customers: UpcomingPickupCustomer[],
+  now?: Date
+): MissingIdentityDocumentFlag[] {
+  const flagsByCustomer = new Map<string, MissingIdentityDocumentFlag>()
+
+  for (const customer of customers) {
+    const existing = flagsByCustomer.get(customer.customerId)
+    if (existing && existing.pickupAt <= customer.pickupAt) continue
+
+    const readiness = assessReturningCustomerReadiness({
+      licenseExpiresAt: customer.licenseExpiresAt,
+      documents: customer.documents,
+      now,
+    })
+    const missingIdentity = readiness.issues.some((issue) => issue.type === "identity_missing" || issue.type === "identity_expired")
+    if (!missingIdentity) continue
+
+    flagsByCustomer.set(customer.customerId, {
+      customerId: customer.customerId,
+      customerName: customer.customerName,
+      reservationId: customer.reservationId,
+      pickupAt: customer.pickupAt,
+    })
+  }
+
+  return [...flagsByCustomer.values()]
+}

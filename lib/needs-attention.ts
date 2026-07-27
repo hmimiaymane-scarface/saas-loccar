@@ -1,6 +1,9 @@
 import type { LiveAlert, Booking } from "@/types/rental"
 import type { OperationsFeedItem } from "@/lib/operations-feed/data"
 import type { InsightPriority } from "@/lib/tone"
+import type { MissingIdentityDocumentFlag } from "@/lib/customer-readiness"
+
+export type { MissingIdentityDocumentFlag }
 
 /**
  * Productization wave 1 phase 11 — the owner Home screen's "Needs You
@@ -49,13 +52,6 @@ export interface ContractAwaitingSignatureSummary {
   contractNumber: string | null
   customerName: string
   vehicleLabel: string | null
-}
-
-export interface MissingIdentityDocumentFlag {
-  customerId: string
-  customerName: string
-  reservationId: string
-  pickupAt: string
 }
 
 export interface NeedsAttentionInput {
