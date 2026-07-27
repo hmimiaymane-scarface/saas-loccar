@@ -113,6 +113,8 @@ import type {
   OverviewMetrics,
   TodayTimelineEntry,
   FleetOverviewVehicle,
+  FleetCardContext,
+  FleetCardIssue,
   PaymentDirection,
   PaymentMethod,
   PaymentTransaction,
@@ -2068,6 +2070,135 @@ export async function getFleetOverview(companyId: string): Promise<FleetOverview
       return { ...base, context: { kind: v.status === "available" ? "available" : "unavailable" } }
     }
   )
+}
+
+/**
+ * Productization wave 2 phase 15 — the mobile fleet card's per-vehicle
+ * enrichment, scoped to whatever page of `getVehiclesList()` is on
+ * screen rather than the whole fleet (unlike `getFleetOverview`
+ * above) — a separate function so `getVehiclesList` itself (also used
+ * by the fleet CSV export route) doesn't grow this join. "Open damage"
+ * reuses the exact `!["repaired","closed"].includes(status)` filter
+ * used identically elsewhere in this file. `availableToday` is derived
+ * purely from reservation/maintenance overlap — the caller combines it
+ * with the vehicle's own `status` (an `unavailable` vehicle for a
+ * non-maintenance reason still isn't "available today").
+ */
+export async function getFleetCardContext(companyId: string, vehicleIds: string[]): Promise<Record<string, FleetCardContext>> {
+  if (vehicleIds.length === 0) return {}
+
+  if (isMockMode()) {
+    // Mirrors every other mock branch in this file — mock fixtures are
+    // anchored to a fixed "today" (2026-07-18), not the real server
+    // clock, so "today" here must match that fixture date rather than
+    // todayRange()'s real-clock output.
+    const MOCK_TODAY = "2026-07-18"
+    const result: Record<string, FleetCardContext> = {}
+    for (const vehicleId of vehicleIds) {
+      const related = mockBookings.filter((b) => b.vehicle?.id === vehicleId)
+      const current = related.find((b) => b.status === "active")
+      const next = related
+        .filter((b) => ["confirmed", "pending"].includes(b.status))
+        .sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
+
+      const currentReservation = current
+        ? { id: current.id, customerName: current.customer.fullName, atIso: `${current.endDate}T12:00:00+01:00` }
+        : null
+      const nextReservation = next
+        ? { id: next.id, customerName: next.customer.fullName, atIso: `${next.startDate}T12:00:00+01:00` }
+        : null
+      const nextIsToday = next ? next.startDate === MOCK_TODAY : false
+
+      const maintenance = mockMaintenanceRecords.find((m) => m.vehicleId === vehicleId && MAINTENANCE_BLOCKING_STATUSES.includes(m.status))
+      const openDamageCount = mockDamages.filter((d) => d.vehicleId === vehicleId && !["repaired", "closed"].includes(d.status)).length
+      const issue: FleetCardIssue | null = maintenance
+        ? { kind: "maintenance", label: MAINTENANCE_TYPE_LABELS[maintenance.type] ?? maintenance.type }
+        : openDamageCount > 0
+          ? { kind: "damage", label: openDamageCount === 1 ? "1 open damage" : `${openDamageCount} open damages` }
+          : null
+
+      result[vehicleId] = { currentReservation, nextReservation, availableToday: !current && !nextIsToday && !maintenance, issue }
+    }
+    return result
+  }
+
+  const { startIso, endIso } = todayRange()
+  const supabase = await createClient()
+  const [currentRows, nextRows, maintenanceRows, damageRows] = await Promise.all([
+    supabase
+      .from("reservations")
+      .select("id, vehicle_id, return_at, customer:customers(full_name)")
+      .eq("company_id", companyId)
+      .eq("status", "active")
+      .in("vehicle_id", vehicleIds),
+    supabase
+      .from("reservations")
+      .select("id, vehicle_id, pickup_at, customer:customers(full_name)")
+      .eq("company_id", companyId)
+      .in("status", ["confirmed", "pending"])
+      .in("vehicle_id", vehicleIds)
+      .order("pickup_at"),
+    supabase
+      .from("maintenance_records")
+      .select("id, vehicle_id, type")
+      .eq("company_id", companyId)
+      .in("vehicle_id", vehicleIds)
+      .in("status", MAINTENANCE_BLOCKING_STATUSES),
+    supabase
+      .from("damages")
+      .select("vehicle_id")
+      .eq("company_id", companyId)
+      .in("vehicle_id", vehicleIds)
+      .not("status", "in", "(repaired,closed)"),
+  ])
+
+  if (currentRows.error) throw currentRows.error
+  if (nextRows.error) throw nextRows.error
+  if (maintenanceRows.error) throw maintenanceRows.error
+  if (damageRows.error) throw damageRows.error
+
+  type ReservationRow = { id: string; vehicle_id: string; return_at?: string; pickup_at?: string; customer: { full_name: string } | null }
+  type MaintenanceRow = { id: string; vehicle_id: string; type: string }
+
+  const currentByVehicle = new Map<string, ReservationRow>()
+  for (const r of (currentRows.data ?? []) as unknown as ReservationRow[]) currentByVehicle.set(r.vehicle_id, r)
+
+  // Already ordered by pickup_at ascending — first one seen per vehicle
+  // is the soonest upcoming reservation.
+  const nextByVehicle = new Map<string, ReservationRow>()
+  for (const r of (nextRows.data ?? []) as unknown as ReservationRow[]) {
+    if (!nextByVehicle.has(r.vehicle_id)) nextByVehicle.set(r.vehicle_id, r)
+  }
+
+  const maintenanceByVehicle = new Map<string, MaintenanceRow>()
+  for (const m of (maintenanceRows.data ?? []) as unknown as MaintenanceRow[]) maintenanceByVehicle.set(m.vehicle_id, m)
+
+  const damageCountByVehicle = new Map<string, number>()
+  for (const d of (damageRows.data ?? []) as { vehicle_id: string }[]) {
+    damageCountByVehicle.set(d.vehicle_id, (damageCountByVehicle.get(d.vehicle_id) ?? 0) + 1)
+  }
+
+  const result: Record<string, FleetCardContext> = {}
+  for (const vehicleId of vehicleIds) {
+    const current = currentByVehicle.get(vehicleId)
+    const next = nextByVehicle.get(vehicleId)
+    const maintenance = maintenanceByVehicle.get(vehicleId)
+    const openDamageCount = damageCountByVehicle.get(vehicleId) ?? 0
+
+    const currentReservation = current ? { id: current.id, customerName: current.customer?.full_name ?? "Unknown customer", atIso: current.return_at! } : null
+    const nextReservation = next ? { id: next.id, customerName: next.customer?.full_name ?? "Unknown customer", atIso: next.pickup_at! } : null
+    const nextIsToday = next?.pickup_at ? next.pickup_at >= startIso && next.pickup_at < endIso : false
+
+    const issue: FleetCardIssue | null = maintenance
+      ? { kind: "maintenance", label: MAINTENANCE_TYPE_LABELS[maintenance.type as keyof typeof MAINTENANCE_TYPE_LABELS] ?? maintenance.type }
+      : openDamageCount > 0
+        ? { kind: "damage", label: openDamageCount === 1 ? "1 open damage" : `${openDamageCount} open damages` }
+        : null
+
+    result[vehicleId] = { currentReservation, nextReservation, availableToday: !current && !nextIsToday && !maintenance, issue }
+  }
+
+  return result
 }
 
 // ---------------------------------------------------------------------

@@ -418,6 +418,36 @@ export interface FleetOverviewVehicle {
   context: FleetOverviewContext
 }
 
+/**
+ * Productization wave 2 phase 15 — the mobile fleet card's per-vehicle
+ * enrichment, scoped to whatever page of `getVehiclesList()` is on
+ * screen (not the whole fleet, unlike `FleetOverviewVehicle` above).
+ * Mirrors the `currentReservation`/`nextReservation` pairing
+ * `VehicleDetail` already has for a single vehicle, generalized to a
+ * list.
+ */
+export interface FleetCardReservationRef {
+  id: string
+  customerName: string
+  atIso: string
+}
+
+export interface FleetCardIssue {
+  kind: "damage" | "maintenance"
+  label: string
+}
+
+export interface FleetCardContext {
+  currentReservation: FleetCardReservationRef | null
+  nextReservation: FleetCardReservationRef | null
+  /** Purely reservation/maintenance-derived — the caller combines this
+   * with the vehicle's own `status` (e.g. `unavailable` for a
+   * non-maintenance reason still isn't "available today" even if
+   * nothing's booked). */
+  availableToday: boolean
+  issue: FleetCardIssue | null
+}
+
 // ---------------------------------------------------------------------
 // Documents
 // ---------------------------------------------------------------------
