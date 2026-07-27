@@ -97,6 +97,15 @@ interface ReservationFormProps {
    * picker renders — a reservation stays unassigned, visible to any
    * agent, exactly as before this field existed. */
   assignableEmployees?: AssignableEmployee[]
+  /** Productization wave 3 phase 18 — set only by `NewRentalWizard`,
+   * alongside the no-redirect `createReservationInWizard` action.
+   * Fires when `state.reservationId` comes back populated (which only
+   * that action ever sets) instead of the normal create/edit path's
+   * own `redirect()`. `totalMad` is this component's own already-
+   * computed `pricing.totalMad` at the moment of success — the server
+   * action's result doesn't carry pricing back, so the wizard's next
+   * (Payment) step reads it from here instead of re-deriving it. */
+  onSuccess?: (reservationId: string, totalMad: number) => void
 }
 
 const initialState: ReservationActionState = {}
@@ -126,6 +135,7 @@ function ReservationForm({
   preselectedCustomer,
   returningCustomerReadiness,
   assignableEmployees = [],
+  onSuccess,
 }: ReservationFormProps) {
   const [state, formAction, isPending] = useActionState(action, initialState)
   const isEdit = Boolean(initial)
@@ -258,6 +268,11 @@ function ReservationForm({
     if (!pickupIso || !returnIso) return null
     return calculatePricing({ dailyRateMad: dailyRate, pickupAt: pickupIso, returnAt: returnIso, discountMad })
   }, [pickupIso, returnIso, dailyRate, discountMad])
+
+  useEffect(() => {
+    if (state.reservationId && onSuccess) onSuccess(state.reservationId, pricing?.totalMad ?? 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per successful submission, reading pricing's current value rather than re-firing when it changes
+  }, [state.reservationId])
 
   // Details ----------------------------------------------------------------
   const [source, setSource] = useState<ReservationSource>("walk_in")

@@ -3,25 +3,30 @@
 import { useState, useTransition } from "react"
 import { Loader2, Search, UserRound, AlertTriangle } from "lucide-react"
 
-import type { Branch, Customer } from "@/types/rental"
+import type { Branch, Customer, PaymentMethod } from "@/types/rental"
 import type { AssignableEmployee } from "@/components/domain/reservations/reservation-form"
 import type { ExtractedFields } from "@/lib/document-extraction"
 import type { DuplicateMatch } from "@/lib/customer-matching"
-import { fetchCustomers, checkCustomerByPhone } from "@/app/(dashboard)/reservations/actions"
+import { fetchCustomers, checkCustomerByPhone, createReservationInWizard } from "@/app/(dashboard)/reservations/actions"
 import { createCustomer } from "@/app/(dashboard)/customers/actions"
 import { createDocumentRecord } from "@/app/(dashboard)/documents/actions"
+import { recordPayment, collectDeposit } from "@/app/(dashboard)/payments/actions"
 import { buildStoragePath } from "@/lib/storage"
 import { uploadFile } from "@/lib/storage-client"
 import { resolveInitialStep } from "@/lib/workflow/steps"
 import { useStepFocus } from "@/hooks/use-step-focus"
+import { formatMad } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { NativeSelect } from "@/components/ui/native-select"
+import { Separator } from "@/components/ui/separator"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { WizardProgress } from "@/components/domain/wizard-progress"
 import { WizardFooter } from "@/components/domain/wizard-footer"
 import { DocumentConfidenceRow } from "@/components/domain/intelligence/document-confidence-row"
 import { DocumentScanCapture, type ScanCaptureResult } from "@/components/domain/customers/document-scan-capture"
+import { ReservationForm } from "@/components/domain/reservations/reservation-form"
 
 const STEPS = [{ label: "Customer" }, { label: "Vehicle & price" }, { label: "Payment" }, { label: "Inspection" }, { label: "Contract" }]
 
@@ -58,7 +63,7 @@ function textValue(fields: ExtractedFields | null, key: string): string {
  * `useStepFocus`) — this app has no generic workflow engine, just this
  * one shared shell every stepped flow reuses.
  */
-function NewRentalWizard({ preselectedCustomer }: NewRentalWizardProps) {
+function NewRentalWizard({ companyTimezone, branches, assignableEmployees = [], preselectedCustomer }: NewRentalWizardProps) {
   const [step, setStep] = useState(() => resolveInitialStep([Boolean(preselectedCustomer), false, false, false, false]))
   const stepContainerRef = useStepFocus<HTMLDivElement>(step)
 
@@ -209,6 +214,69 @@ function NewRentalWizard({ preselectedCustomer }: NewRentalWizardProps) {
 
   function goToStep2() {
     if (selectedCustomer) setStep(1)
+  }
+
+  // Step 1 — Vehicle & price ------------------------------------------------
+  const [reservationId, setReservationId] = useState<string | null>(null)
+
+  function handleReservationCreated(id: string, totalMad: number) {
+    setReservationId(id)
+    setTotalDueMad(totalMad)
+    setStep(2)
+  }
+
+  // Step 2 — Payment & deposit ----------------------------------------------
+  const [totalDueMad, setTotalDueMad] = useState(0)
+  const [amountPaidMad, setAmountPaidMad] = useState(0)
+  const [depositCollectedMad, setDepositCollectedMad] = useState(0)
+  const [paymentAmount, setPaymentAmount] = useState("")
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash")
+  const [depositAmount, setDepositAmount] = useState("")
+  const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [paymentPending, startPaymentTransition] = useTransition()
+
+  const remainingMad = Math.max(0, totalDueMad - amountPaidMad)
+
+  function submitPayment() {
+    const amount = Number(paymentAmount)
+    if (!amount || amount <= 0 || !reservationId) {
+      setPaymentError("Enter a payment amount.")
+      return
+    }
+    setPaymentError(null)
+    startPaymentTransition(async () => {
+      const fd = new FormData()
+      fd.set("reservationId", reservationId)
+      if (selectedCustomer) fd.set("customerId", selectedCustomer.id)
+      fd.set("transactionType", "rental_payment")
+      fd.set("amount", String(amount))
+      fd.set("method", paymentMethod)
+      const result = await recordPayment({}, fd)
+      if (result.error) {
+        setPaymentError(result.error)
+        return
+      }
+      setAmountPaidMad((p) => p + amount)
+      setPaymentAmount("")
+    })
+  }
+
+  function submitDeposit() {
+    const amount = Number(depositAmount)
+    if (!amount || amount <= 0 || !reservationId) {
+      setPaymentError("Enter a deposit amount.")
+      return
+    }
+    setPaymentError(null)
+    startPaymentTransition(async () => {
+      const result = await collectDeposit(reservationId, amount, paymentMethod)
+      if (result.error) {
+        setPaymentError(result.error)
+        return
+      }
+      setDepositCollectedMad((d) => d + amount)
+      setDepositAmount("")
+    })
   }
 
   return (
@@ -399,22 +467,95 @@ function NewRentalWizard({ preselectedCustomer }: NewRentalWizardProps) {
           </>
         )}
 
-        {step === 1 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Vehicle & price</CardTitle>
-              <CardDescription>Coming in the next checkpoint.</CardDescription>
-            </CardHeader>
-          </Card>
+        {step === 1 && selectedCustomer && (
+          <ReservationForm
+            action={createReservationInWizard}
+            companyTimezone={companyTimezone}
+            branches={branches}
+            preselectedCustomer={selectedCustomer}
+            assignableEmployees={assignableEmployees}
+            onSuccess={handleReservationCreated}
+          />
+        )}
+
+        {step === 2 && (
+          <div className="flex flex-col gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Rental balance</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total</span>
+                  <span className="font-medium text-foreground">{formatMad(totalDueMad)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Paid</span>
+                  <span className="text-foreground">{formatMad(amountPaidMad)}</span>
+                </div>
+                <div className="flex justify-between font-medium">
+                  <span className="text-muted-foreground">Remaining</span>
+                  <span className="text-foreground">{formatMad(remainingMad)}</span>
+                </div>
+                <Separator className="my-2" />
+                <div className="grid grid-cols-[1fr_auto_auto] items-end gap-2">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="paymentAmount">Record a payment (MAD)</Label>
+                    <Input id="paymentAmount" type="number" step="0.01" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
+                  </div>
+                  <NativeSelect className="w-28" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
+                    <option value="cash">Cash</option>
+                    <option value="card">Card</option>
+                    <option value="transfer">Transfer</option>
+                    <option value="other">Other</option>
+                  </NativeSelect>
+                  <Button type="button" onClick={submitPayment} disabled={paymentPending}>
+                    Record
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Deposit</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-1.5 text-sm">
+                <div className="flex justify-between font-medium">
+                  <span className="text-muted-foreground">Collected</span>
+                  <span className="text-foreground">{formatMad(depositCollectedMad)}</span>
+                </div>
+                <Separator className="my-2" />
+                <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="depositAmount">Collect deposit (MAD)</Label>
+                    <Input id="depositAmount" type="number" step="0.01" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} />
+                  </div>
+                  <Button type="button" onClick={submitDeposit} disabled={paymentPending}>
+                    Collect
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {paymentError && (
+              <p className="text-sm text-destructive" role="alert">
+                {paymentError}
+              </p>
+            )}
+
+            <p className="text-xs text-muted-foreground">Payment and deposit are optional here — you can also record them later from the reservation page.</p>
+          </div>
         )}
       </div>
 
       <WizardFooter
         onBack={() => setStep((s) => Math.max(0, s - 1))}
-        backDisabled={step === 0}
-        onContinue={step === 0 ? goToStep2 : undefined}
+        backDisabled={step === 0 || step >= 2}
+        onContinue={step === 0 ? goToStep2 : step === 2 ? () => setStep(3) : undefined}
+        continueLabel={step === 2 ? "Continue to inspection" : undefined}
         continueDisabled={step === 0 && (customerMode !== "search" || !selectedCustomer)}
-        hideContinue={step > 0}
+        hideContinue={step === 1}
       />
     </div>
   )

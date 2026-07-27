@@ -24,6 +24,10 @@ import type { BookingStatus, Customer, ReservationSource, Vehicle, VehicleCatego
 export interface ReservationActionState {
   error?: string
   duplicateCustomer?: { id: string; fullName: string; phone: string }
+  /** Productization wave 3 phase 18 — set only by the no-redirect
+   * wizard variant below (`createReservationInWizard`); `createReservation`
+   * itself never populates this, since it redirects on success instead. */
+  reservationId?: string
 }
 
 const VEHICLE_CATEGORIES: VehicleCategory[] = ["economy", "compact", "suv", "van", "luxury"]
@@ -83,10 +87,19 @@ function readSharedFields(formData: FormData, timeZone: string) {
   }
 }
 
-export async function createReservation(
-  _prevState: ReservationActionState,
-  formData: FormData
-): Promise<ReservationActionState> {
+/**
+ * Productization wave 3 phase 18 — the shared insert logic both
+ * `createReservation` (redirects on success) and
+ * `createReservationInWizard` (returns the id instead, so
+ * `NewRentalWizard` can continue on the same page without a redirect)
+ * call — identical up through the activity-log event and cache
+ * revalidation, differing only in what happens after success.
+ * `requireSession`/`requireRole` stay inside this one try/catch (not
+ * split across the two exported wrappers) so an `ActionError` from
+ * either is still turned into `{error}` exactly as before this
+ * refactor, not left to propagate as an unhandled throw.
+ */
+async function insertReservation(formData: FormData, redirectOnSuccess: boolean): Promise<ReservationActionState> {
   try {
     const session = await requireSession()
     requireRole(session, [...RESERVATION_ROLES])
@@ -182,11 +195,30 @@ export async function createReservation(
     revalidatePath("/calendar")
     revalidatePath("/overview")
     revalidatePath("/fleet")
-    redirect(`/reservations/${reservation.id}`)
+    if (redirectOnSuccess) redirect(`/reservations/${reservation.id}`)
+    return { reservationId: reservation.id as string }
   } catch (err) {
     if (err instanceof ActionError) return { error: err.message }
     throw err
   }
+}
+
+export async function createReservation(
+  _prevState: ReservationActionState,
+  formData: FormData
+): Promise<ReservationActionState> {
+  return insertReservation(formData, true)
+}
+
+/** Productization wave 3 phase 18 — `NewRentalWizard`'s Step 2 uses
+ * this instead of `createReservation` so creating the reservation
+ * advances the wizard to the next step on the same page rather than
+ * navigating to the reservation detail page. */
+export async function createReservationInWizard(
+  _prevState: ReservationActionState,
+  formData: FormData
+): Promise<ReservationActionState> {
+  return insertReservation(formData, false)
 }
 
 export async function updateReservation(
