@@ -145,15 +145,19 @@ on its icon-only accept/correct button.
   tab bar. Renders `InstallPrompt` inline. Receives the exact same
   server-fetched props `DesktopShell` does — same data, different layout,
   chosen by `AppShell` based on viewport.
-- **`MobileBottomNav`** (`components/layout/mobile-bottom-nav.tsx`) — 5 tabs
-  from `mobilePrimaryNav`/`navForRole(role)`, split left/right around an
-  elevated center FAB (only rendered when `quickActionsForRole(role)` is
-  non-empty). Uses `aria-current="page"` on the active tab.
-- **`QuickActionsSheet`** (`components/layout/quick-actions-sheet.tsx`) — a
-  bottom sheet of role-filtered quick actions, each `{label, href, icon,
-  roles}`. **`roles` is a usability filter only** — RLS/`has_permission()` is
-  what actually gates the destination page, same convention as
-  `NavItem.roles` in `lib/navigation.ts`.
+- **`MobileBottomNav`** (`components/layout/mobile-bottom-nav.tsx`) — 4 tabs
+  from `mobilePrimaryNav` (role-invariant since productization wave 1 phase
+  10), split left/right around an always-rendered elevated center FAB. Uses
+  `aria-current="page"` on the active tab.
+- **`QuickActionsSheet`** (`components/layout/quick-actions-sheet.tsx`) —
+  the FAB's bottom sheet. Role-invariant since phase 10 (every action is
+  `{label, href, icon}`, no `roles` field — RLS/`has_permission()` gates
+  the destination page itself). Since productization wave 2 phase 13: New
+  Rental is a pinned, visually dominant full-width CTA above a grid of 5
+  secondary actions (Return Vehicle, Record Payment, Add Expense, Add
+  Customer, Add Vehicle) that reorders by recent usage
+  (`lib/quick-actions-recency.ts`, the same localStorage-only-preference
+  pattern `InstallPrompt` established). See `docs/quick-actions.md`.
 - **`WizardProgress`** (`components/domain/wizard-progress.tsx`) — dual
   rendering: a full step row with checkmarks at `sm:` and up, a compact
   segmented progress bar + "Step N of M" text below it. Shared by every

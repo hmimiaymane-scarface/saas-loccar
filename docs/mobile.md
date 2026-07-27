@@ -115,6 +115,11 @@ new `/profile` screen instead, never competing for one of the 5 tabs.
 > mentioned here as already-dead is deleted, not just unreachable. See
 > `docs/mobile-design-system.md` for the current shell shape.
 
+> **Further superseded by productization wave 2 phase 13.** The quick-
+> actions sheet's 6 actions are no longer Scan Document/Start Inspection/
+> Capture Damage/Search Customer — see `docs/quick-actions.md` for the
+> current set and its recency-ordering mechanism.
+
 Both shells are mounted at once (one hidden via CSS at the `lg`
 breakpoint) rather than conditionally rendered — the same convention
 the old `MobileNav` already used, and it avoids a hydration-timing
