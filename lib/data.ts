@@ -46,6 +46,10 @@ import {
   BLOCKING_RESERVATION_STATUSES,
   isVehicleAvailable,
   periodsOverlap,
+  findConflictingReservation,
+  findNextReservationAfter,
+  hoursBetween,
+  TIGHT_TURNAROUND_HOURS,
   type ExistingReservationWindow,
 } from "@/lib/availability"
 import { STORAGE_BUCKET } from "@/lib/storage"
@@ -795,6 +799,40 @@ export interface AvailabilityQuery {
   excludeReservationId?: string
 }
 
+/** Every `pending`/`confirmed`/`active` reservation with a vehicle
+ * assigned — the shared "what's actually blocking" fetch behind both
+ * `getAvailableVehicles` and `getVehicleSelectionOptions` below. */
+async function getBlockingReservations(companyId: string): Promise<ExistingReservationWindow[]> {
+  if (isMockMode()) {
+    return mockBookings
+      .filter((b) => b.vehicle && BLOCKING_RESERVATION_STATUSES.includes(b.status))
+      .map((b) => ({
+        id: b.id,
+        vehicleId: b.vehicle!.id,
+        status: b.status,
+        startDate: b.startDate,
+        endDate: b.endDate,
+      }))
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("id, vehicle_id, status, pickup_at, return_at")
+    .eq("company_id", companyId)
+    .in("status", BLOCKING_RESERVATION_STATUSES)
+    .not("vehicle_id", "is", null)
+
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    vehicleId: r.vehicle_id as string,
+    status: r.status as BookingStatus,
+    startDate: r.pickup_at,
+    endDate: r.return_at,
+  }))
+}
+
 /** Vehicles that could be assigned to a reservation for the requested
  * window: not under maintenance/unavailable, and not already blocked by
  * an overlapping pending/confirmed/active reservation. See
@@ -811,35 +849,7 @@ export async function getAvailableVehicles(
     ? assignable.filter((v) => v.category === query.category)
     : assignable
 
-  let blocking: ExistingReservationWindow[]
-  if (isMockMode()) {
-    blocking = mockBookings
-      .filter((b) => b.vehicle && BLOCKING_RESERVATION_STATUSES.includes(b.status))
-      .map((b) => ({
-        id: b.id,
-        vehicleId: b.vehicle!.id,
-        status: b.status,
-        startDate: b.startDate,
-        endDate: b.endDate,
-      }))
-  } else {
-    const supabase = await createClient()
-    const { data, error } = await supabase
-      .from("reservations")
-      .select("id, vehicle_id, status, pickup_at, return_at")
-      .eq("company_id", companyId)
-      .in("status", BLOCKING_RESERVATION_STATUSES)
-      .not("vehicle_id", "is", null)
-
-    if (error) throw error
-    blocking = (data ?? []).map((r) => ({
-      id: r.id,
-      vehicleId: r.vehicle_id as string,
-      status: r.status as BookingStatus,
-      startDate: r.pickup_at,
-      endDate: r.return_at,
-    }))
-  }
+  const blocking = await getBlockingReservations(companyId)
 
   return categoryFiltered.filter((v) =>
     isVehicleAvailable(
@@ -849,6 +859,59 @@ export async function getAvailableVehicles(
       query.excludeReservationId
     )
   )
+}
+
+export type VehicleSelectionStatus = "available" | "conflict" | "maintenance" | "unavailable"
+
+export interface VehicleSelectionOption {
+  vehicle: Vehicle
+  status: VehicleSelectionStatus
+  /** status === "conflict" only — the date the blocking reservation frees the vehicle up. */
+  conflictUntil?: string
+  /** status === "available" only — set when this vehicle's next
+   * booking starts within TIGHT_TURNAROUND_HOURS of the requested
+   * return, a real "cutting it close" risk worth flagging. */
+  nextBookingWarning?: { startsAt: string; hoursUntil: number }
+}
+
+/**
+ * Productization wave 3 phase 23 — "show conflicts/maintenance-blocked
+ * vehicles clearly" instead of silently omitting them the way
+ * `getAvailableVehicles` above does. Every category-filtered vehicle,
+ * tagged with *why* it can or can't be picked for this exact window.
+ *
+ * Deliberately a new, additive function rather than changing
+ * `getAvailableVehicles`'s return shape — `lib/ai/tools.ts`'s AI
+ * Assistant tool calls that function directly expecting a plain
+ * `Vehicle[]` for a chat response, an unrelated consumer this phase
+ * has no reason to touch.
+ */
+export async function getVehicleSelectionOptions(
+  companyId: string,
+  query: AvailabilityQuery
+): Promise<VehicleSelectionOption[]> {
+  const vehicles = await getVehicles(companyId)
+  const categoryFiltered = query.category ? vehicles.filter((v) => v.category === query.category) : vehicles
+  const blocking = await getBlockingReservations(companyId)
+  const window = { startDate: query.pickupAt, endDate: query.returnAt }
+
+  return categoryFiltered.map((vehicle) => {
+    if (vehicle.status === "maintenance" || vehicle.status === "unavailable") {
+      return { vehicle, status: vehicle.status }
+    }
+
+    const conflict = findConflictingReservation(vehicle.id, window, blocking, query.excludeReservationId)
+    if (conflict) {
+      return { vehicle, status: "conflict" as const, conflictUntil: conflict.endDate }
+    }
+
+    const next = findNextReservationAfter(vehicle.id, query.returnAt, blocking, query.excludeReservationId)
+    const nextBookingWarning =
+      next && hoursBetween(query.returnAt, next.startDate) <= TIGHT_TURNAROUND_HOURS
+        ? { startsAt: next.startDate, hoursUntil: Math.round(hoursBetween(query.returnAt, next.startDate)) }
+        : undefined
+    return { vehicle, status: "available" as const, nextBookingWarning }
+  })
 }
 
 // ---------------------------------------------------------------------
