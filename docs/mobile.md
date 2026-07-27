@@ -104,6 +104,17 @@ Vehicle, Capture Damage, Search Customer — each routed to an existing
 flow, no new destination pages). Settings/secondary nav lives on the
 new `/profile` screen instead, never competing for one of the 5 tabs.
 
+> **Superseded by productization wave 1 phase 10.** The 5-tab list
+> above (Home/Reservations/Fleet/Customers/Inbox) and the per-role
+> filtering on both the tabs and the quick-actions sheet no longer
+> exist. The bottom bar is now 4 role-invariant tabs — Home, Calendar,
+> Fleet, More — plus the same center "+" sheet, now always rendered and
+> showing all 6 actions to every employee. Reservations and Customers
+> moved into the shared `/more` hub instead of being primary tabs. The
+> pre-phase-16 hamburger drawer (`components/layout/mobile-nav.tsx`)
+> mentioned here as already-dead is deleted, not just unreachable. See
+> `docs/mobile-design-system.md` for the current shell shape.
+
 Both shells are mounted at once (one hidden via CSS at the `lg`
 breakpoint) rather than conditionally rendered — the same convention
 the old `MobileNav` already used, and it avoids a hydration-timing
