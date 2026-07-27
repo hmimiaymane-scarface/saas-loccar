@@ -282,8 +282,13 @@ function NewRentalWizard({
 
   const customerBusy = creatingCustomer || savingDocuments
 
-  function goToStep2() {
-    if (selectedCustomer) setStep(1)
+  // Phase 19 — picking an existing customer *is* the required field
+  // group for this step; advance immediately instead of making the
+  // user click a separate Continue after already having chosen who
+  // the rental is for.
+  function selectCustomerAndAdvance(customer: Customer) {
+    setSelectedCustomer(customer)
+    setStep(1)
   }
 
   // Step 1 — Vehicle & price ------------------------------------------------
@@ -549,7 +554,7 @@ function NewRentalWizard({
                             <button
                               type="button"
                               key={c.id}
-                              onClick={() => setSelectedCustomer(c)}
+                              onClick={() => selectCustomerAndAdvance(c)}
                               className="flex flex-col items-start gap-0.5 border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-muted"
                             >
                               <span className="text-sm font-medium text-foreground">{c.fullName}</span>
@@ -626,7 +631,7 @@ function NewRentalWizard({
                           <AlertTriangle className="size-4 shrink-0" />
                           Already a customer: {duplicateCustomer.fullName}
                         </span>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => { setCustomerMode("search"); setSelectedCustomer(duplicateCustomer) }}>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => { setCustomerMode("search"); selectCustomerAndAdvance(duplicateCustomer) }}>
                           Use them
                         </Button>
                       </div>
@@ -651,7 +656,7 @@ function NewRentalWizard({
                                 onClick={() => {
                                   setDuplicateCandidates([])
                                   setCustomerMode("search")
-                                  setSelectedCustomer({ id: candidate.customerId, fullName: candidate.fullName, phone: quickPhone, licenseNumber: "", licenseExpiresAt: "", totalBookings: 0 })
+                                  selectCustomerAndAdvance({ id: candidate.customerId, fullName: candidate.fullName, phone: quickPhone, licenseNumber: "", licenseExpiresAt: "", totalBookings: 0 })
                                 }}
                               >
                                 Use them
@@ -687,20 +692,27 @@ function NewRentalWizard({
           </>
         )}
 
-        {step === 1 && selectedCustomer && (
-          <ReservationForm
-            action={createReservationInWizard}
-            companyTimezone={companyTimezone}
-            branches={branches}
-            preselectedCustomer={selectedCustomer}
-            assignableEmployees={assignableEmployees}
-            defaultVehicleId={defaultVehicleId}
-            defaultDailyRate={defaultDailyRate}
-            defaultPickupDate={defaultPickupDate}
-            defaultCategory={defaultCategory}
-            returningCustomerReadiness={returningCustomerReadiness}
-            onSuccess={handleReservationCreated}
-          />
+        {/* Phase 19 — mounted once a customer is selected and kept mounted
+            (visibility toggled via CSS, not JSX) so a Step 1 -> Step 0 ->
+            Step 1 round trip never discards dates/vehicle/discount the
+            user already typed in. Keyed on the customer's id so picking a
+            genuinely different customer still starts a fresh draft. */}
+        {selectedCustomer && !reservationId && (
+          <div key={selectedCustomer.id} className={step === 1 ? "flex flex-col gap-4" : "hidden"}>
+            <ReservationForm
+              action={createReservationInWizard}
+              companyTimezone={companyTimezone}
+              branches={branches}
+              preselectedCustomer={selectedCustomer}
+              assignableEmployees={assignableEmployees}
+              defaultVehicleId={defaultVehicleId}
+              defaultDailyRate={defaultDailyRate}
+              defaultPickupDate={defaultPickupDate}
+              defaultCategory={defaultCategory}
+              returningCustomerReadiness={returningCustomerReadiness}
+              onSuccess={handleReservationCreated}
+            />
+          </div>
         )}
 
         {step === 2 && (
@@ -982,7 +994,7 @@ function NewRentalWizard({
       <WizardFooter
         onBack={() => setStep((s) => Math.max(0, s - 1))}
         backDisabled={step === 0 || step >= 2}
-        onContinue={step === 0 ? goToStep2 : step === 2 ? () => setStep(3) : step === 3 ? saveInspectionStep : undefined}
+        onContinue={step === 0 ? () => selectedCustomer && setStep(1) : step === 2 ? () => setStep(3) : step === 3 ? saveInspectionStep : undefined}
         continueLabel={step === 2 ? "Continue to inspection" : step === 3 ? "Continue to contract" : undefined}
         continuePending={step === 3 && inspectionPending}
         continueDisabled={(step === 0 && (customerMode !== "search" || !selectedCustomer)) || (step === 3 && inspectionPending)}

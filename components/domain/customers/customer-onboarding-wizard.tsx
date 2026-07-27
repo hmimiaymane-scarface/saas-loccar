@@ -11,6 +11,7 @@ import { uploadFile } from "@/lib/storage-client"
 import { resolveInitialStep } from "@/lib/workflow/steps"
 import { useStepFocus } from "@/hooks/use-step-focus"
 import { CATEGORY_OPTIONS } from "@/lib/document-categories"
+import { confidenceTier } from "@/lib/tone"
 import type { ExtractedFields } from "@/lib/document-extraction"
 import type { DuplicateMatch } from "@/lib/customer-matching"
 import type { DocumentCategory } from "@/types/rental"
@@ -34,6 +35,13 @@ function textValue(fields: ExtractedFields | null, key: string): string {
   const field = fields?.[key]
   if (!field || field.value == null) return ""
   return String(field.value)
+}
+
+/** Phase 19 — "nothing left to review" is the signal that a scanned
+ * step can safely auto-advance; a single critical-confidence field
+ * means the user still needs to see and fix it, so stay put. */
+function hasCriticalField(fields: ExtractedFields, keys: string[]): boolean {
+  return keys.some((key) => confidenceTier(fields[key]?.confidence ?? 0) === "critical")
 }
 
 function Field({
@@ -124,6 +132,9 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
       setDateOfBirth(textValue(result.fields, "birthDate"))
       setNationality(textValue(result.fields, "nationality"))
       setIdFields(result.fields)
+      if (!hasCriticalField(result.fields, ["fullName", "idNumber", "birthDate", "nationality"])) {
+        setStep(1)
+      }
     }
   }
 
@@ -145,6 +156,9 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
       setLicenseNumber(textValue(result.fields, "licenceNumber"))
       setLicenseExpiresOn(textValue(result.fields, "expiryDate"))
       setLicenceFields(result.fields)
+      if (!hasCriticalField(result.fields, ["licenceNumber", "expiryDate"])) {
+        setStep(2)
+      }
     }
   }
 
