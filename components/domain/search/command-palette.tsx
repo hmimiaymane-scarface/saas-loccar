@@ -6,7 +6,7 @@ import { Dialog as DialogPrimitive } from "radix-ui"
 import { Search, Car, User, ClipboardList, FileSignature, FileText, UserCog, Loader2 } from "lucide-react"
 
 import { globalSearchAction } from "@/app/(dashboard)/search/actions"
-import type { SearchResult, SearchResultType } from "@/lib/search"
+import { groupSearchResultsByType, type SearchResult, type SearchResultType } from "@/lib/search"
 import { cn } from "@/lib/utils"
 
 const TYPE_ICON: Record<SearchResultType, typeof Car> = {
@@ -18,13 +18,16 @@ const TYPE_ICON: Record<SearchResultType, typeof Car> = {
   employee: UserCog,
 }
 
-const TYPE_LABEL: Record<SearchResultType, string> = {
-  vehicle: "Vehicle",
-  customer: "Customer",
-  reservation: "Reservation",
-  contract: "Contract",
-  document: "Document",
-  employee: "Employee",
+/** Productization wave 2 phase 14 — section headers for real grouped
+ * results (`groupSearchResultsByType`), replacing the old inline
+ * per-row type badge. */
+const TYPE_LABEL_PLURAL: Record<SearchResultType, string> = {
+  vehicle: "Vehicles",
+  customer: "Customers",
+  reservation: "Reservations",
+  contract: "Contracts",
+  document: "Documents",
+  employee: "Team",
 }
 
 /**
@@ -34,8 +37,13 @@ const TYPE_LABEL: Record<SearchResultType, string> = {
  * `Dialog` primitive (already a dependency via `alert-dialog.tsx`)
  * rather than adding the `cmdk` package — this doesn't need virtual
  * scrolling, nested command groups, or any of the other things a
- * dedicated command-menu library solves; a debounced query and a flat
+ * dedicated command-menu library solves; a debounced query and a
  * grouped list cover every entity type requirement 7 names.
+ *
+ * Productization wave 2 phase 14 — results now render as real sections
+ * (`groupSearchResultsByType`), one labeled group per entity type,
+ * replacing the earlier flat list with only a small inline type badge
+ * per row.
  */
 function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter()
@@ -98,31 +106,37 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
             ) : results.length === 0 && !pending ? (
               <p className="px-3 py-6 text-center text-sm text-muted-foreground">No results for &quot;{query}&quot;.</p>
             ) : (
-              <ul className="flex flex-col">
-                {results.map((r) => {
-                  const Icon = TYPE_ICON[r.type]
-                  return (
-                    <li key={`${r.type}-${r.id}`}>
-                      <button
-                        type="button"
-                        onClick={() => go(r.href)}
-                        className={cn(
-                          "flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-muted"
-                        )}
-                      >
-                        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                          <Icon className="size-4" />
-                        </div>
-                        <div className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate text-sm font-medium text-foreground">{r.title}</span>
-                          <span className="truncate text-xs text-muted-foreground">{r.subtitle}</span>
-                        </div>
-                        <span className="shrink-0 text-xs text-muted-foreground">{TYPE_LABEL[r.type]}</span>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
+              <div className="flex flex-col gap-3">
+                {groupSearchResultsByType(results).map((group) => (
+                  <div key={group.type} className="flex flex-col">
+                    <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">{TYPE_LABEL_PLURAL[group.type]}</p>
+                    <ul className="flex flex-col">
+                      {group.results.map((r: SearchResult) => {
+                        const Icon = TYPE_ICON[r.type]
+                        return (
+                          <li key={`${r.type}-${r.id}`}>
+                            <button
+                              type="button"
+                              onClick={() => go(r.href)}
+                              className={cn(
+                                "flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-muted"
+                              )}
+                            >
+                              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                                <Icon className="size-4" />
+                              </div>
+                              <div className="flex min-w-0 flex-1 flex-col">
+                                <span className="truncate text-sm font-medium text-foreground">{r.title}</span>
+                                <span className="truncate text-xs text-muted-foreground">{r.subtitle}</span>
+                              </div>
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </DialogPrimitive.Content>
