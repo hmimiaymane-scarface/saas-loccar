@@ -7,6 +7,7 @@ import {
   getProposedActions,
 } from "@/app/(dashboard)/ai-assistant/actions"
 import { isConfigured } from "@/lib/ai/models"
+import { isSupabaseConfigured } from "@/lib/env"
 import { SectionHeader } from "@/components/domain/section-header"
 import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
 import { ConversationSidebar } from "@/components/domain/ai-assistant/conversation-sidebar"
@@ -24,6 +25,24 @@ export default async function AiAssistantPage({
   if (!session) redirect("/sign-in")
 
   const params = await searchParams
+
+  // listConversations() calls createClient() unconditionally, which
+  // throws in mock mode — checked here explicitly rather than letting
+  // that surface as an unhandled crash (productization wave 1 phase 8).
+  // Distinct from the AI-provider-key `configured` check below.
+  if (!isSupabaseConfigured) {
+    return (
+      <>
+        <SectionHeader title="AI Assistant" description="Ask about your data, or have it prepare bookings and payments for you to confirm." />
+        <EmptyPlaceholder
+          icon={Sparkles}
+          title="AI Assistant needs a connected Supabase project"
+          description="Not available in demo mode — conversations are stored per company."
+        />
+      </>
+    )
+  }
+
   const conversations = await listConversations()
   const activeId = params.c ?? conversations[0]?.id ?? null
   const active = activeId ? conversations.find((c) => c.id === activeId) : undefined

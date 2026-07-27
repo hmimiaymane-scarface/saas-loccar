@@ -3,6 +3,7 @@ import { AlertTriangle, Info, Sparkles } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
 import { getReservationDetail } from "@/lib/data"
+import { isSupabaseConfigured } from "@/lib/env"
 import { previewContractAction } from "@/app/(dashboard)/contract-templates/actions"
 import { CONTRACT_VARIABLE_CATALOG, type ContractVariableDef } from "@/lib/contracts/variables"
 import { SectionHeader } from "@/components/domain/section-header"
@@ -37,6 +38,26 @@ export default async function ContractPreviewPage({ params }: { params: Promise<
   const { id } = await params
   const reservation = await getReservationDetail(session.company.id, id)
   if (!reservation) notFound()
+
+  // Contract generation has been a live-Supabase-only feature since the
+  // engineering roadmap's phase 06 (template variable resolution/AI
+  // review need a real project) — previewContractAction calls
+  // createClient() unconditionally, so it throws in mock mode. Checked
+  // here explicitly rather than letting that surface as an unhandled
+  // crash (productization wave 1 phase 8's named fix).
+  if (!isSupabaseConfigured) {
+    return (
+      <>
+        <SectionHeader title="Contract preview" description={reservation.reference} />
+        <Card>
+          <CardContent className="flex items-center gap-2 pt-6 text-sm text-destructive">
+            <AlertTriangle className="size-4 shrink-0" />
+            Contract preview needs a connected Supabase project — not available in demo mode.
+          </CardContent>
+        </Card>
+      </>
+    )
+  }
 
   const preview = await previewContractAction(id)
 
