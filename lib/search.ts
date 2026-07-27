@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { searchDocumentIdsByExtractedFields } from "@/lib/documents"
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 
@@ -13,6 +14,13 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
  * few results — a real search-as-you-type command palette, not a
  * full paginated search results page (that's what each entity's own
  * list page + filters already are for).
+ *
+ * Productization wave 2 phase 14 — documents also match by extracted
+ * field value now (licence number, plate, VIN, customer name, etc. —
+ * whatever OCR pulled off the file), reusing
+ * `lib/documents.ts#searchDocumentIdsByExtractedFields` exactly (the
+ * same function the `/documents` page's own search already used) —
+ * not a second extraction-matching implementation.
  */
 
 export type SearchResultType = "vehicle" | "customer" | "reservation" | "contract" | "document" | "employee"
@@ -36,14 +44,25 @@ export async function globalSearch(supabase: SupabaseServerClient, companyId: st
   if (query.length < 2) return []
   const q = escapeIlike(query)
 
-  const [vehicles, customers, reservations, contracts, documents, employees] = await Promise.all([
+  const [vehicles, customers, reservations, contracts, filenameDocuments, employees, extractedDocumentIds] = await Promise.all([
     supabase.from("vehicles").select("id, make, model, registration_number").eq("company_id", companyId).or(`registration_number.ilike.%${q}%,make.ilike.%${q}%,model.ilike.%${q}%`).limit(PER_TYPE_LIMIT),
     supabase.from("customers").select("id, full_name, phone").eq("company_id", companyId).or(`full_name.ilike.%${q}%,phone.ilike.%${q}%`).limit(PER_TYPE_LIMIT),
     supabase.from("reservations").select("id, reference, customer:customers(full_name)").eq("company_id", companyId).ilike("reference", `%${q}%`).limit(PER_TYPE_LIMIT),
     supabase.from("contracts").select("id, contract_number, customer:customers(full_name)").eq("company_id", companyId).ilike("contract_number", `%${q}%`).limit(PER_TYPE_LIMIT),
-    supabase.from("documents").select("id, original_filename, category").eq("company_id", companyId).eq("status", "active").ilike("original_filename", `%${q}%`).limit(PER_TYPE_LIMIT),
+    supabase.from("documents").select("id, original_filename, category").eq("company_id", companyId).eq("status", "active").or(`original_filename.ilike.%${q}%,category.ilike.%${q}%`).limit(PER_TYPE_LIMIT),
     supabase.from("company_memberships").select("user_id, profile:profiles(full_name)").eq("company_id", companyId).limit(50),
+    searchDocumentIdsByExtractedFields(supabase, companyId, query),
   ])
+
+  const filenameMatchIds = new Set((filenameDocuments.data ?? []).map((d) => d.id))
+  const remainingSlots = PER_TYPE_LIMIT - filenameMatchIds.size
+  const extraIds = extractedDocumentIds.filter((id) => !filenameMatchIds.has(id)).slice(0, Math.max(0, remainingSlots))
+  const extraDocuments =
+    extraIds.length > 0
+      ? await supabase.from("documents").select("id, original_filename, category").eq("company_id", companyId).eq("status", "active").in("id", extraIds)
+      : { data: [] as { id: string; original_filename: string; category: string }[] }
+
+  const documents = { data: [...(filenameDocuments.data ?? []), ...(extraDocuments.data ?? [])] }
 
   const results: SearchResult[] = []
 
@@ -79,4 +98,23 @@ export async function globalSearch(supabase: SupabaseServerClient, companyId: st
   }
 
   return results
+}
+
+/** Fixed, stable presentation order — matches the order `globalSearch`
+ * itself pushes results in, so grouping never has to guess at intent. */
+const TYPE_ORDER: SearchResultType[] = ["vehicle", "customer", "reservation", "contract", "document", "employee"]
+
+export interface SearchResultGroup {
+  type: SearchResultType
+  results: SearchResult[]
+}
+
+/**
+ * Productization wave 2 phase 14 — real grouped sections for the
+ * command palette, not just a per-row type badge on an otherwise flat
+ * list. Pure and separate from `globalSearch` itself so the grouping
+ * logic is unit-testable without a Supabase client.
+ */
+export function groupSearchResultsByType(results: SearchResult[]): SearchResultGroup[] {
+  return TYPE_ORDER.map((type) => ({ type, results: results.filter((r) => r.type === type) })).filter((g) => g.results.length > 0)
 }
