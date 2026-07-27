@@ -3,7 +3,7 @@ import Link from "next/link"
 import { Users, UserPlus } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
-import { getCustomers } from "@/lib/data"
+import { getCustomers, getCustomerCardContext } from "@/lib/data"
 import { SectionHeader } from "@/components/domain/section-header"
 import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
 import { CustomerSearch } from "@/components/domain/customers/customer-search"
@@ -27,6 +27,11 @@ export default async function CustomersPage({
   const filtered = query
     ? customers.filter((c) => c.fullName.toLowerCase().includes(query) || c.phone.includes(query))
     : customers
+
+  // Productization wave 2 phase 16 — scoped to just the displayed set,
+  // not the whole company (getCustomers itself has no pagination yet —
+  // a known, separate scalability gap, out of this phase's own scope).
+  const cardContext = await getCustomerCardContext(session.company.id, filtered)
 
   return (
     <>
@@ -57,7 +62,7 @@ export default async function CustomersPage({
       ) : (
         <div className="flex flex-col gap-3">
           {filtered.map((customer) => (
-            <CustomerListItem key={customer.id} customer={customer} />
+            <CustomerListItem key={customer.id} customer={customer} context={cardContext[customer.id]} />
           ))}
         </div>
       )}
