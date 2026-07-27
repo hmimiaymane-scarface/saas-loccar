@@ -194,6 +194,13 @@ function NewRentalWizard({
   const [licenseNumber, setLicenseNumber] = useState("")
   const [licenseExpiresOn, setLicenseExpiresOn] = useState("")
 
+  // Phase 22 — "never silently overwrite corrected user data": a field
+  // the user has actually typed into is protected from being clobbered
+  // by a later re-scan (e.g. after "Retake"). Each row's onChange marks
+  // its own key inline (rather than a shared factory function) so a
+  // ref is only ever touched inside an actual event handler.
+  const manuallyEditedRef = useRef<Set<string>>(new Set())
+
   const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateMatch[]>([])
   const [createError, setCreateError] = useState<string | null>(null)
   const [creatingCustomer, startCreatingCustomer] = useTransition()
@@ -234,9 +241,9 @@ function NewRentalWizard({
     setIdScanNotice(null)
     if (result.fields) {
       if (!quickName) setQuickName(textValue(result.fields, "fullName"))
-      setIdDocumentNumber(textValue(result.fields, "idNumber"))
-      setDateOfBirth(textValue(result.fields, "birthDate"))
-      setNationality(textValue(result.fields, "nationality"))
+      if (!manuallyEditedRef.current.has("idNumber")) setIdDocumentNumber(textValue(result.fields, "idNumber"))
+      if (!manuallyEditedRef.current.has("birthDate")) setDateOfBirth(textValue(result.fields, "birthDate"))
+      if (!manuallyEditedRef.current.has("nationality")) setNationality(textValue(result.fields, "nationality"))
       setIdFields(result.fields)
     }
   }
@@ -254,8 +261,8 @@ function NewRentalWizard({
     setLicenceScanNotice(null)
     if (result.fields) {
       if (!quickName) setQuickName(textValue(result.fields, "fullName"))
-      setLicenseNumber(textValue(result.fields, "licenceNumber"))
-      setLicenseExpiresOn(textValue(result.fields, "expiryDate"))
+      if (!manuallyEditedRef.current.has("licenceNumber")) setLicenseNumber(textValue(result.fields, "licenceNumber"))
+      if (!manuallyEditedRef.current.has("expiryDate")) setLicenseExpiresOn(textValue(result.fields, "expiryDate"))
       setLicenceFields(result.fields)
     }
   }
@@ -622,9 +629,9 @@ function NewRentalWizard({
                             <div className="flex flex-col gap-2">
                               <ConfidenceSummary criticalCount={countCriticalFields(idFields, ["idNumber", "birthDate", "nationality"])} />
                               <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
-                                <DocumentConfidenceRow label="ID number" value={idDocumentNumber} confidence={idFields.idNumber?.confidence ?? 0} onChange={setIdDocumentNumber} />
-                                <DocumentConfidenceRow label="Date of birth" value={dateOfBirth} confidence={idFields.birthDate?.confidence ?? 0} onChange={setDateOfBirth} />
-                                <DocumentConfidenceRow label="Nationality" value={nationality} confidence={idFields.nationality?.confidence ?? 0} onChange={setNationality} />
+                                <DocumentConfidenceRow label="ID number" value={idDocumentNumber} confidence={idFields.idNumber?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("idNumber"); setIdDocumentNumber(v) }} />
+                                <DocumentConfidenceRow label="Date of birth" value={dateOfBirth} confidence={idFields.birthDate?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("birthDate"); setDateOfBirth(v) }} />
+                                <DocumentConfidenceRow label="Nationality" value={nationality} confidence={idFields.nationality?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("nationality"); setNationality(v) }} />
                               </div>
                             </div>
                           )}
@@ -642,8 +649,8 @@ function NewRentalWizard({
                             <div className="flex flex-col gap-2">
                               <ConfidenceSummary criticalCount={countCriticalFields(licenceFields, ["licenceNumber", "expiryDate"])} />
                               <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
-                                <DocumentConfidenceRow label="Licence number" value={licenseNumber} confidence={licenceFields.licenceNumber?.confidence ?? 0} onChange={setLicenseNumber} />
-                                <DocumentConfidenceRow label="Expires on" value={licenseExpiresOn} confidence={licenceFields.expiryDate?.confidence ?? 0} onChange={setLicenseExpiresOn} />
+                                <DocumentConfidenceRow label="Licence number" value={licenseNumber} confidence={licenceFields.licenceNumber?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("licenceNumber"); setLicenseNumber(v) }} />
+                                <DocumentConfidenceRow label="Expires on" value={licenseExpiresOn} confidence={licenceFields.expiryDate?.confidence ?? 0} onChange={(v) => { manuallyEditedRef.current.add("expiryDate"); setLicenseExpiresOn(v) }} />
                               </div>
                             </div>
                           )}

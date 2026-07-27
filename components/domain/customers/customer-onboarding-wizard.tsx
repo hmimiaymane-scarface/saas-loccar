@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, AlertTriangle, Camera } from "lucide-react"
 
@@ -119,6 +119,16 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
   const [licenceScanFile, setLicenceScanFile] = useState<File | null>(null)
   const [licenceScanNotice, setLicenceScanNotice] = useState<string | null>(null)
 
+  // Phase 22 — "never silently overwrite corrected user data": a field
+  // the user has actually typed into is protected from being clobbered
+  // by a later re-scan (e.g. after "Retake"). Only fields with no
+  // shared cross-scan concern need this (fullName is protected the
+  // simpler way below, by never overwriting a value that's already
+  // set, since it's populated by either scan). Each row's onChange
+  // marks its own key inline (rather than a shared factory function)
+  // so a ref is only ever touched inside an actual event handler.
+  const manuallyEditedRef = useRef<Set<string>>(new Set())
+
   // Contact & consent ---------------------------------------------------
   const [phone, setPhone] = useState("")
   const [email, setEmail] = useState("")
@@ -147,10 +157,10 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
     }
     setIdScanNotice(null)
     if (result.fields) {
-      setFullName(textValue(result.fields, "fullName"))
-      setIdDocumentNumber(textValue(result.fields, "idNumber"))
-      setDateOfBirth(textValue(result.fields, "birthDate"))
-      setNationality(textValue(result.fields, "nationality"))
+      if (!fullName) setFullName(textValue(result.fields, "fullName"))
+      if (!manuallyEditedRef.current.has("idNumber")) setIdDocumentNumber(textValue(result.fields, "idNumber"))
+      if (!manuallyEditedRef.current.has("birthDate")) setDateOfBirth(textValue(result.fields, "birthDate"))
+      if (!manuallyEditedRef.current.has("nationality")) setNationality(textValue(result.fields, "nationality"))
       setIdFields(result.fields)
       if (!hasCriticalField(result.fields, ["fullName", "idNumber", "birthDate", "nationality"])) {
         setStep(1)
@@ -173,8 +183,8 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
     setLicenceScanNotice(null)
     if (result.fields) {
       if (!fullName) setFullName(textValue(result.fields, "fullName"))
-      setLicenseNumber(textValue(result.fields, "licenceNumber"))
-      setLicenseExpiresOn(textValue(result.fields, "expiryDate"))
+      if (!manuallyEditedRef.current.has("licenceNumber")) setLicenseNumber(textValue(result.fields, "licenceNumber"))
+      if (!manuallyEditedRef.current.has("expiryDate")) setLicenseExpiresOn(textValue(result.fields, "expiryDate"))
       setLicenceFields(result.fields)
       if (!hasCriticalField(result.fields, ["licenceNumber", "expiryDate"])) {
         setStep(2)
@@ -290,19 +300,19 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
                       label="ID number"
                       value={idDocumentNumber}
                       confidence={idFields.idNumber?.confidence ?? 0}
-                      onChange={setIdDocumentNumber}
+                      onChange={(v) => { manuallyEditedRef.current.add("idNumber"); setIdDocumentNumber(v) }}
                     />
                     <DocumentConfidenceRow
                       label="Date of birth"
                       value={dateOfBirth}
                       confidence={idFields.birthDate?.confidence ?? 0}
-                      onChange={setDateOfBirth}
+                      onChange={(v) => { manuallyEditedRef.current.add("birthDate"); setDateOfBirth(v) }}
                     />
                     <DocumentConfidenceRow
                       label="Nationality"
                       value={nationality}
                       confidence={idFields.nationality?.confidence ?? 0}
-                      onChange={setNationality}
+                      onChange={(v) => { manuallyEditedRef.current.add("nationality"); setNationality(v) }}
                     />
                   </div>
                 </div>
@@ -347,13 +357,13 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
                       label="Licence number"
                       value={licenseNumber}
                       confidence={licenceFields.licenceNumber?.confidence ?? 0}
-                      onChange={setLicenseNumber}
+                      onChange={(v) => { manuallyEditedRef.current.add("licenceNumber"); setLicenseNumber(v) }}
                     />
                     <DocumentConfidenceRow
                       label="Expires on"
                       value={licenseExpiresOn}
                       confidence={licenceFields.expiryDate?.confidence ?? 0}
-                      onChange={setLicenseExpiresOn}
+                      onChange={(v) => { manuallyEditedRef.current.add("expiryDate"); setLicenseExpiresOn(v) }}
                     />
                   </div>
                 </div>
