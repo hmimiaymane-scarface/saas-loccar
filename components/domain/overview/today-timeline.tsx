@@ -3,14 +3,38 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { motion } from "motion/react"
-import { ArrowDownToLine, ArrowUpFromLine, PartyPopper } from "lucide-react"
+import { ArrowDownToLine, ArrowUpFromLine, CalendarClock, Wallet, Wrench, PartyPopper, type LucideIcon } from "lucide-react"
 
-import type { TodayTimelineEntry } from "@/types/rental"
+import type { TodayTimelineEntry, TodayTimelineEntryType } from "@/types/rental"
 import { formatTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
+
+const ENTRY_TYPE_LABEL: Record<TodayTimelineEntryType, string> = {
+  pickup: "Pickup",
+  return: "Return",
+  extension: "Extension",
+  payment_expected: "Payment expected",
+  maintenance_blocking: "Maintenance",
+}
+
+const ENTRY_TYPE_ICON: Record<TodayTimelineEntryType, LucideIcon> = {
+  pickup: ArrowUpFromLine,
+  return: ArrowDownToLine,
+  extension: CalendarClock,
+  payment_expected: Wallet,
+  maintenance_blocking: Wrench,
+}
+
+const ENTRY_TYPE_TONE: Record<TodayTimelineEntryType, string> = {
+  pickup: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
+  return: "bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400",
+  extension: "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400",
+  payment_expected: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  maintenance_blocking: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+}
 
 const DEFAULT_START_HOUR = 7
 const DEFAULT_END_HOUR = 20
@@ -52,12 +76,9 @@ function DayProgressRing({ done, total }: { done: number; total: number }) {
 }
 
 function EntryMarker({ entry, leftPct }: { entry: TodayTimelineEntry; leftPct: number }) {
-  const Icon = entry.type === "pickup" ? ArrowUpFromLine : ArrowDownToLine
-  const tone = entry.done
-    ? "bg-muted text-muted-foreground"
-    : entry.type === "pickup"
-      ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
-      : "bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400"
+  const Icon = ENTRY_TYPE_ICON[entry.type]
+  const typeLabel = ENTRY_TYPE_LABEL[entry.type]
+  const tone = entry.done ? "bg-muted text-muted-foreground" : ENTRY_TYPE_TONE[entry.type]
 
   return (
     <Popover>
@@ -66,7 +87,7 @@ function EntryMarker({ entry, leftPct }: { entry: TodayTimelineEntry; leftPct: n
           type="button"
           style={{ left: `${leftPct}%` }}
           className="absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 focus-visible:outline-none"
-          aria-label={`${entry.type === "pickup" ? "Pickup" : "Return"} for ${entry.customerName} at ${formatTime(entry.atIso)}${entry.done ? ", done" : ""}`}
+          aria-label={`${typeLabel} for ${entry.customerName} at ${formatTime(entry.atIso)}${entry.done ? ", done" : ""}`}
         >
           <div className={cn("flex size-7 items-center justify-center rounded-full ring-4 ring-background", tone)}>
             <Icon className="size-3.5" />
@@ -82,9 +103,9 @@ function EntryMarker({ entry, leftPct }: { entry: TodayTimelineEntry; leftPct: n
             </div>
             <div className="flex flex-col leading-tight">
               <span className="text-sm font-medium text-foreground">
-                {entry.type === "pickup" ? "Pickup" : "Return"} · {formatTime(entry.atIso)}
+                {typeLabel} · {formatTime(entry.atIso)}
               </span>
-              <span className="text-xs text-muted-foreground">{entry.reference}</span>
+              {entry.reference && <span className="text-xs text-muted-foreground">{entry.reference}</span>}
             </div>
           </div>
           <p className="text-sm text-foreground">
@@ -93,7 +114,7 @@ function EntryMarker({ entry, leftPct }: { entry: TodayTimelineEntry; leftPct: n
           </p>
           {entry.done && <p className="text-xs text-emerald-600 dark:text-emerald-400">Already done.</p>}
           <Button asChild size="sm" variant="outline">
-            <Link href={`/reservations?search=${encodeURIComponent(entry.reference)}`}>Open reservation</Link>
+            <Link href={entry.actionHref}>{entry.actionLabel}</Link>
           </Button>
         </div>
       </PopoverContent>
@@ -101,11 +122,19 @@ function EntryMarker({ entry, leftPct }: { entry: TodayTimelineEntry; leftPct: n
   )
 }
 
-/** A visual, at-a-glance replacement for a plain list of today's pickups
- * and returns — a horizontal line of the working day with each event as
- * a marker, plus a live "now" indicator and a small day-progress ring.
- * Every marker is a real focusable button with a full text description,
- * so nothing here depends on being able to see position or color. */
+/**
+ * Productization wave 2 phase 12 — "run the day without opening a
+ * reservations table." A horizontal line of the working day with one
+ * marker per operational event (pickup, return, extension, payment
+ * expected, maintenance blocking availability), plus a live "now"
+ * indicator and a small day-progress ring. Every marker opens to the
+ * exact real next step (`entry.actionHref`) — the pickup/return
+ * workflow, the contract, the payment form, or the maintenance record
+ * — never a generic reservations-table search the way this component
+ * used to. Every marker is a real focusable button with a full text
+ * description, so nothing here depends on being able to see position
+ * or color.
+ */
 function TodayTimeline({ entries }: { entries: TodayTimelineEntry[] }) {
   const [nowHour, setNowHour] = useState<number | null>(null)
 
@@ -144,7 +173,7 @@ function TodayTimeline({ entries }: { entries: TodayTimelineEntry[] }) {
         {total === 0 ? (
           <div className="flex items-center gap-2.5 py-2 text-sm text-muted-foreground">
             <PartyPopper className="size-4 text-muted-foreground" />
-            No pickups or returns scheduled today.
+            Nothing scheduled for today.
           </div>
         ) : (
           <div className="flex flex-col gap-1">
