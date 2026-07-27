@@ -65,8 +65,11 @@ ordinary button):
 - `app/(dashboard)/expenses/actions.ts`
 - `app/(dashboard)/notifications/actions.ts` — mark read/dismiss (see
   also the misleading-success finding below, same file)
-- `app/(dashboard)/search/actions.ts#globalSearchAction` — fires on
-  typing in the header search box
+- ~~`app/(dashboard)/search/actions.ts#globalSearchAction` — fires on
+  typing in the header search box~~ **Fixed directly, productization
+  wave 2 phase 14** (an `isSupabaseConfigured` guard returning `[]`,
+  found while verifying that phase's own changes) — no longer relies on
+  the boundary for this one.
 - `app/(dashboard)/contract-templates/actions.ts` — every export except
   `previewContractAction` (listed above, worse severity)
 - `app/(dashboard)/profile/actions.ts`

@@ -112,6 +112,11 @@ radix-ui's already-installed `Dialog` primitive — deliberately not the
 command groups. Wired to both header search buttons and a global
 Cmd/Ctrl+K listener.
 
+> **Extended by productization wave 2 phase 14.** Documents also match
+> by category and by extracted field value now, and results render as
+> real labeled sections per entity type rather than a flat list with an
+> inline badge. See `docs/quick-actions.md`'s sibling, `docs/search.md`.
+
 ## No widgets (requirement 8)
 
 Every section on this page is fixed — there is no drag-to-rearrange,
