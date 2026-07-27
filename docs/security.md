@@ -370,6 +370,69 @@ renders, trivially bypassed via dev tools. Real masking needs
 server-side image processing — redacting regions before the client ever
 receives bytes — a materially larger lift than this pass's scope.
 
+**Productization wave 1 phase 7** validated the whole pipeline against
+the real Storage bucket and the real linked Postgres project for the
+first time — real uploads of every named document type (CIN/passport
+as `identity_document`, driving licence, vehicle registration, contract
+file) through a real signed-in session, then deliberate attacks:
+oversized files, disallowed types, a simulated broken upload (crash
+between the Storage write and the `documents` row insert), a retry,
+delete/archive behavior, a permission downgrade, and cross-tenant reads
+— both at the table level and directly against Storage
+(`scripts/phase7-document-pipeline.ts`). Three more real gaps found and
+fixed this way:
+
+1. **`grant_permission_override()`/`revoke_permission_override()` (phase
+   17) have been failing outright since phase 5 applied the
+   migration.** Their `activity_log` insert uses two event types
+   (`permission_override_granted`/`_revoked`) that were never added to
+   any version of `activity_log_type_check` — an omission in phase 17's
+   own migration, not something a later one broke. Every Staff
+   access-switch flip (phase 3) has been silently failing against the
+   real database the whole time this table existed with real
+   migrations applied. Fixed in
+   `20260807090200_fix_activity_log_permission_override_types.sql`,
+   plus the matching `types/rental.ts#ACTIVITY_TYPES` and
+   `activity-feed-card.tsx` icon-map additions.
+2. **`storage.objects`' read policy only checked company membership,
+   never `download_documents`** — the same permission the `documents`
+   table's own SELECT policy enforces (see the phase 19 finding above).
+   A Staff member with that switch off correctly lost the ability to
+   see a `documents` row, but could still fetch the exact file directly
+   from Storage by path. Fixed in
+   `20260807090300_fix_storage_document_permission_gate.sql`, scoped
+   narrowly to paths whose second segment is literally `documents` (the
+   convention `new-document-form.tsx`/`document-upload-row.tsx` use) —
+   every other upload path (damage photos, contract PDFs, receipts,
+   customer-onboarding scans) keeps the unchanged membership-only gate,
+   since `download_documents` was never meant to cover those.
+3. **The `company-files` bucket had no `file_size_limit` or
+   `allowed_mime_types` configured** — confirmed live (`null`/`null`).
+   `lib/storage.ts`'s 15MB cap and mime allowlist were only ever
+   enforced in browser JS and in a server action's re-check of
+   client-*reported* metadata — never by Storage itself, so a direct
+   API call bypassing the app's own JS entirely could upload anything.
+   Fixed in `20260807090400_fix_storage_bucket_limits.sql` to match
+   `lib/storage.ts` exactly.
+
+All 20 checks in the script pass after the three fixes; it tears down
+every company, user, document row, and Storage object it creates
+regardless of outcome.
+
+**Known limitations, found but deliberately not fixed this phase** (a
+real architecture change, not proportionate to a verification pass):
+
+- **Upload is two separate steps, not one transaction.** The browser
+  uploads straight to Storage, then a second, independent call
+  (`createDocumentRecord`) records the DB row. A failure between them
+  (confirmed live) leaves a real orphaned Storage object with no DB
+  row — invisible to the UI, never cleaned up.
+- **No retry logic exists in the desktop upload path**
+  (`new-document-form.tsx`) — a failed upload requires re-picking the
+  file from scratch. The mobile offline-sync engine's `idempotencyKey`
+  (`lib/offline/sync.ts`) is a separate mechanism wired only into the
+  pickup/return wizards.
+
 ## Secrets & encryption
 
 **Secrets audit (roadmap phase 19), clean**: `.env.example` holds only

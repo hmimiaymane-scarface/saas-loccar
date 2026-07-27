@@ -124,6 +124,16 @@ configured.
     built `app/(dashboard)/employees/actions.ts` — only surfaced now
     because phase 3's browser pass was the first to actually click a
     mutating control on this page in mock mode.
+13. **Document upload is two separate steps, not one transaction**
+    (productization wave 1 phase 7) — browser uploads straight to
+    Storage, then a second, independent call records the DB row. A
+    failure between them (confirmed against the real project) leaves a
+    real orphaned Storage object with no DB row, invisible to the UI.
+14. **No retry logic in the desktop document-upload form**
+    (`new-document-form.tsx`, found same phase) — a failed upload
+    requires re-picking the file from scratch. The mobile offline-sync
+    engine's `idempotencyKey` (`lib/offline/sync.ts`) is a separate
+    mechanism wired only into the pickup/return wizards.
 
 Full detail on all of the above: `Desktop/RentalOS Project Overview.txt`
 (written the same day as this freeze, for the founder/engineers/board
