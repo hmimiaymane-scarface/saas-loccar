@@ -73,6 +73,12 @@ function SheetContent({
         )}
         {...props}
       >
+        {/* Productization wave 1 phase 9 — the bottom-sheet pattern's
+         * missing visual affordance: a drag handle, so a bottom sheet
+         * reads as "swipe down to dismiss," not an accidental modal.
+         * Decorative only (Radix's own Escape/overlay-click/swipe
+         * handling already does the actual dismissal). */}
+        {side === "bottom" && <div aria-hidden="true" className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-muted" />}
         {children}
         {showClose && (
           <SheetPrimitive.Close className="absolute top-4 right-4 flex size-8 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/30">

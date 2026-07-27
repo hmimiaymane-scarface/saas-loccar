@@ -46,6 +46,16 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Productization wave 1 phase 9 — the mobile design system's named
+   * motion-duration tiers. Values match what's already in use, not new
+   * numbers: --duration-base/slow mirror SheetContent's own existing
+   * open/close transition (components/ui/sheet.tsx); --duration-fast is
+   * this app's already-common hover/active-state feel (Tailwind's
+   * `transition-colors` default is 150ms). Reference these instead of a
+   * raw arbitrary duration in new mobile-facing code. */
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
 }
 
 :root {

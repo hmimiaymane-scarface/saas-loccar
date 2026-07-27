@@ -30,6 +30,13 @@ const buttonVariants = cva(
         "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
+        // Productization wave 1 phase 9 — the mobile design system's
+        // 44px touch-target minimum (Apple HIG) for icon-only buttons.
+        // None of the sizes above reach it (icon-lg is 40px) — they're
+        // correct as-is for shared desktop-density contexts (mouse
+        // precision). Use this one specifically for an icon-only button
+        // that appears inside the mobile shell tree.
+        "icon-touch": "size-11",
       },
     },
     defaultVariants: {
