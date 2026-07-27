@@ -1678,6 +1678,12 @@ export async function getOverviewMetrics(companyId: string): Promise<OverviewMet
  * are date-only) because a timeline needs the time-of-day. `done`
  * reflects whether the reservation has actually moved past this step
  * (status), not just whether it's scheduled for today. */
+/** Reused by every maintenance-blocking query (this function and
+ * `getFleetOverview`) — a vehicle is unavailable right now if its
+ * maintenance is actively underway, regardless of when it was
+ * scheduled. */
+const MAINTENANCE_BLOCKING_STATUSES = ["in_progress", "waiting_for_parts"]
+
 export async function getTodayTimeline(companyId: string): Promise<TodayTimelineEntry[]> {
   if (isMockMode()) {
     const TODAY = "2026-07-18"
@@ -1685,6 +1691,7 @@ export async function getTodayTimeline(companyId: string): Promise<TodayTimeline
     mockBookings
       .filter((b) => b.startDate === TODAY && b.status !== "cancelled")
       .forEach((b, i) => {
+        const done = ["active", "completed"].includes(b.status)
         entries.push({
           id: `${b.id}-pickup`,
           type: "pickup",
@@ -1692,7 +1699,9 @@ export async function getTodayTimeline(companyId: string): Promise<TodayTimeline
           customerName: b.customer.fullName,
           vehicleLabel: b.vehicle ? `${b.vehicle.make} ${b.vehicle.model}` : null,
           atIso: `${TODAY}T${String(9 + i).padStart(2, "0")}:00:00+01:00`,
-          done: ["active", "completed"].includes(b.status),
+          done,
+          actionLabel: done ? "View pickup" : "Start pickup",
+          actionHref: `/reservations/${b.id}/pickup`,
         })
       })
     mockBookings
@@ -1706,15 +1715,56 @@ export async function getTodayTimeline(companyId: string): Promise<TodayTimeline
           vehicleLabel: b.vehicle ? `${b.vehicle.make} ${b.vehicle.model}` : null,
           atIso: `${TODAY}T${String(11 + i).padStart(2, "0")}:30:00+01:00`,
           done: false,
+          actionLabel: "Start return",
+          actionHref: `/reservations/${b.id}/return`,
         })
       })
+    mockBookings
+      .filter((b) => (b.startDate === TODAY || b.endDate === TODAY) && b.status !== "cancelled" && b.payment.remainingMad > 0)
+      .forEach((b) => {
+        entries.push({
+          id: `${b.id}-payment`,
+          type: "payment_expected",
+          reference: b.reference,
+          customerName: b.customer.fullName,
+          vehicleLabel: b.vehicle ? `${b.vehicle.make} ${b.vehicle.model}` : null,
+          atIso: `${TODAY}T${b.startDate === TODAY ? "09" : "11"}:30:00+01:00`,
+          done: false,
+          actionLabel: "Record payment",
+          actionHref: `/payments?reservationId=${b.id}`,
+        })
+      })
+    mockMaintenanceRecords
+      .filter(
+        (m) =>
+          MAINTENANCE_BLOCKING_STATUSES.includes(m.status) ||
+          (["planned", "scheduled"].includes(m.status) && m.scheduledOn === TODAY)
+      )
+      .forEach((m) => {
+        entries.push({
+          id: `${m.id}-maintenance`,
+          type: "maintenance_blocking",
+          reference: m.vehiclePlate,
+          customerName: m.description ?? "Maintenance",
+          vehicleLabel: m.vehicleLabel,
+          atIso: `${m.startedOn ?? m.scheduledOn ?? TODAY}T08:00:00+01:00`,
+          done: false,
+          actionLabel: "Open maintenance record",
+          actionHref: `/maintenance/${m.id}`,
+        })
+      })
+    // No mock contract data exists anywhere in this codebase (contracts
+    // are a live-Supabase-only feature, same as every other AI/database-
+    // only feature since phase 06) — extension entries are always empty
+    // here, not a gap specific to this function.
     return entries.sort((a, b) => a.atIso.localeCompare(b.atIso))
   }
 
   const supabase = await createClient()
   const { startIso, endIso } = todayRange()
+  const todayDate = startIso.slice(0, 10)
 
-  const [pickupRows, returnRows] = await Promise.all([
+  const [pickupRows, returnRows, paymentRows, maintenanceRows, extensionRows] = await Promise.all([
     supabase
       .from("reservations")
       .select("id, reference, pickup_at, status, customer:customers(full_name), vehicle:vehicles(make, model)")
@@ -1729,24 +1779,71 @@ export async function getTodayTimeline(companyId: string): Promise<TodayTimeline
       .gte("return_at", startIso)
       .lt("return_at", endIso)
       .in("status", ["active", "completed"]),
+    supabase
+      .from("reservations")
+      .select("id, reference, pickup_at, return_at, remaining_balance, customer:customers(full_name), vehicle:vehicles(make, model)")
+      .eq("company_id", companyId)
+      .neq("status", "cancelled")
+      .gt("remaining_balance", 0)
+      .or(`and(pickup_at.gte.${startIso},pickup_at.lt.${endIso}),and(return_at.gte.${startIso},return_at.lt.${endIso})`),
+    supabase
+      .from("maintenance_records")
+      .select("id, description, status, scheduled_on, started_on, vehicle:vehicles(make, model, registration_number)")
+      .eq("company_id", companyId)
+      .or(`status.in.(${MAINTENANCE_BLOCKING_STATUSES.join(",")}),and(status.in.(planned,scheduled),scheduled_on.eq.${todayDate})`),
+    supabase
+      .from("contract_amendments")
+      .select("id, created_at, contract:contracts(id, contract_number, customer:customers(full_name), vehicle:vehicles(make, model))")
+      .eq("company_id", companyId)
+      .eq("type", "rental_extension")
+      .gte("created_at", startIso)
+      .lt("created_at", endIso),
   ])
 
   if (pickupRows.error) throw pickupRows.error
   if (returnRows.error) throw returnRows.error
+  if (paymentRows.error) throw paymentRows.error
+  if (maintenanceRows.error) throw maintenanceRows.error
+  if (extensionRows.error) throw extensionRows.error
 
   type PickupRow = { id: string; reference: string; pickup_at: string; status: string; customer: { full_name: string } | null; vehicle: { make: string; model: string } | null }
   type ReturnRow = { id: string; reference: string; return_at: string; status: string; customer: { full_name: string } | null; vehicle: { make: string; model: string } | null }
+  type PaymentRow = {
+    id: string
+    reference: string
+    pickup_at: string
+    return_at: string
+    customer: { full_name: string } | null
+    vehicle: { make: string; model: string } | null
+  }
+  type MaintenanceRow = {
+    id: string
+    description: string
+    scheduled_on: string | null
+    started_on: string | null
+    vehicle: { make: string; model: string; registration_number: string } | null
+  }
+  type ExtensionRow = {
+    id: string
+    created_at: string
+    contract: { id: string; contract_number: string | null; customer: { full_name: string } | null; vehicle: { make: string; model: string } | null } | null
+  }
 
   const entries: TodayTimelineEntry[] = [
-    ...((pickupRows.data ?? []) as unknown as PickupRow[]).map((r) => ({
-      id: `${r.id}-pickup`,
-      type: "pickup" as const,
-      reference: r.reference,
-      customerName: r.customer?.full_name ?? "Unknown customer",
-      vehicleLabel: r.vehicle ? `${r.vehicle.make} ${r.vehicle.model}` : null,
-      atIso: r.pickup_at,
-      done: ["active", "completed"].includes(r.status),
-    })),
+    ...((pickupRows.data ?? []) as unknown as PickupRow[]).map((r) => {
+      const done = ["active", "completed"].includes(r.status)
+      return {
+        id: `${r.id}-pickup`,
+        type: "pickup" as const,
+        reference: r.reference,
+        customerName: r.customer?.full_name ?? "Unknown customer",
+        vehicleLabel: r.vehicle ? `${r.vehicle.make} ${r.vehicle.model}` : null,
+        atIso: r.pickup_at,
+        done,
+        actionLabel: done ? "View pickup" : "Start pickup",
+        actionHref: `/reservations/${r.id}/pickup`,
+      }
+    }),
     ...((returnRows.data ?? []) as unknown as ReturnRow[]).map((r) => ({
       id: `${r.id}-return`,
       type: "return" as const,
@@ -1755,7 +1852,44 @@ export async function getTodayTimeline(companyId: string): Promise<TodayTimeline
       vehicleLabel: r.vehicle ? `${r.vehicle.make} ${r.vehicle.model}` : null,
       atIso: r.return_at,
       done: r.status === "completed",
+      actionLabel: r.status === "completed" ? "View return" : "Start return",
+      actionHref: `/reservations/${r.id}/return`,
     })),
+    ...((paymentRows.data ?? []) as unknown as PaymentRow[]).map((r) => ({
+      id: `${r.id}-payment`,
+      type: "payment_expected" as const,
+      reference: r.reference,
+      customerName: r.customer?.full_name ?? "Unknown customer",
+      vehicleLabel: r.vehicle ? `${r.vehicle.make} ${r.vehicle.model}` : null,
+      atIso: r.pickup_at >= startIso && r.pickup_at < endIso ? r.pickup_at : r.return_at,
+      done: false,
+      actionLabel: "Record payment",
+      actionHref: `/payments?reservationId=${r.id}`,
+    })),
+    ...((maintenanceRows.data ?? []) as unknown as MaintenanceRow[]).map((m) => ({
+      id: `${m.id}-maintenance`,
+      type: "maintenance_blocking" as const,
+      reference: m.vehicle?.registration_number ?? "",
+      customerName: m.description,
+      vehicleLabel: m.vehicle ? `${m.vehicle.make} ${m.vehicle.model}` : null,
+      atIso: `${m.started_on ?? m.scheduled_on ?? todayDate}T08:00:00Z`,
+      done: false,
+      actionLabel: "Open maintenance record",
+      actionHref: `/maintenance/${m.id}`,
+    })),
+    ...((extensionRows.data ?? []) as unknown as ExtensionRow[])
+      .filter((r) => r.contract)
+      .map((r) => ({
+        id: `${r.id}-extension`,
+        type: "extension" as const,
+        reference: r.contract?.contract_number ?? "",
+        customerName: r.contract?.customer?.full_name ?? "Unknown customer",
+        vehicleLabel: r.contract?.vehicle ? `${r.contract.vehicle.make} ${r.contract.vehicle.model}` : null,
+        atIso: r.created_at,
+        done: true,
+        actionLabel: "View contract",
+        actionHref: `/contracts/${r.contract?.id}`,
+      })),
   ]
 
   return entries.sort((a, b) => a.atIso.localeCompare(b.atIso))

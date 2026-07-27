@@ -364,17 +364,42 @@ export interface OverviewMetrics {
   todayReturnsCount: number
 }
 
+/**
+ * Productization wave 1 phase 12 widened this from pickup/return-only to
+ * 5 kinds of operational events happening today:
+ * - `extension`: a rental-extension amendment was recorded today (see
+ *   `lib/contracts/template-store.ts#createContractAmendment`) — a
+ *   contract-document fact, not a change to this reservation's own
+ *   `pickup_at`/`return_at` (that's a deliberate, pre-existing scope
+ *   limit from the amendments feature itself, not new here).
+ * - `payment_expected`: a reservation with a remaining balance whose
+ *   pickup or return falls today — money that should change hands at
+ *   today's touchpoint, derived from existing fields, no due-date
+ *   concept exists in this schema.
+ * - `maintenance_blocking`: a maintenance record currently keeping a
+ *   vehicle unavailable (in progress / waiting for parts) or scheduled
+ *   to start today.
+ */
+export type TodayTimelineEntryType = "pickup" | "return" | "extension" | "payment_expected" | "maintenance_blocking"
+
 export interface TodayTimelineEntry {
   id: string
-  type: "pickup" | "return"
+  type: TodayTimelineEntryType
   reference: string
+  /** For `maintenance_blocking` (no customer involved) this holds the
+   * maintenance's own short description instead — same "primary label"
+   * role, not a lie about who the customer is (the `type` field always
+   * disambiguates). */
   customerName: string
   vehicleLabel: string | null
   atIso: string
-  /** Whether this pickup/return has actually happened yet (reservation
-   * status has moved past it), not just whether it's scheduled for today —
-   * drives both the timeline marker style and the day-progress ring. */
+  /** Whether this event is already resolved/complete, not just scheduled
+   * for today — drives both the timeline marker style and the
+   * day-progress ring. `extension` entries are always `done` (an
+   * amendment, once recorded, is a completed fact, not a pending task). */
   done: boolean
+  actionLabel: string
+  actionHref: string
 }
 
 export type FleetOverviewContext =
