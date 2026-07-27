@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { CarFront, ScanLine, ClipboardCheck, Undo2, Camera, UserSearch, type LucideIcon } from "lucide-react"
+import { CarFront, Undo2, Wallet, Receipt, UserPlus, Car, type LucideIcon } from "lucide-react"
 
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { vibrate } from "@/lib/haptics"
+import { loadRecentActionOrder, recordQuickActionUsage, orderByRecency } from "@/lib/quick-actions-recency"
 
 interface QuickAction {
   label: string
@@ -13,30 +14,47 @@ interface QuickAction {
   icon: LucideIcon
 }
 
-/** Roadmap phase 16 requirement 5 — the 6 named quick actions, each
- * routed to an existing flow (no new destination pages). "Start
- * Inspection"/"Return Vehicle" go to the reservations list rather than
- * a specific reservation, since which one to inspect has to be chosen
- * first — there's no standalone "start any inspection" entry point in
- * this app and inventing one is out of this checkpoint's scope.
- *
- * Productization wave 1 phase 10 — no longer role-filtered. Every
- * quick action used to carry a `roles` field (only owner/manager ever
- * passed it, since productization wave 1 phase 2 already collapsed the
- * visible product to those two), which is exactly the "role-driven
- * mobile shell" this phase's brief says to remove: the "+" is now the
- * same 6 actions for every signed-in employee. */
-const QUICK_ACTIONS: QuickAction[] = [
-  { label: "New Rental", href: "/reservations/new", icon: CarFront },
-  { label: "Scan Document", href: "/documents", icon: ScanLine },
-  { label: "Start Inspection", href: "/reservations?status=confirmed", icon: ClipboardCheck },
+/**
+ * Productization wave 2 phase 13 — replaces the field-workflow-flavored
+ * 6 (Scan Document/Start Inspection/Capture Damage/Search Customer)
+ * with the brief's own daily-operations 6. Each already routes to a
+ * real, standalone destination — no new pages. "Return Vehicle" still
+ * can't avoid landing on the filtered reservations list rather than a
+ * specific reservation's return flow: there's no ambient "which
+ * vehicle" context at the moment the FAB is tapped, and inventing a
+ * vehicle-picker step here would be a new, separate feature, not a
+ * fix to this one — documented, not silently worked around.
+ */
+const PRIMARY_ACTION: QuickAction = { label: "New Rental", href: "/reservations/new", icon: CarFront }
+
+const SECONDARY_ACTIONS: QuickAction[] = [
   { label: "Return Vehicle", href: "/reservations?status=active", icon: Undo2 },
-  { label: "Capture Damage", href: "/damages/new", icon: Camera },
-  { label: "Search Customer", href: "/customers", icon: UserSearch },
+  { label: "Record Payment", href: "/payments", icon: Wallet },
+  { label: "Add Expense", href: "/expenses/new", icon: Receipt },
+  { label: "Add Customer", href: "/customers/new", icon: UserPlus },
+  { label: "Add Vehicle", href: "/fleet/new", icon: Car },
 ]
 
 function QuickActionsSheet({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
+  const [recentOrder, setRecentOrder] = useState<string[]>([])
+
+  useEffect(() => {
+    // Reading localStorage here (rather than a lazy useState initializer)
+    // is deliberate — it's a browser-only API unavailable during SSR, so
+    // it must be read after mount to avoid a hydration mismatch. An empty
+    // array here renders identically to the server's own render, so
+    // there's nothing to reconcile.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRecentOrder(loadRecentActionOrder())
+  }, [])
+
+  const orderedSecondary = orderByRecency(SECONDARY_ACTIONS, recentOrder)
+
+  function handleActionClick(label: string) {
+    recordQuickActionUsage(label)
+    setOpen(false)
+  }
 
   return (
     <Sheet
@@ -50,22 +68,38 @@ function QuickActionsSheet({ children }: { children: React.ReactNode }) {
       <SheetContent side="bottom" className="max-h-[80vh]">
         <SheetHeader>
           <SheetTitle>Quick actions</SheetTitle>
-          <SheetDescription>Jump straight into the field workflows you use most.</SheetDescription>
+          <SheetDescription>Jump straight into the workflows you use most.</SheetDescription>
         </SheetHeader>
-        <div className="grid grid-cols-3 gap-3 px-6 pb-8">
-          {QUICK_ACTIONS.map((action) => (
-            <Link
-              key={action.label}
-              href={action.href}
-              onClick={() => setOpen(false)}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-border p-4 text-center text-xs font-medium text-foreground transition-colors hover:bg-muted"
-            >
-              <span className="flex size-11 items-center justify-center rounded-full bg-muted text-foreground">
-                <action.icon className="size-5" />
-              </span>
-              {action.label}
-            </Link>
-          ))}
+        <div className="flex flex-col gap-3 px-6 pb-8">
+          <Link
+            href={PRIMARY_ACTION.href}
+            onClick={() => handleActionClick(PRIMARY_ACTION.label)}
+            className="flex items-center gap-3 rounded-2xl bg-primary p-4 text-primary-foreground transition-opacity active:opacity-90"
+          >
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
+              <PRIMARY_ACTION.icon className="size-5" />
+            </span>
+            <span className="flex flex-col">
+              <span className="text-base font-semibold">{PRIMARY_ACTION.label}</span>
+              <span className="text-xs text-primary-foreground/80">Start a new booking</span>
+            </span>
+          </Link>
+
+          <div className="grid grid-cols-3 gap-3">
+            {orderedSecondary.map((action) => (
+              <Link
+                key={action.label}
+                href={action.href}
+                onClick={() => handleActionClick(action.label)}
+                className="flex flex-col items-center gap-2 rounded-2xl border border-border p-4 text-center text-xs font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                <span className="flex size-11 items-center justify-center rounded-full bg-muted text-foreground">
+                  <action.icon className="size-5" />
+                </span>
+                {action.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </SheetContent>
     </Sheet>
