@@ -91,9 +91,10 @@ configured.
    storage buckets/policies were all cross-checked against the live
    catalogs and matched. Left as originally written below for the
    historical record of what this freeze actually covered.
-2. `/reservations/[id]/contract-preview` crashes with an unhandled
-   error in mock mode (found in phase 20's own final walkthrough, not
-   yet fixed).
+2. ~~`/reservations/[id]/contract-preview` crashes with an unhandled
+   error in mock mode~~ **Fixed by productization wave 1 phase 8**,
+   along with a systematic audit and fix for the whole class of
+   mock-mode crashes app-wide — see `docs/failure-registry.md`.
 3. Email/WhatsApp/SMS/push notification delivery: architected, not
    configured (no provider credentials exist anywhere).
 4. No per-branch access scoping (schema supports it, RLS doesn't
@@ -123,7 +124,11 @@ configured.
     write actions are affected. Pre-existing since whichever phase
     built `app/(dashboard)/employees/actions.ts` — only surfaced now
     because phase 3's browser pass was the first to actually click a
-    mutating control on this page in mock mode.
+    mutating control on this page in mock mode. **The crash itself is
+    now blocked with graceful recovery by productization wave 1 phase
+    8's `app/(dashboard)/error.tsx`** (verified directly on this exact
+    button) — the underlying files were never individually patched,
+    only caught one layer up; see `docs/failure-registry.md`.
 13. **Document upload is two separate steps, not one transaction**
     (productization wave 1 phase 7) — browser uploads straight to
     Storage, then a second, independent call records the DB row. A
