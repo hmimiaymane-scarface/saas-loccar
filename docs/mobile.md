@@ -1,5 +1,10 @@
 # Mobile Field Experience Foundation
 
+**See `docs/mobile-design-system.md` (productization wave 1 phase 9)
+for the spacing/type/touch-target/motion/haptics rules new mobile work
+should follow** — this doc covers the phase-16 shell/offline/PWA
+foundation those rules now sit on top of.
+
 Roadmap phase 16 — bible Chapter 4 in full ("The mobile application is
 not a smaller desktop... an entirely different product with the same
 data"), Chapter 1 §6 ("Mobile First. Desktop Deep."), Chapter 2 §18

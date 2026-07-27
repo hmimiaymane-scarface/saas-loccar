@@ -6,6 +6,11 @@ organically emerged across phases 02, 06-13, and 16-18, written down now that
 they've proven themselves across real features (the bible's own argument for
 why this phase comes last, not first).
 
+**See `docs/mobile-design-system.md` (productization wave 1 phase 9)**
+for the mobile-specific rules (spacing, type hierarchy, touch targets,
+bottom sheets, motion, haptics) built on top of `lib/tone.ts`/`lib/status.ts`
+below.
+
 **No Storybook or MDX docs tool exists in this repo, and this phase doesn't
 introduce one** — `package.json` has zero such dependencies. The existing,
 matched convention is: inline JSDoc-style comments directly above each
