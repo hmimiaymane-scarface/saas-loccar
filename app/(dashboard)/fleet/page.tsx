@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { Plus, Car as CarIcon } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
-import { getVehiclesList, getBranches } from "@/lib/data"
+import { getVehiclesList, getBranches, getFleetCardContext } from "@/lib/data"
 import { SectionHeader } from "@/components/domain/section-header"
 import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
 import { Button } from "@/components/ui/button"
@@ -47,6 +47,9 @@ export default async function FleetPage({
   ])
 
   const canAddVehicle = session.role === "owner" || session.role === "manager"
+  // Productization wave 2 phase 15 — scoped to just this page's
+  // vehicles, not the whole fleet, so pagination stays cheap.
+  const cardContext = await getFleetCardContext(companyId, result.items.map((v) => v.id))
 
   return (
     <>
@@ -79,7 +82,7 @@ export default async function FleetPage({
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {result.items.map((vehicle) => (
-            <VehicleCard key={vehicle.id} vehicle={vehicle} />
+            <VehicleCard key={vehicle.id} vehicle={vehicle} context={cardContext[vehicle.id]} />
           ))}
         </div>
       )}
