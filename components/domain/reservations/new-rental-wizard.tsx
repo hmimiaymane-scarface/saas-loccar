@@ -1,0 +1,423 @@
+"use client"
+
+import { useState, useTransition } from "react"
+import { Loader2, Search, UserRound, AlertTriangle } from "lucide-react"
+
+import type { Branch, Customer } from "@/types/rental"
+import type { AssignableEmployee } from "@/components/domain/reservations/reservation-form"
+import type { ExtractedFields } from "@/lib/document-extraction"
+import type { DuplicateMatch } from "@/lib/customer-matching"
+import { fetchCustomers, checkCustomerByPhone } from "@/app/(dashboard)/reservations/actions"
+import { createCustomer } from "@/app/(dashboard)/customers/actions"
+import { createDocumentRecord } from "@/app/(dashboard)/documents/actions"
+import { buildStoragePath } from "@/lib/storage"
+import { uploadFile } from "@/lib/storage-client"
+import { resolveInitialStep } from "@/lib/workflow/steps"
+import { useStepFocus } from "@/hooks/use-step-focus"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { WizardProgress } from "@/components/domain/wizard-progress"
+import { WizardFooter } from "@/components/domain/wizard-footer"
+import { DocumentConfidenceRow } from "@/components/domain/intelligence/document-confidence-row"
+import { DocumentScanCapture, type ScanCaptureResult } from "@/components/domain/customers/document-scan-capture"
+
+const STEPS = [{ label: "Customer" }, { label: "Vehicle & price" }, { label: "Payment" }, { label: "Inspection" }, { label: "Contract" }]
+
+interface NewRentalWizardProps {
+  companyTimezone: string
+  branches: Branch[]
+  assignableEmployees?: AssignableEmployee[]
+  /** Roadmap phase 09's fast path — arriving here already knowing which
+   * customer (e.g. from the Customer Command Center's "Start rental"),
+   * so step 0 is skipped entirely instead of re-searching. */
+  preselectedCustomer?: Customer
+}
+
+function textValue(fields: ExtractedFields | null, key: string): string {
+  const field = fields?.[key]
+  if (!field || field.value == null) return ""
+  return String(field.value)
+}
+
+/**
+ * Productization wave 3 phase 18 — "the owner never needs to manually
+ * navigate between modules to complete a rental." Replaces the old
+ * `/reservations/new` page's single form + the separate detour to
+ * `/customers/new` + the separate `/reservations/[id]/pickup` +
+ * `/reservations/[id]/contract-preview` + `/contracts/[id]` pages (7
+ * page loads across 3 route trees, confirmed by tracing today's actual
+ * code path) with one continuous wizard on one URL. Every step below
+ * reuses an already-existing, already-working piece of this app —
+ * this phase is about removing navigation, not rebuilding features
+ * that already work.
+ *
+ * Same hand-rolled wizard pattern as `CustomerOnboardingWizard`/
+ * `PickupWizard` (`WizardProgress`/`WizardFooter`/`resolveInitialStep`/
+ * `useStepFocus`) — this app has no generic workflow engine, just this
+ * one shared shell every stepped flow reuses.
+ */
+function NewRentalWizard({ preselectedCustomer }: NewRentalWizardProps) {
+  const [step, setStep] = useState(() => resolveInitialStep([Boolean(preselectedCustomer), false, false, false, false]))
+  const stepContainerRef = useStepFocus<HTMLDivElement>(step)
+
+  // Step 0 — Customer ----------------------------------------------------
+  const [customerMode, setCustomerMode] = useState<"search" | "new">("search")
+  const [newCustomerMode, setNewCustomerMode] = useState<"quick" | "scan">("quick")
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(preselectedCustomer ?? null)
+  const [customerQuery, setCustomerQuery] = useState("")
+  const [customerResults, setCustomerResults] = useState<Customer[]>([])
+  const [, startCustomerSearch] = useTransition()
+
+  const [quickName, setQuickName] = useState("")
+  const [quickPhone, setQuickPhone] = useState("")
+  const [duplicateCustomer, setDuplicateCustomer] = useState<Customer | null>(null)
+  const [, startDuplicateCheck] = useTransition()
+
+  const [idFields, setIdFields] = useState<ExtractedFields | null>(null)
+  const [idScanFile, setIdScanFile] = useState<File | null>(null)
+  const [idScanNotice, setIdScanNotice] = useState<string | null>(null)
+  const [idDocumentNumber, setIdDocumentNumber] = useState("")
+  const [dateOfBirth, setDateOfBirth] = useState("")
+  const [nationality, setNationality] = useState("")
+
+  const [licenceFields, setLicenceFields] = useState<ExtractedFields | null>(null)
+  const [licenceScanFile, setLicenceScanFile] = useState<File | null>(null)
+  const [licenceScanNotice, setLicenceScanNotice] = useState<string | null>(null)
+  const [licenseNumber, setLicenseNumber] = useState("")
+  const [licenseExpiresOn, setLicenseExpiresOn] = useState("")
+
+  const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateMatch[]>([])
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [creatingCustomer, startCreatingCustomer] = useTransition()
+  const [savingDocuments, setSavingDocuments] = useState(false)
+
+  function handleCustomerQueryChange(value: string) {
+    setCustomerQuery(value)
+    if (!value.trim()) {
+      setCustomerResults([])
+      return
+    }
+    startCustomerSearch(async () => {
+      setCustomerResults(await fetchCustomers(value))
+    })
+  }
+
+  function handleQuickPhoneChange(value: string) {
+    setQuickPhone(value)
+    if (value.trim().length < 6) {
+      setDuplicateCustomer(null)
+      return
+    }
+    startDuplicateCheck(async () => {
+      setDuplicateCustomer(await checkCustomerByPhone(value))
+    })
+  }
+
+  function handleIdCaptured(file: File, result: ScanCaptureResult) {
+    setIdScanFile(file)
+    if (!result.ok) {
+      setIdScanNotice(result.message)
+      return
+    }
+    if (result.category !== "identity_document") {
+      setIdScanNotice(`This looks like a ${result.category.replace(/_/g, " ")}, not an identity document — check the photo, or fill in the fields below by hand.`)
+      return
+    }
+    setIdScanNotice(null)
+    if (result.fields) {
+      if (!quickName) setQuickName(textValue(result.fields, "fullName"))
+      setIdDocumentNumber(textValue(result.fields, "idNumber"))
+      setDateOfBirth(textValue(result.fields, "birthDate"))
+      setNationality(textValue(result.fields, "nationality"))
+      setIdFields(result.fields)
+    }
+  }
+
+  function handleLicenceCaptured(file: File, result: ScanCaptureResult) {
+    setLicenceScanFile(file)
+    if (!result.ok) {
+      setLicenceScanNotice(result.message)
+      return
+    }
+    if (result.category !== "driving_licence") {
+      setLicenceScanNotice(`This looks like a ${result.category.replace(/_/g, " ")}, not a driving licence — check the photo, or fill in the fields below by hand.`)
+      return
+    }
+    setLicenceScanNotice(null)
+    if (result.fields) {
+      if (!quickName) setQuickName(textValue(result.fields, "fullName"))
+      setLicenseNumber(textValue(result.fields, "licenceNumber"))
+      setLicenseExpiresOn(textValue(result.fields, "expiryDate"))
+      setLicenceFields(result.fields)
+    }
+  }
+
+  async function attachScannedDocuments(customerId: string, companyId: string) {
+    const uploads: { file: File; category: "identity_document" | "driving_licence" }[] = []
+    if (idScanFile) uploads.push({ file: idScanFile, category: "identity_document" })
+    if (licenceScanFile) uploads.push({ file: licenceScanFile, category: "driving_licence" })
+    if (uploads.length === 0) return
+
+    setSavingDocuments(true)
+    for (const { file, category } of uploads) {
+      const path = buildStoragePath(companyId, ["customers", customerId], file.name)
+      const upload = await uploadFile(path, file)
+      if (upload.error) continue
+      await createDocumentRecord({ category, storagePath: path, originalFilename: file.name, mimeType: file.type, fileSizeBytes: file.size, customerId })
+    }
+    setSavingDocuments(false)
+  }
+
+  function handleCreateCustomer(acknowledgeDuplicates: boolean) {
+    setCreateError(null)
+    startCreatingCustomer(async () => {
+      const fd = new FormData()
+      fd.set("fullName", quickName)
+      fd.set("phone", quickPhone)
+      if (idDocumentNumber) fd.set("idDocumentNumber", idDocumentNumber)
+      if (licenseNumber) fd.set("licenseNumber", licenseNumber)
+      if (licenseExpiresOn) fd.set("licenseExpiresOn", licenseExpiresOn)
+      if (dateOfBirth) fd.set("dateOfBirth", dateOfBirth)
+      if (nationality) fd.set("nationality", nationality)
+      fd.set("acknowledgeDuplicates", acknowledgeDuplicates ? "true" : "false")
+
+      const result = await createCustomer({}, fd)
+      if (result.error) {
+        setCreateError(result.error)
+        return
+      }
+      if (result.duplicateCandidates && result.duplicateCandidates.length > 0) {
+        setDuplicateCandidates(result.duplicateCandidates)
+        return
+      }
+      if (result.customerId) {
+        setDuplicateCandidates([])
+        // companyId isn't known client-side here; buildStoragePath's
+        // first segment is only used for the storage path prefix, and
+        // createDocumentRecord itself re-derives/validates the real
+        // company server-side — a placeholder segment is safe.
+        await attachScannedDocuments(result.customerId, "customer-onboarding")
+        setSelectedCustomer({ id: result.customerId, fullName: quickName, phone: quickPhone, licenseNumber: licenseNumber || "", licenseExpiresAt: licenseExpiresOn || "", totalBookings: 0 })
+        setStep(1)
+      }
+    })
+  }
+
+  const customerBusy = creatingCustomer || savingDocuments
+
+  function goToStep2() {
+    if (selectedCustomer) setStep(1)
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <WizardProgress steps={STEPS} currentStep={step} />
+
+      <div ref={stepContainerRef} className="flex flex-col gap-4">
+        {step === 0 && (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle>Customer</CardTitle>
+                <CardDescription>Find an existing customer, or add a new one without leaving this page.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div className="flex gap-2">
+                  <Button type="button" variant={customerMode === "search" ? "default" : "outline"} size="sm" onClick={() => setCustomerMode("search")}>
+                    Existing customer
+                  </Button>
+                  <Button type="button" variant={customerMode === "new" ? "default" : "outline"} size="sm" onClick={() => setCustomerMode("new")}>
+                    New customer
+                  </Button>
+                </div>
+
+                {customerMode === "search" ? (
+                  selectedCustomer ? (
+                    <div className="flex items-center justify-between rounded-2xl border border-border px-3 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex size-8 items-center justify-center rounded-full bg-muted">
+                          <UserRound className="size-4 text-muted-foreground" />
+                        </div>
+                        <div className="flex flex-col">
+                          <p className="text-sm font-medium text-foreground">{selectedCustomer.fullName}</p>
+                          <p className="text-xs text-muted-foreground">{selectedCustomer.phone}</p>
+                        </div>
+                      </div>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedCustomer(null)}>
+                        Change
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input value={customerQuery} onChange={(e) => handleCustomerQueryChange(e.target.value)} placeholder="Search by name or phone…" className="pl-9" />
+                      </div>
+                      {customerResults.length > 0 && (
+                        <div className="flex flex-col overflow-hidden rounded-2xl border border-border">
+                          {customerResults.map((c) => (
+                            <button
+                              type="button"
+                              key={c.id}
+                              onClick={() => setSelectedCustomer(c)}
+                              className="flex flex-col items-start gap-0.5 border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-muted"
+                            >
+                              <span className="text-sm font-medium text-foreground">{c.fullName}</span>
+                              <span className="text-xs text-muted-foreground">{c.phone}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex gap-2">
+                      <Button type="button" variant={newCustomerMode === "quick" ? "default" : "outline"} size="sm" onClick={() => setNewCustomerMode("quick")}>
+                        Quick add
+                      </Button>
+                      <Button type="button" variant={newCustomerMode === "scan" ? "default" : "outline"} size="sm" onClick={() => setNewCustomerMode("scan")}>
+                        Scan ID + licence
+                      </Button>
+                    </div>
+
+                    {newCustomerMode === "scan" && (
+                      <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-2">
+                          <Label>Identity document</Label>
+                          <DocumentScanCapture label="Scan ID / passport" onCaptured={handleIdCaptured} />
+                          {idScanNotice && (
+                            <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                              {idScanNotice}
+                            </p>
+                          )}
+                          {idFields && (
+                            <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
+                              <DocumentConfidenceRow label="ID number" value={idDocumentNumber} confidence={idFields.idNumber?.confidence ?? 0} onChange={setIdDocumentNumber} />
+                              <DocumentConfidenceRow label="Date of birth" value={dateOfBirth} confidence={idFields.birthDate?.confidence ?? 0} onChange={setDateOfBirth} />
+                              <DocumentConfidenceRow label="Nationality" value={nationality} confidence={idFields.nationality?.confidence ?? 0} onChange={setNationality} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Label>Driving licence</Label>
+                          <DocumentScanCapture label="Scan driving licence" onCaptured={handleLicenceCaptured} />
+                          {licenceScanNotice && (
+                            <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                              {licenceScanNotice}
+                            </p>
+                          )}
+                          {licenceFields && (
+                            <div className="flex flex-col divide-y divide-border rounded-2xl bg-muted/40 px-3">
+                              <DocumentConfidenceRow label="Licence number" value={licenseNumber} confidence={licenceFields.licenceNumber?.confidence ?? 0} onChange={setLicenseNumber} />
+                              <DocumentConfidenceRow label="Expires on" value={licenseExpiresOn} confidence={licenceFields.expiryDate?.confidence ?? 0} onChange={setLicenseExpiresOn} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="quickName">Full name</Label>
+                        <Input id="quickName" value={quickName} onChange={(e) => setQuickName(e.target.value)} required />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="quickPhone">Phone</Label>
+                        <Input id="quickPhone" value={quickPhone} onChange={(e) => handleQuickPhoneChange(e.target.value)} placeholder="+212 6XX-XXXXXX" required />
+                      </div>
+                    </div>
+
+                    {duplicateCustomer && (
+                      <div className="flex items-center justify-between rounded-2xl bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                        <span className="flex items-center gap-2">
+                          <AlertTriangle className="size-4 shrink-0" />
+                          Already a customer: {duplicateCustomer.fullName}
+                        </span>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => { setCustomerMode("search"); setSelectedCustomer(duplicateCustomer) }}>
+                          Use them
+                        </Button>
+                      </div>
+                    )}
+
+                    {duplicateCandidates.length > 0 && (
+                      <div className="flex flex-col gap-2.5 rounded-2xl bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                        <span className="flex items-center gap-2">
+                          <AlertTriangle className="size-4 shrink-0" />
+                          This might already be a customer
+                        </span>
+                        <ul className="flex flex-col gap-1.5">
+                          {duplicateCandidates.map((candidate) => (
+                            <li key={candidate.customerId} className="flex items-center justify-between gap-3">
+                              <span>
+                                {candidate.fullName} — {candidate.confidence}% match ({candidate.matchedFields.join(", ")})
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setDuplicateCandidates([])
+                                  setCustomerMode("search")
+                                  setSelectedCustomer({ id: candidate.customerId, fullName: candidate.fullName, phone: quickPhone, licenseNumber: "", licenseExpiresAt: "", totalBookings: 0 })
+                                }}
+                              >
+                                Use them
+                              </Button>
+                            </li>
+                          ))}
+                        </ul>
+                        <Button type="button" variant="outline" size="sm" disabled={customerBusy} onClick={() => handleCreateCustomer(true)}>
+                          {customerBusy && <Loader2 className="animate-spin" />}
+                          Not a duplicate — create anyway
+                        </Button>
+                      </div>
+                    )}
+
+                    {createError && (
+                      <p className="text-sm text-destructive" role="alert">
+                        {createError}
+                      </p>
+                    )}
+
+                    {duplicateCandidates.length === 0 && (
+                      <div className="flex justify-end">
+                        <Button type="button" disabled={customerBusy || !quickName.trim() || !quickPhone.trim()} onClick={() => handleCreateCustomer(false)}>
+                          {customerBusy && <Loader2 className="animate-spin" />}
+                          {savingDocuments ? "Saving documents…" : "Create customer & continue"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {step === 1 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Vehicle & price</CardTitle>
+              <CardDescription>Coming in the next checkpoint.</CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+      </div>
+
+      <WizardFooter
+        onBack={() => setStep((s) => Math.max(0, s - 1))}
+        backDisabled={step === 0}
+        onContinue={step === 0 ? goToStep2 : undefined}
+        continueDisabled={step === 0 && (customerMode !== "search" || !selectedCustomer)}
+        hideContinue={step > 0}
+      />
+    </div>
+  )
+}
+
+export { NewRentalWizard }
