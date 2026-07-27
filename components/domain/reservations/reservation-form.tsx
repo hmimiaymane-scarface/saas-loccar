@@ -5,12 +5,13 @@ import Link from "next/link"
 import { Loader2, Search, UserRound, AlertTriangle, CheckCircle2, Sparkles } from "lucide-react"
 
 import type { Branch, Customer, ReservationSource, Vehicle, VehicleCategory, BookingStatus } from "@/types/rental"
+import type { VehicleSelectionOption } from "@/lib/data"
 import type { ReservationActionState } from "@/app/(dashboard)/reservations/actions"
 import type { ReturningCustomerReadiness } from "@/lib/customer-readiness"
-import { fetchCustomers, fetchAvailableVehicles, checkCustomerByPhone } from "@/app/(dashboard)/reservations/actions"
+import { fetchCustomers, fetchVehicleSelectionOptions, checkCustomerByPhone } from "@/app/(dashboard)/reservations/actions"
 import { calculatePricing } from "@/lib/pricing"
 import { zonedTimeToUtcIso, utcIsoToZonedLocal } from "@/lib/timezone"
-import { formatMad } from "@/lib/format"
+import { formatMad, formatDate } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { shouldAutoSelectSingleOption } from "@/lib/workflow/steps"
 import { Button } from "@/components/ui/button"
@@ -221,26 +222,34 @@ function ReservationForm({
     initial?.vehicleId ?? defaultVehicleId ?? null
   )
   const [unassigned, setUnassigned] = useState(Boolean(initial && !initial.vehicleId))
-  const [availableVehicles, setAvailableVehicles] = useState<Vehicle[]>([])
+  // Productization wave 3 phase 23 — every category-filtered vehicle
+  // for this window, tagged with why it can or can't be picked, not
+  // just the available subset. availableVehicles/blockedOptions below
+  // are both derived from this one fetch.
+  const [vehicleOptions, setVehicleOptions] = useState<VehicleSelectionOption[]>([])
   const [vehiclesLoading, setVehiclesLoading] = useState(false)
   const [, startVehicleFetch] = useTransition()
 
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (!periodValid || !pickupIso || !returnIso) {
-        setAvailableVehicles([])
+        setVehicleOptions([])
         return
       }
       setVehiclesLoading(true)
       startVehicleFetch(async () => {
-        const vehicles = await fetchAvailableVehicles(pickupIso, returnIso, category, initial?.reservationId)
-        setAvailableVehicles(vehicles)
+        const options = await fetchVehicleSelectionOptions(pickupIso, returnIso, category, initial?.reservationId)
+        setVehicleOptions(options)
         setVehiclesLoading(false)
       })
     }, 300)
     return () => clearTimeout(timeout)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickupIso, returnIso, category, periodValid])
+
+  const availableVehicles = useMemo(() => vehicleOptions.filter((o) => o.status === "available").map((o) => o.vehicle), [vehicleOptions])
+  const availableOptions = useMemo(() => vehicleOptions.filter((o) => o.status === "available"), [vehicleOptions])
+  const blockedOptions = useMemo(() => vehicleOptions.filter((o) => o.status !== "available"), [vehicleOptions])
 
   // Pricing ----------------------------------------------------------------
   const [dailyRate, setDailyRate] = useState<number>(initial?.dailyRateMad ?? defaultDailyRate ?? 0)
@@ -615,33 +624,71 @@ function ReservationForm({
                 </div>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {availableVehicles.map((v) => (
-                    <button
-                      type="button"
-                      key={v.id}
-                      onClick={() => onSelectVehicle(v)}
-                      className={cn(
-                        "flex flex-col gap-1 rounded-2xl border px-3 py-2.5 text-left transition-colors",
-                        vehicleId === v.id
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:bg-muted"
-                      )}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-foreground">
-                          {v.make} {v.model}
+                  {availableOptions.map((option) => {
+                    const v = option.vehicle
+                    return (
+                      <button
+                        type="button"
+                        key={v.id}
+                        onClick={() => onSelectVehicle(v)}
+                        className={cn(
+                          "flex flex-col gap-1 rounded-2xl border px-3 py-2.5 text-left transition-colors",
+                          vehicleId === v.id
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:bg-muted"
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-foreground">
+                            {v.make} {v.model}
+                          </span>
+                          {vehicleId === v.id && <CheckCircle2 className="size-4 text-primary" />}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {v.plate} · {v.category} · {formatMad(v.dailyRateMad)}/day
                         </span>
-                        {vehicleId === v.id && <CheckCircle2 className="size-4 text-primary" />}
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {v.plate} · {v.category} · {formatMad(v.dailyRateMad)}/day
-                      </span>
-                    </button>
-                  ))}
+                        {option.nextBookingWarning && (
+                          <span className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
+                            <AlertTriangle className="size-3 shrink-0" />
+                            Next booking {formatDate(option.nextBookingWarning.startsAt)} — tight turnaround
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
               {initial?.vehicleLabel && vehicleId === initial.vehicleId && (
                 <p className="text-xs text-muted-foreground">Currently assigned: {initial.vehicleLabel}</p>
+              )}
+
+              {!vehiclesLoading && periodValid && blockedOptions.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">Not available for these dates</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {blockedOptions.map((option) => (
+                      <div
+                        key={option.vehicle.id}
+                        aria-disabled="true"
+                        className="flex cursor-not-allowed flex-col gap-1 rounded-2xl border border-border bg-muted/40 px-3 py-2.5 opacity-60"
+                      >
+                        <span className="text-sm font-medium text-foreground">
+                          {option.vehicle.make} {option.vehicle.model}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {option.vehicle.plate} · {option.vehicle.category} · {formatMad(option.vehicle.dailyRateMad)}/day
+                        </span>
+                        <span className="text-xs font-medium text-destructive">
+                          {option.status === "conflict"
+                            ? `Booked until ${formatDate(option.conflictUntil!)}`
+                            : option.status === "maintenance"
+                              ? "In maintenance"
+                              : "Unavailable"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </>
           )}

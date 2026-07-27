@@ -14,7 +14,7 @@ import {
 } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
 import { calculatePricing } from "@/lib/pricing"
-import { findCustomerByPhone, getAvailableVehicles, searchCustomers } from "@/lib/data"
+import { findCustomerByPhone, getAvailableVehicles, getVehicleSelectionOptions, searchCustomers, type VehicleSelectionOption } from "@/lib/data"
 import { recordEvent } from "@/lib/activity-log"
 import { isEditableStatus } from "@/lib/reservations/status"
 import { recomputeVehicleIntelligenceBestEffort } from "@/lib/vehicle-intelligence-store"
@@ -424,6 +424,25 @@ export async function fetchAvailableVehicles(
   const session = await requireSession()
   if (!pickupAt || !returnAt) return []
   return getAvailableVehicles(session.company.id, {
+    pickupAt,
+    returnAt,
+    category: (category || undefined) as VehicleCategory | undefined,
+    excludeReservationId,
+  })
+}
+
+/** Productization wave 3 phase 23 — the reservation form's vehicle
+ * picker needs to show *why* a vehicle can't be picked, not just the
+ * available subset fetchAvailableVehicles above returns. */
+export async function fetchVehicleSelectionOptions(
+  pickupAt: string,
+  returnAt: string,
+  category?: string,
+  excludeReservationId?: string
+): Promise<VehicleSelectionOption[]> {
+  const session = await requireSession()
+  if (!pickupAt || !returnAt) return []
+  return getVehicleSelectionOptions(session.company.id, {
     pickupAt,
     returnAt,
     category: (category || undefined) as VehicleCategory | undefined,
