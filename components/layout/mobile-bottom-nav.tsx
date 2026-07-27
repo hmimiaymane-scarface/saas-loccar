@@ -8,24 +8,25 @@ import { cn } from "@/lib/utils"
 import type { EmployeeRole } from "@/types/rental"
 import { mobilePrimaryNav, navForRole } from "@/lib/navigation"
 import { isActivePath } from "@/components/layout/nav-item"
-import { QuickActionsSheet, quickActionsForRole } from "@/components/layout/quick-actions-sheet"
+import { QuickActionsSheet } from "@/components/layout/quick-actions-sheet"
 
 /**
- * Roadmap phase 16 requirements 3-5 — the mobile shell's real
- * navigation surface: a fixed bottom tab bar (one-handed reach; the
- * bible's own "primary actions reachable with one thumb"), not the
- * hamburger-drawer reflow the old MobileNav used. Exactly 5 tabs from
- * mobilePrimaryNav, plus one elevated center button that's deliberately
- * NOT a 6th tab — it opens the quick-actions sheet (requirement 5),
- * which is a different kind of thing (an action picker, not a
- * destination) and earns its own visual treatment.
+ * Productization wave 1 phase 10 — the mobile shell's real navigation
+ * surface: a fixed bottom tab bar (one-handed reach), not the
+ * hamburger-drawer reflow the old MobileNav used (deleted this phase —
+ * confirmed dead code). 4 tabs from `mobilePrimaryNav` (Home/Calendar/
+ * Fleet/More), plus one elevated center button that's deliberately not
+ * a 5th destination tab — it opens the quick-actions sheet, a
+ * different kind of thing (an action picker, not a destination) and
+ * earns its own visual treatment. Always rendered now (quick actions
+ * are no longer role-filtered down to zero for anyone — see
+ * quick-actions-sheet.tsx).
  */
 function MobileBottomNav({ role }: { role: EmployeeRole }) {
   const pathname = usePathname()
   const items = navForRole(mobilePrimaryNav, role)
   const leftItems = items.slice(0, Math.ceil(items.length / 2))
   const rightItems = items.slice(Math.ceil(items.length / 2))
-  const hasQuickActions = quickActionsForRole(role).length > 0
 
   return (
     <nav
@@ -38,17 +39,15 @@ function MobileBottomNav({ role }: { role: EmployeeRole }) {
         ))}
 
         <div className="flex w-16 shrink-0 items-center justify-center">
-          {hasQuickActions && (
-            <QuickActionsSheet role={role}>
-              <button
-                type="button"
-                aria-label="Quick actions"
-                className="flex size-14 -translate-y-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95"
-              >
-                <Plus className="size-6" />
-              </button>
-            </QuickActionsSheet>
-          )}
+          <QuickActionsSheet>
+            <button
+              type="button"
+              aria-label="Quick actions"
+              className="flex size-14 -translate-y-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95"
+            >
+              <Plus className="size-6" />
+            </button>
+          </QuickActionsSheet>
         </div>
 
         {rightItems.map((item) => (

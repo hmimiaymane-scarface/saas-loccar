@@ -133,8 +133,30 @@ export const moneyLinks: NavItem[] = [
  * level deeper: Reports nests here rather than under Money since its
  * own page covers business performance broadly (fleet/ops included),
  * not just financial figures, matching the brief's own grouping of it
- * alongside Documents/Maintenance/Contracts/Activity/Advanced settings. */
+ * alongside Documents/Maintenance/Contracts/Activity/Advanced settings.
+ *
+ * Productization wave 1 phase 10 — also the mobile shell's "More" tab
+ * destination (same page, no separate mobile-only route). Reservations
+ * and Customers were added here specifically for that: desktop already
+ * has both as direct sidebar items (`primaryNav`), so listing them here
+ * too is a small, accepted overlap on desktop rather than a new
+ * viewport-conditional mechanism — mobile is what actually needs them
+ * reachable from `/more`, since they dropped out of its primary 4 tabs. */
 export const moreLinks: NavItem[] = [
+  {
+    title: "Reservations",
+    href: "/reservations",
+    icon: ClipboardList,
+    description: "Booking requests and confirmed reservations",
+    roles: ALL_ROLES,
+  },
+  {
+    title: "Customers",
+    href: "/customers",
+    icon: Users,
+    description: "Customer records, licences and documents",
+    roles: ALL_ROLES,
+  },
   {
     title: "Documents",
     href: "/documents",
@@ -208,17 +230,28 @@ export const moreLinks: NavItem[] = [
 ]
 
 /**
- * Roadmap phase 16 — the mobile bottom tab bar's own primary
- * navigation, deliberately a SEPARATE, shorter list from `primaryNav`
- * rather than a filtered/reflowed version of it (bible: "never copy
- * desktop layouts onto mobile devices" — the IA itself is different,
- * not just the chrome). Exactly 5 destinations per requirement 4;
- * "Home" points at the mission-feed page (/home), not desktop's
- * business-command-center /overview — see app/(dashboard)/home.
- * Unchanged by productization wave 1 phase 4 — already task-shaped and
- * 5-slot-constrained; the new `moreLinks` destinations stay reachable
- * from the mobile shell via UserMenu's "More" entry instead of
- * competing for one of these 5 tabs.
+ * Productization wave 1 phase 10 — the mobile bottom tab bar's own
+ * primary navigation, deliberately a SEPARATE, shorter list from
+ * `primaryNav` rather than a filtered/reflowed version of it (bible:
+ * "never copy desktop layouts onto mobile devices" — the IA itself is
+ * different, not just the chrome). 4 real destinations plus the
+ * center "+" (rendered separately by `MobileBottomNav` — it opens
+ * `QuickActionsSheet`, an action picker, not a 5th destination tab, so
+ * it isn't a `NavItem` here). "Home" points at the mission-feed page
+ * (/home), not desktop's business-command-center /overview — see
+ * app/(dashboard)/home. "More" reuses desktop's own `/more` hub
+ * (phase 4) rather than a separate mobile-only page — Reservations and
+ * Customers (phase-16's original tabs, dropped from the primary 4 per
+ * this phase's brief) now live in `moreLinks` alongside everything
+ * else that isn't one of the 4.
+ *
+ * Every item is `ALL_ROLES` — "remove role-driven mobile shells" is
+ * this phase's own explicit instruction: the shell no longer varies by
+ * role at all (previously Reservations/Fleet/Customers were
+ * `OWNER_AND_STAFF`-only). Matches phase 2's "no workforce-specific
+ * mobile experience" principle for the rest of the product; the two
+ * visible roles (Owner/Staff) already see near-identical access
+ * everywhere else.
  */
 export const mobilePrimaryNav: NavItem[] = [
   {
@@ -229,31 +262,24 @@ export const mobilePrimaryNav: NavItem[] = [
     roles: ALL_ROLES,
   },
   {
-    title: "Reservations",
-    href: "/reservations",
-    icon: ClipboardList,
-    description: "Booking requests and confirmed reservations",
-    roles: OWNER_AND_STAFF,
+    title: "Calendar",
+    href: "/calendar",
+    icon: CalendarDays,
+    description: "Availability and reservation calendar",
+    roles: ALL_ROLES,
   },
   {
     title: "Fleet",
     href: "/fleet",
     icon: Car,
     description: "Vehicles, status and daily rates",
-    roles: OWNER_AND_STAFF,
+    roles: ALL_ROLES,
   },
   {
-    title: "Customers",
-    href: "/customers",
-    icon: Users,
-    description: "Customer records, licences and documents",
-    roles: OWNER_AND_STAFF,
-  },
-  {
-    title: "Inbox",
-    href: "/ai-assistant",
-    icon: Sparkles,
-    description: "AI assistant and proactive nudges",
+    title: "More",
+    href: "/more",
+    icon: MoreHorizontal,
+    description: "Everything else you need, one tap away",
     roles: ALL_ROLES,
   },
 ]
