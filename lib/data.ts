@@ -24,6 +24,7 @@ import { createClient } from "@/lib/supabase/server"
 import { callAndOpenActions } from "@/lib/notifications/actions"
 import { agePriority } from "@/lib/notifications/aging"
 import { filterByFinancialAccess } from "@/lib/notifications/permission-filter"
+import { assessReturningCustomerReadiness } from "@/lib/customer-readiness"
 import type { InsightPriority } from "@/lib/tone"
 import type { PermissionOverrideInput } from "@/lib/permissions/resolve"
 import { vehicles as mockVehicles } from "@/lib/mock/vehicles"
@@ -115,6 +116,7 @@ import type {
   FleetOverviewVehicle,
   FleetCardContext,
   FleetCardIssue,
+  CustomerCardContext,
   PaymentDirection,
   PaymentMethod,
   PaymentTransaction,
@@ -864,6 +866,132 @@ export async function getCustomers(companyId: string): Promise<Customer[]> {
 
   if (error) throw error
   return (data ?? []).map(mapCustomerRow)
+}
+
+/**
+ * Productization wave 2 phase 16 — the mobile customer card's
+ * per-customer enrichment, mirroring `getFleetCardContext`'s (phase
+ * 15) batching technique and separation from the plain list query.
+ * Takes the already-fetched customers (not just ids) so it doesn't
+ * need to re-select `license_expires_on` itself.
+ */
+export async function getCustomerCardContext(
+  companyId: string,
+  customers: Pick<Customer, "id" | "licenseExpiresAt">[]
+): Promise<Record<string, CustomerCardContext>> {
+  if (customers.length === 0) return {}
+
+  if (isMockMode()) {
+    const result: Record<string, CustomerCardContext> = {}
+    for (const customer of customers) {
+      const related = mockBookings.filter((b) => b.customer.id === customer.id)
+      const active = related.find((b) => b.status === "active")
+      const currentRental = active
+        ? { id: active.id, vehicleLabel: active.vehicle ? `${active.vehicle.make} ${active.vehicle.model}` : null, returnAtIso: `${active.endDate}T12:00:00+01:00` }
+        : null
+      const lastCompleted = related.filter((b) => b.status === "completed").sort((a, b) => b.endDate.localeCompare(a.endDate))[0]
+      const outstandingBalanceMad = related
+        .filter((b) => b.status !== "cancelled" && b.status !== "no_show")
+        .reduce((sum, b) => sum + b.payment.remainingMad, 0)
+
+      const identityDocs = mockDocuments.filter((d) => d.customerId === customer.id && d.status === "active" && d.category === "identity_document")
+      const readiness = assessReturningCustomerReadiness({
+        licenseExpiresAt: customer.licenseExpiresAt,
+        documents: identityDocs.map((d) => ({ category: "identity_document", expiresOn: d.expiresOn })),
+      })
+      const verifiedIdentity = !readiness.issues.some((i) => i.type === "identity_missing" || i.type === "identity_expired")
+
+      result[customer.id] = {
+        currentRental,
+        lastRentalAtIso: lastCompleted ? `${lastCompleted.endDate}T12:00:00+01:00` : null,
+        outstandingBalanceMad,
+        verifiedIdentity,
+        // No mock customer_intelligence cache exists anywhere in this
+        // codebase (same as every AI/database-only feature since phase
+        // 06) — always null in mock mode, not a gap specific to this
+        // function.
+        trustSignal: null,
+      }
+    }
+    return result
+  }
+
+  const supabase = await createClient()
+  const customerIds = customers.map((c) => c.id)
+
+  const [reservationRows, documentRows, intelligenceRows] = await Promise.all([
+    supabase
+      .from("reservations")
+      .select("id, customer_id, status, return_at, remaining_balance, vehicle:vehicles(make, model)")
+      .eq("company_id", companyId)
+      .in("customer_id", customerIds)
+      .not("status", "in", "(cancelled,no_show)"),
+    supabase
+      .from("documents")
+      .select("customer_id, expires_on")
+      .eq("company_id", companyId)
+      .eq("status", "active")
+      .eq("category", "identity_document")
+      .in("customer_id", customerIds),
+    supabase.from("customer_intelligence").select("customer_id, trust_band").eq("company_id", companyId).in("customer_id", customerIds),
+  ])
+
+  if (reservationRows.error) throw reservationRows.error
+  if (documentRows.error) throw documentRows.error
+  if (intelligenceRows.error) throw intelligenceRows.error
+
+  type ReservationRow = {
+    id: string
+    customer_id: string
+    status: string
+    return_at: string
+    remaining_balance: number
+    vehicle: { make: string; model: string } | null
+  }
+  type DocumentRow = { customer_id: string; expires_on: string | null }
+  type IntelligenceRow = { customer_id: string; trust_band: string }
+
+  const reservationsByCustomer = new Map<string, ReservationRow[]>()
+  for (const r of (reservationRows.data ?? []) as unknown as ReservationRow[]) {
+    const list = reservationsByCustomer.get(r.customer_id) ?? []
+    list.push(r)
+    reservationsByCustomer.set(r.customer_id, list)
+  }
+
+  const documentsByCustomer = new Map<string, DocumentRow[]>()
+  for (const d of (documentRows.data ?? []) as unknown as DocumentRow[]) {
+    const list = documentsByCustomer.get(d.customer_id) ?? []
+    list.push(d)
+    documentsByCustomer.set(d.customer_id, list)
+  }
+
+  const trustBandByCustomer = new Map<string, string>()
+  for (const t of (intelligenceRows.data ?? []) as unknown as IntelligenceRow[]) trustBandByCustomer.set(t.customer_id, t.trust_band)
+
+  const result: Record<string, CustomerCardContext> = {}
+  for (const customer of customers) {
+    const reservations = reservationsByCustomer.get(customer.id) ?? []
+    const active = reservations.find((r) => r.status === "active")
+    const currentRental = active
+      ? { id: active.id, vehicleLabel: active.vehicle ? `${active.vehicle.make} ${active.vehicle.model}` : null, returnAtIso: active.return_at }
+      : null
+    const lastCompleted = reservations.filter((r) => r.status === "completed").sort((a, b) => b.return_at.localeCompare(a.return_at))[0]
+    const outstandingBalanceMad = reservations.reduce((sum, r) => sum + Number(r.remaining_balance), 0)
+
+    const docs = documentsByCustomer.get(customer.id) ?? []
+    const readiness = assessReturningCustomerReadiness({
+      licenseExpiresAt: customer.licenseExpiresAt,
+      documents: docs.map((d) => ({ category: "identity_document", expiresOn: d.expires_on })),
+    })
+    const verifiedIdentity = !readiness.issues.some((i) => i.type === "identity_missing" || i.type === "identity_expired")
+
+    const trustBand = trustBandByCustomer.get(customer.id)
+    const trustSignal = trustBand === "poor" ? "Low trust score — review before approving" : null
+
+    result[customer.id] = { currentRental, lastRentalAtIso: lastCompleted?.return_at ?? null, outstandingBalanceMad, verifiedIdentity, trustSignal }
+  }
+
+  return result
 }
 
 export async function searchCustomers(

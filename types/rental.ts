@@ -684,6 +684,35 @@ export interface CustomerDetail extends Customer {
   outstandingBalanceMad: number
 }
 
+/**
+ * Productization wave 2 phase 16 — the mobile customer card's
+ * per-customer enrichment, scoped to whatever page of `getCustomers()`
+ * is on screen (mirrors `FleetCardContext`'s same separation-of-
+ * concerns reasoning from phase 15: kept out of the plain `Customer`
+ * list type, computed by a dedicated batched function instead).
+ */
+export interface CustomerCardCurrentRental {
+  id: string
+  vehicleLabel: string | null
+  returnAtIso: string
+}
+
+export interface CustomerCardContext {
+  currentRental: CustomerCardCurrentRental | null
+  /** The most recent *completed* reservation's return date — distinct
+   * from `currentRental` (always `active`), so a customer never shows
+   * both at once. Null if they've never completed a rental. */
+  lastRentalAtIso: string | null
+  outstandingBalanceMad: number
+  verifiedIdentity: boolean
+  /** Non-null only when the cached trust band is "poor" — deliberately
+   * suppressed for every other band, since a fine trust score changes
+   * no action a mobile agent takes at a glance (the brief's own
+   * "only if it changes a decision"). Null (not just omitted) also
+   * when no `customer_intelligence` row is cached yet. */
+  trustSignal: string | null
+}
+
 // ---------------------------------------------------------------------
 // Maintenance (owner-operating-system phase)
 // ---------------------------------------------------------------------
