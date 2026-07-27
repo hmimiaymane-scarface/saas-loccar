@@ -92,8 +92,15 @@ interface NewRentalWizardProps {
   defaultVehicleId?: string
   defaultDailyRate?: number
   defaultPickupDate?: string
+  defaultPickupLocation?: string
+  defaultReturnLocation?: string
+  defaultPickupHour?: number
   defaultCategory?: VehicleCategory
   returningCustomerReadiness?: ReturningCustomerReadiness
+  /** Phase 20 — this customer's own most recent deposit, or a
+   * company-wide fallback; pre-fills Step 2's deposit input instead of
+   * leaving it empty. Still a fully editable/removable suggestion. */
+  suggestedDepositMad?: number
 }
 
 function textValue(fields: ExtractedFields | null, key: string): string {
@@ -130,8 +137,12 @@ function NewRentalWizard({
   defaultVehicleId,
   defaultDailyRate,
   defaultPickupDate,
+  defaultPickupLocation,
+  defaultReturnLocation,
+  defaultPickupHour,
   defaultCategory,
   returningCustomerReadiness,
+  suggestedDepositMad,
 }: NewRentalWizardProps) {
   const router = useRouter()
   const [step, setStep] = useState(() => resolveInitialStep([Boolean(preselectedCustomer), false, false, false, false]))
@@ -306,7 +317,7 @@ function NewRentalWizard({
   const [depositCollectedMad, setDepositCollectedMad] = useState(0)
   const [paymentAmount, setPaymentAmount] = useState("")
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash")
-  const [depositAmount, setDepositAmount] = useState("")
+  const [depositAmount, setDepositAmount] = useState(suggestedDepositMad ? String(suggestedDepositMad) : "")
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [paymentPending, startPaymentTransition] = useTransition()
 
@@ -708,6 +719,9 @@ function NewRentalWizard({
               defaultVehicleId={defaultVehicleId}
               defaultDailyRate={defaultDailyRate}
               defaultPickupDate={defaultPickupDate}
+              defaultPickupLocation={defaultPickupLocation}
+              defaultReturnLocation={defaultReturnLocation}
+              defaultPickupHour={defaultPickupHour}
               defaultCategory={defaultCategory}
               returningCustomerReadiness={returningCustomerReadiness}
               onSuccess={handleReservationCreated}

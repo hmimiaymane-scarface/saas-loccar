@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 
 import { getSessionContext, type SessionContext } from "@/lib/auth/session"
-import { getBranches, getCustomerDetail, getTeamMembers, getChecklistTemplate } from "@/lib/data"
+import { getBranches, getCustomerDetail, getTeamMembers, getChecklistTemplate, getReservationSmartDefaults } from "@/lib/data"
 import { isSupabaseConfigured } from "@/lib/env"
 import { createClient } from "@/lib/supabase/server"
 import { getCustomerIntelligence } from "@/lib/customer-intelligence-store"
@@ -44,7 +44,11 @@ export default async function NewReservationPage({
 
   const params = await searchParams
   const companyId = session.company.id
-  const [branches, checklistTemplate] = await Promise.all([getBranches(companyId), getChecklistTemplate(companyId)])
+  const [branches, checklistTemplate, smartDefaults] = await Promise.all([
+    getBranches(companyId),
+    getChecklistTemplate(companyId),
+    getReservationSmartDefaults(companyId, session.company.timezone, params.customerId),
+  ])
 
   // Roadmap phase 16 — only owner/manager can assign a reservation's
   // field work to a specific agent/driver; the form itself hides the
@@ -91,6 +95,10 @@ export default async function NewReservationPage({
         defaultPickupDate={params.pickup}
         defaultCategory={defaultCategory ?? undefined}
         returningCustomerReadiness={returningCustomerReadiness ?? undefined}
+        defaultPickupLocation={smartDefaults.pickupLocation ?? undefined}
+        defaultReturnLocation={smartDefaults.returnLocation ?? undefined}
+        defaultPickupHour={smartDefaults.pickupHour ?? undefined}
+        suggestedDepositMad={smartDefaults.suggestedDepositMad ?? undefined}
       />
     </>
   )

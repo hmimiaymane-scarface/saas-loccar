@@ -25,6 +25,7 @@ import { callAndOpenActions } from "@/lib/notifications/actions"
 import { agePriority } from "@/lib/notifications/aging"
 import { filterByFinancialAccess } from "@/lib/notifications/permission-filter"
 import { assessReturningCustomerReadiness } from "@/lib/customer-readiness"
+import { mostCommonAmount, mostCommonHour, mostCommonString } from "@/lib/reservations/smart-defaults"
 import type { InsightPriority } from "@/lib/tone"
 import type { PermissionOverrideInput } from "@/lib/permissions/resolve"
 import { vehicles as mockVehicles } from "@/lib/mock/vehicles"
@@ -1177,6 +1178,103 @@ export async function getReservationsList(
     total: count ?? 0,
     page,
     pageSize,
+  }
+}
+
+export interface ReservationSmartDefaults {
+  pickupLocation: string | null
+  returnLocation: string | null
+  /** Company-timezone local hour (0-23) pickups most often start at.
+   * Null when there's no timestamp data to compute a mode from — the
+   * caller keeps its own existing fallback in that case. */
+  pickupHour: number | null
+  suggestedDepositMad: number | null
+}
+
+/**
+ * Productization wave 3 phase 20 — "reduce typing." A returning
+ * customer's own most recent pickup/return location and deposit
+ * amount are the strongest signal (this specific person's usual
+ * habit); a first-time customer (or no customer yet) falls back to a
+ * company-wide mode over recent reservations/deposits — a weaker but
+ * still useful signal. `pickupHour` is company-wide only, never
+ * per-customer — one customer's rentals aren't enough data points for
+ * a meaningful "usual hour," unlike location or deposit amount.
+ */
+export async function getReservationSmartDefaults(
+  companyId: string,
+  companyTimezone: string,
+  customerId?: string
+): Promise<ReservationSmartDefaults> {
+  if (isMockMode()) {
+    const customerBookings = customerId
+      ? mockBookings.filter((b) => b.customer.id === customerId).sort((a, b) => b.startDate.localeCompare(a.startDate))
+      : []
+    const lastCustomerBooking = customerBookings[0]
+    const lastCustomerDeposit = lastCustomerBooking
+      ? (mockDeposits.find((d) => d.reservationId === lastCustomerBooking.id) ?? null)
+      : null
+
+    return {
+      pickupLocation: lastCustomerBooking?.pickupLocation ?? mostCommonString(mockBookings.map((b) => b.pickupLocation)),
+      returnLocation: lastCustomerBooking?.returnLocation ?? mostCommonString(mockBookings.map((b) => b.returnLocation)),
+      // Mock `Booking` fixtures only carry a plain date (no time-of-day)
+      // — there's no real hour signal to compute a mode from here, so
+      // this stays null and the caller keeps today's existing "10:00"
+      // fallback, exactly as before this phase.
+      pickupHour: null,
+      suggestedDepositMad: lastCustomerDeposit?.collectedMad || mostCommonAmount(mockDeposits.map((d) => d.collectedMad)),
+    }
+  }
+
+  const supabase = await createClient()
+
+  let customerPickupLocation: string | null = null
+  let customerReturnLocation: string | null = null
+  let customerDepositMad: number | null = null
+
+  if (customerId) {
+    const { data: lastReservation } = await supabase
+      .from("reservations")
+      .select("id, pickup_location, return_location")
+      .eq("company_id", companyId)
+      .eq("customer_id", customerId)
+      .order("pickup_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (lastReservation) {
+      customerPickupLocation = lastReservation.pickup_location
+      customerReturnLocation = lastReservation.return_location
+      const { data: deposit } = await supabase
+        .from("deposits")
+        .select("collected_amount")
+        .eq("company_id", companyId)
+        .eq("reservation_id", lastReservation.id)
+        .maybeSingle()
+      customerDepositMad = deposit ? Number(deposit.collected_amount) : null
+    }
+  }
+
+  const { data: recentReservations } = await supabase
+    .from("reservations")
+    .select("pickup_location, return_location, pickup_at")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(50)
+
+  const { data: recentDeposits } = await supabase
+    .from("deposits")
+    .select("collected_amount")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(50)
+
+  return {
+    pickupLocation: customerPickupLocation ?? mostCommonString((recentReservations ?? []).map((r) => r.pickup_location)),
+    returnLocation: customerReturnLocation ?? mostCommonString((recentReservations ?? []).map((r) => r.return_location)),
+    pickupHour: mostCommonHour((recentReservations ?? []).map((r) => r.pickup_at).filter((v): v is string => Boolean(v)), companyTimezone),
+    suggestedDepositMad: customerDepositMad || mostCommonAmount((recentDeposits ?? []).map((d) => Number(d.collected_amount))),
   }
 }
 

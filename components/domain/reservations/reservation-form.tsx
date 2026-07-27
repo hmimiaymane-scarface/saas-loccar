@@ -73,6 +73,15 @@ interface ReservationFormProps {
   defaultVehicleId?: string
   defaultDailyRate?: number
   defaultPickupDate?: string
+  /** Productization wave 3 phase 20 — "reduce typing." A returning
+   * customer's own most recent pickup/return location, or a
+   * company-wide fallback for a first-time one; pre-fills the
+   * otherwise-always-empty location fields. */
+  defaultPickupLocation?: string
+  defaultReturnLocation?: string
+  /** Phase 20 — company-wide most common local pickup hour, replacing
+   * the previously-hardcoded "10:00" when a real signal exists. */
+  defaultPickupHour?: number
   /** Roadmap phase 09's Returning-Customer Fast Path — this customer's
    * most-rented category (phase 08's CLV `preferredCategory`), applied
    * as the initial category filter only when there's a preselected
@@ -130,6 +139,9 @@ function ReservationForm({
   defaultVehicleId,
   defaultDailyRate,
   defaultPickupDate,
+  defaultPickupLocation,
+  defaultReturnLocation,
+  defaultPickupHour,
   defaultCategory,
   initial,
   preselectedCustomer,
@@ -189,14 +201,14 @@ function ReservationForm({
     initial
       ? utcIsoToZonedLocal(initial.pickupAt, companyTimezone)
       : defaultPickupDate
-        ? `${defaultPickupDate}T10:00`
+        ? `${defaultPickupDate}T${String(defaultPickupHour ?? 10).padStart(2, "0")}:00`
         : ""
   )
   const [returnLocal, setReturnLocal] = useState(
     initial ? utcIsoToZonedLocal(initial.returnAt, companyTimezone) : ""
   )
-  const [pickupLocation, setPickupLocation] = useState(initial?.pickupLocation ?? "")
-  const [returnLocation, setReturnLocation] = useState(initial?.returnLocation ?? "")
+  const [pickupLocation, setPickupLocation] = useState(initial?.pickupLocation ?? defaultPickupLocation ?? "")
+  const [returnLocation, setReturnLocation] = useState(initial?.returnLocation ?? defaultReturnLocation ?? "")
   const [branchId, setBranchId] = useState(initial?.branchId ?? branches[0]?.id ?? "")
 
   const pickupIso = pickupLocal ? zonedTimeToUtcIso(pickupLocal, companyTimezone) : null
