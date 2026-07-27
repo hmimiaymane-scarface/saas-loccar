@@ -6,6 +6,7 @@ import { CarFront, ScanLine, ClipboardCheck, Undo2, Camera, UserSearch, type Luc
 
 import type { EmployeeRole } from "@/types/rental"
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
+import { vibrate } from "@/lib/haptics"
 
 interface QuickAction {
   label: string
@@ -48,7 +49,13 @@ function QuickActionsSheet({ role, children }: { role: EmployeeRole; children: R
   const actions = quickActionsForRole(role)
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        if (next) vibrate("light")
+        setOpen(next)
+      }}
+    >
       <SheetTrigger asChild>{children}</SheetTrigger>
       <SheetContent side="bottom" className="max-h-[80vh]">
         <SheetHeader>

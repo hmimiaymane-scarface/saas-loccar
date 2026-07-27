@@ -9,6 +9,7 @@ import type { NotificationItem } from "@/types/rental"
 import { formatDateTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { toneClasses, insightPriorityTone } from "@/lib/tone"
+import { vibrate } from "@/lib/haptics"
 import { Button } from "@/components/ui/button"
 import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
 
@@ -45,6 +46,7 @@ function NotificationList({ initialItems }: { initialItems: NotificationItem[] }
   // handlers now revert the optimistic update and surface an error on
   // failure instead.
   function markOne(item: NotificationItem) {
+    vibrate("light")
     setError(null)
     setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, isRead: true } : i)))
     startTransition(async () => {
@@ -60,6 +62,7 @@ function NotificationList({ initialItems }: { initialItems: NotificationItem[] }
   }
 
   function markAll() {
+    vibrate("light")
     setError(null)
     const liveUnread = unread.filter((i) => i.source === "live")
     const unreadIds = new Set(unread.map((i) => i.id))

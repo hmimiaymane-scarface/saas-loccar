@@ -14,6 +14,7 @@ import { canChangeRole, canSuspend, canRemove } from "@/lib/team-rules"
 import { ROLE_LABELS } from "@/lib/roles"
 import { STAFF_ACCESS_SWITCHES, isSwitchOn } from "@/lib/permissions/service"
 import { formatDate, initials } from "@/lib/format"
+import { vibrate } from "@/lib/haptics"
 import type { EmployeeRole, TeamMember } from "@/types/rental"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -49,6 +50,7 @@ function MemberRow({
   const [, startAccessTransition] = useTransition()
 
   function toggleSwitch(switchId: string, allowed: boolean) {
+    vibrate("light")
     setAccessError(null)
     setPendingSwitchId(switchId)
     startAccessTransition(async () => {
