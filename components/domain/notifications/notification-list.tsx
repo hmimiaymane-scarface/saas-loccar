@@ -33,27 +33,45 @@ function groupByDate(items: NotificationItem[]) {
 function NotificationList({ initialItems }: { initialItems: NotificationItem[] }) {
   const [items, setItems] = useState(initialItems)
   const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
 
   const unread = items.filter((i) => !i.isRead)
 
+  // Productization wave 1 phase 8 — found via the failure-registry
+  // audit: this used to set isRead optimistically and never check the
+  // action's result, so a failed write (e.g. mock mode's
+  // createClient() throw) left the UI silently claiming a critical
+  // alert was dismissed when nothing was actually persisted. Both
+  // handlers now revert the optimistic update and surface an error on
+  // failure instead.
   function markOne(item: NotificationItem) {
+    setError(null)
     setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, isRead: true } : i)))
     startTransition(async () => {
-      if (item.source === "live") {
-        await dismissLiveAlert({ key: item.id, type: item.type, title: item.title, description: item.description, href: item.href })
-      } else {
-        await markNotificationRead(item.id)
+      const result =
+        item.source === "live"
+          ? await dismissLiveAlert({ key: item.id, type: item.type, title: item.title, description: item.description, href: item.href })
+          : await markNotificationRead(item.id)
+      if (result.error) {
+        setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, isRead: false } : i)))
+        setError(result.error)
       }
     })
   }
 
   function markAll() {
+    setError(null)
     const liveUnread = unread.filter((i) => i.source === "live")
+    const unreadIds = new Set(unread.map((i) => i.id))
     setItems((prev) => prev.map((i) => ({ ...i, isRead: true })))
     startTransition(async () => {
-      await markAllNotificationsRead(
+      const result = await markAllNotificationsRead(
         liveUnread.map((i) => ({ key: i.id, type: i.type, title: i.title, description: i.description, href: i.href }))
       )
+      if (result.error) {
+        setItems((prev) => prev.map((i) => (unreadIds.has(i.id) ? { ...i, isRead: false } : i)))
+        setError(result.error)
+      }
     })
   }
 
@@ -63,6 +81,7 @@ function NotificationList({ initialItems }: { initialItems: NotificationItem[] }
 
   return (
     <div className="flex flex-col gap-4">
+      {error && <p className="text-sm text-destructive">{error}</p>}
       {unread.length > 0 && (
         <div className="flex justify-end">
           <Button variant="outline" size="sm" onClick={markAll} disabled={isPending}>
