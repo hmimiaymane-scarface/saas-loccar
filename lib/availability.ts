@@ -73,3 +73,60 @@ export function isVehicleAvailable(
     return periodsOverlap(window.startDate, window.endDate, r.startDate, r.endDate)
   })
 }
+
+/**
+ * Productization wave 3 phase 23 — "show conflicts clearly." The
+ * specific reservation blocking this vehicle for the requested window
+ * (if any), so the UI can say *why* it's unavailable ("booked until
+ * {date}") instead of just omitting the vehicle from the list.
+ */
+export function findConflictingReservation(
+  vehicleId: string,
+  window: { startDate: string; endDate: string },
+  existingReservations: ExistingReservationWindow[],
+  excludeReservationId?: string
+): ExistingReservationWindow | null {
+  return (
+    existingReservations.find((r) => {
+      if (r.vehicleId !== vehicleId) return false
+      if (r.id === excludeReservationId) return false
+      if (!reservationBlocksVehicle(r.status)) return false
+      return periodsOverlap(window.startDate, window.endDate, r.startDate, r.endDate)
+    }) ?? null
+  )
+}
+
+/** A vehicle's next booking starting this close to the requested
+ * return counts as a tight turnaround worth flagging — a first-pass
+ * threshold, not a scientifically calibrated one. */
+export const TIGHT_TURNAROUND_HOURS = 24
+
+/**
+ * Phase 23 — "next booking warning if close to return date." The
+ * closest upcoming reservation on this vehicle starting at or after
+ * `afterIso` (the requested return) — only meaningful for a vehicle
+ * that's actually available for the requested window (an overlapping
+ * one would already be a conflict, not a "next booking").
+ */
+export function findNextReservationAfter(
+  vehicleId: string,
+  afterIso: string,
+  existingReservations: ExistingReservationWindow[],
+  excludeReservationId?: string
+): ExistingReservationWindow | null {
+  const afterTime = new Date(afterIso).getTime()
+  const upcoming = existingReservations
+    .filter((r) => {
+      if (r.vehicleId !== vehicleId) return false
+      if (r.id === excludeReservationId) return false
+      if (!reservationBlocksVehicle(r.status)) return false
+      return new Date(r.startDate).getTime() >= afterTime
+    })
+    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+  return upcoming[0] ?? null
+}
+
+/** Hours between two ISO timestamps, always non-negative. */
+export function hoursBetween(aIso: string, bIso: string): number {
+  return Math.abs(new Date(bIso).getTime() - new Date(aIso).getTime()) / (1000 * 60 * 60)
+}

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import { periodsOverlap, isVehicleAvailable, reservationBlocksVehicle } from "../availability"
+import {
+  periodsOverlap,
+  isVehicleAvailable,
+  reservationBlocksVehicle,
+  findConflictingReservation,
+  findNextReservationAfter,
+  hoursBetween,
+} from "../availability"
 import type { ExistingReservationWindow } from "../availability"
 
 describe("periodsOverlap", () => {
@@ -65,5 +72,58 @@ describe("isVehicleAvailable", () => {
     expect(
       isVehicleAvailable("veh_1", { startDate: "2026-07-10", endDate: "2026-07-15" }, existing, "r1")
     ).toBe(true)
+  })
+})
+
+describe("findConflictingReservation", () => {
+  const existing: ExistingReservationWindow[] = [
+    { id: "r1", vehicleId: "veh_1", status: "confirmed", startDate: "2026-07-10", endDate: "2026-07-15" },
+    { id: "r2", vehicleId: "veh_1", status: "cancelled", startDate: "2026-07-20", endDate: "2026-07-25" },
+  ]
+
+  it("returns the specific blocking reservation for an overlapping window", () => {
+    expect(findConflictingReservation("veh_1", { startDate: "2026-07-12", endDate: "2026-07-18" }, existing)?.id).toBe("r1")
+  })
+
+  it("ignores a cancelled reservation even if the dates overlap", () => {
+    expect(findConflictingReservation("veh_1", { startDate: "2026-07-21", endDate: "2026-07-23" }, existing)).toBeNull()
+  })
+
+  it("returns null for a non-overlapping window", () => {
+    expect(findConflictingReservation("veh_1", { startDate: "2026-07-16", endDate: "2026-07-19" }, existing)).toBeNull()
+  })
+})
+
+describe("findNextReservationAfter", () => {
+  const existing: ExistingReservationWindow[] = [
+    { id: "r1", vehicleId: "veh_1", status: "confirmed", startDate: "2026-07-20", endDate: "2026-07-25" },
+    { id: "r2", vehicleId: "veh_1", status: "confirmed", startDate: "2026-08-01", endDate: "2026-08-05" },
+    { id: "r3", vehicleId: "veh_1", status: "cancelled", startDate: "2026-07-16", endDate: "2026-07-18" },
+  ]
+
+  it("returns the closest upcoming reservation after the given date", () => {
+    expect(findNextReservationAfter("veh_1", "2026-07-16", existing)?.id).toBe("r1")
+  })
+
+  it("ignores a cancelled reservation", () => {
+    expect(findNextReservationAfter("veh_1", "2026-07-10", existing)?.id).toBe("r1")
+  })
+
+  it("returns null when nothing is scheduled after the given date", () => {
+    expect(findNextReservationAfter("veh_1", "2026-08-10", existing)).toBeNull()
+  })
+
+  it("excludes the reservation being edited", () => {
+    expect(findNextReservationAfter("veh_1", "2026-07-16", existing, "r1")?.id).toBe("r2")
+  })
+})
+
+describe("hoursBetween", () => {
+  it("computes the hours between two timestamps", () => {
+    expect(hoursBetween("2026-07-20T10:00:00Z", "2026-07-21T10:00:00Z")).toBe(24)
+  })
+
+  it("is always non-negative regardless of argument order", () => {
+    expect(hoursBetween("2026-07-21T10:00:00Z", "2026-07-20T10:00:00Z")).toBe(24)
   })
 })
