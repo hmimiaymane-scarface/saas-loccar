@@ -57,9 +57,11 @@ function InsightFeedItem({
             {actionLabel}
           </Button>
         ) : null}
-        <Button variant="ghost" size="xs" onClick={onDismiss}>
-          Dismiss
-        </Button>
+        {onDismiss ? (
+          <Button variant="ghost" size="xs" onClick={onDismiss}>
+            Dismiss
+          </Button>
+        ) : null}
       </div>
     </div>
   )

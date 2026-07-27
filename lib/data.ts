@@ -3343,7 +3343,7 @@ const PRIORITY_RANK: Record<InsightPriority, number> = {
  * every other lib/data.ts function's mock branch. In live mode this
  * reuses the exact has_permission() RPC call phase 17's AI-tool
  * permission gating already established (lib/ai/tools.ts#resolveToolPermissions). */
-async function hasFinancialReportsAccess(companyId: string): Promise<boolean> {
+export async function hasFinancialReportsAccess(companyId: string): Promise<boolean> {
   if (isMockMode()) return true
   const supabase = await createClient()
   const { data } = await supabase.rpc("has_permission", { target_company_id: companyId, key: "view_financial_reports" })
