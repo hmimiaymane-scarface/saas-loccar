@@ -145,6 +145,18 @@ export const ACTIVITY_TYPES = [
   // sensitive document is logged with who/when.
   "document_viewed",
   "document_downloaded",
+  // Productization wave 1 phase 7 — found by actually calling
+  // grant_permission_override()/revoke_permission_override() (phase 17,
+  // supabase/migrations/20260804090100_phase17_permission_engine.sql)
+  // against the real project for the first time: those RPCs insert
+  // activity_log rows with these two types, but neither the DB check
+  // constraint nor this array was ever updated to include them — the
+  // RPCs have been failing outright (whole transaction rolled back,
+  // including the override itself) on the live project since phase 5
+  // applied the migration. Fixed in
+  // 20260807090200_fix_activity_log_permission_override_types.sql.
+  "permission_override_granted",
+  "permission_override_revoked",
 ] as const
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number]

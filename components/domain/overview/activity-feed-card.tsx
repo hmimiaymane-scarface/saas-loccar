@@ -95,6 +95,8 @@ const activityIcon: Record<ActivityType, LucideIcon> = {
   template_version_activated: FileCheck2,
   document_viewed: Eye,
   document_downloaded: Download,
+  permission_override_granted: ShieldCheck,
+  permission_override_revoked: ShieldAlert,
 }
 
 function ActivityFeedCard({ items }: { items: ActivityItem[] }) {
