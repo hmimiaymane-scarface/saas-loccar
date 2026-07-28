@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { computeRevenueIntelligence } from "@/lib/revenue-intelligence"
+import { computeRevenueIntelligence, computeRevenuePulseHeadline } from "@/lib/revenue-intelligence"
 
 describe("computeRevenueIntelligence", () => {
   it("matches the bible's own worked example: up 12%, higher occupancy + longer rentals", () => {
@@ -42,5 +42,29 @@ describe("computeRevenueIntelligence", () => {
     const result = computeRevenueIntelligence({ revenueMad: 5_000, occupancyRate: 40, averageDurationDays: 3 }, { revenueMad: 0, occupancyRate: 0, averageDurationDays: 0 })
     expect(result.direction).toBe("up")
     expect(result.changePercent).toBe(100)
+  })
+})
+
+describe("computeRevenuePulseHeadline", () => {
+  it("matches the brief's own example verbatim: up 14%", () => {
+    expect(computeRevenuePulseHeadline(114_000, 100_000)).toBe("Strong month: revenue is up 14%.")
+  })
+
+  it("phrases a decline as a slower month", () => {
+    expect(computeRevenuePulseHeadline(85_000, 100_000)).toBe("Slower month: revenue is down 15%.")
+  })
+
+  it("phrases a small move as steady, not up or down", () => {
+    expect(computeRevenuePulseHeadline(101_000, 100_000)).toBe("Steady month: revenue is flat compared to last month.")
+  })
+
+  it("never names a driver, unlike computeRevenueIntelligence", () => {
+    const headline = computeRevenuePulseHeadline(114_000, 100_000)
+    expect(headline.toLowerCase()).not.toContain("occupancy")
+    expect(headline.toLowerCase()).not.toContain("rental")
+  })
+
+  it("handles a zero prior-period revenue without dividing by zero", () => {
+    expect(computeRevenuePulseHeadline(5_000, 0)).toBe("Strong month: revenue is up 100%.")
   })
 })

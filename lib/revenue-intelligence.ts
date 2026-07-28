@@ -73,3 +73,20 @@ export function computeRevenueIntelligence(current: RevenuePeriodFigures, prior:
 
   return { changePercent, direction, headline, drivers }
 }
+
+/** Roadmap phase 33 ("Simplify Business Pulse") — the mobile home
+ * screen's one-line revenue conclusion. Deliberately simpler than
+ * `computeRevenueIntelligence` above: no driver breakdown (that's
+ * homework, not a conclusion — the whole point of this phase's brief),
+ * just the headline number, reusing the exact same percent-change/
+ * flat-threshold logic so the two never silently disagree about what
+ * counts as "up" vs. "flat." */
+export function computeRevenuePulseHeadline(currentMad: number, priorMad: number): string {
+  const changePercent = Math.round(pctChange(currentMad, priorMad))
+  const direction: "up" | "down" | "flat" =
+    changePercent > REVENUE_FLAT_THRESHOLD_PERCENT ? "up" : changePercent < -REVENUE_FLAT_THRESHOLD_PERCENT ? "down" : "flat"
+
+  if (direction === "flat") return "Steady month: revenue is flat compared to last month."
+  const qualifier = direction === "up" ? "Strong month" : "Slower month"
+  return `${qualifier}: revenue is ${direction} ${Math.abs(changePercent)}%.`
+}
