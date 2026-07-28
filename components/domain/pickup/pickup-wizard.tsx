@@ -53,6 +53,7 @@ import { RequirementsSummary } from "@/components/domain/requirements-summary"
 import { SegmentedSelector } from "@/components/domain/inspections/segmented-selector"
 import { ChecklistSection } from "@/components/domain/inspections/checklist-section"
 import { PhotoUploadGrid, type UploadedPhoto } from "@/components/domain/photo-upload-grid"
+import { AdditionalPhotos } from "@/components/domain/inspections/additional-photos"
 import { DocumentUploadRow, type DocumentSlotDef } from "@/components/domain/documents/document-upload-row"
 
 const STEPS = [
@@ -161,6 +162,10 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
   })
   const [photos, setPhotos] = useState<UploadedPhoto[]>(
     (reservation.pickupInspection?.media ?? []).map((m) => ({ key: m.caption ?? m.id }))
+  )
+  // Phase 25 — optional, never-gated photos beyond the required angles.
+  const [additionalPhotoCount, setAdditionalPhotoCount] = useState(
+    (reservation.pickupInspection?.media ?? []).filter((m) => m.caption === "additional").length
   )
 
   // Ensure a draft inspection exists as soon as the employee reaches this flow.
@@ -777,6 +782,36 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
                     )
                     queuedMutationIds.current.push(mutationId)
                     setPhotos((prev) => [...prev, { key: slotKey }])
+                    return {}
+                  }}
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Additional photos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {inspectionId && (
+                <AdditionalPhotos
+                  companyId={companyId}
+                  pathSegments={["media", "inspections", inspectionId]}
+                  count={additionalPhotoCount}
+                  onUpload={async (file, path) => {
+                    const result = await attachInspectionMedia(inspectionId, path, file.name, file.type, file.size, "additional")
+                    if (!result.error) setAdditionalPhotoCount((n) => n + 1)
+                    return result
+                  }}
+                  onQueueOffline={async (file) => {
+                    const mutationId = await enqueue(
+                      "attachInspectionMedia",
+                      { inspectionId, caption: "additional" },
+                      { file: { blob: file, fileName: file.name, mimeType: file.type } }
+                    )
+                    queuedMutationIds.current.push(mutationId)
+                    setAdditionalPhotoCount((n) => n + 1)
                     return {}
                   }}
                 />
