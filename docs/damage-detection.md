@@ -125,13 +125,71 @@ employee, and — indirectly, via the reservation — customer) needed no
 new code at all: `createDamage` already wires all of that up for every
 damage, AI-confirmed or not.
 
+## Roadmap phase 29 — "Damage Review UX": showing the actual photos
+
+Phase 29's brief asked for five concrete things in the damage-comparison
+UI (pickup image, return image, suggested area, confidence, hedged
+wording) plus three hard rules (never auto-charge, never auto-confirm,
+never present as fact). Re-reading the code before changing anything
+found **four of the five "show" items and all three "never" rules were
+already true** since phase 15 — `angleLabel` in the observation text,
+`ConfidenceIndicator` in `AiRecommendationCard`, the already-hedged "may
+show new damage... please check it" copy, and `acceptDamageSuggestion`
+only ever firing on an explicit click through the same `createDamage`
+path a manual entry uses. **The one real gap**: `detectReturnDamage`
+downloaded both photos server-side to run the comparison but never
+returned them — the employee could read a description of the damage but
+never actually look at the two photos side by side.
+
+Closed narrowly: `DetectReturnDamageResult` now carries
+`pickupImageUrl`/`returnImageUrl`, resolved via
+`supabase.storage.from(STORAGE_BUCKET).createSignedUrls(...)` — same
+1-hour-expiry, never-a-raw-path convention `lib/data.ts#resolveSignedUrls`
+already uses everywhere else — but **only when `damageDetected` is
+true**, so a clean comparison (the common case) never spends a signed-URL
+round trip on images nobody will see. `AiRecommendationCard` gained one
+new optional prop, `comparisonImages`, rendering a Pickup/Return
+thumbnail pair (each linking to the full-size signed URL in a new tab,
+matching `document-list-item.tsx`'s existing convention) — undefined and
+invisible for this card's other two consumers (vehicle/customer
+recommendations have no photo pair to show).
+
 ## Known limitations (intentional)
 
+- **The full pickup/return wizard still can't be walked through live in
+  mock mode all the way to the Damage step** — but the reason has moved
+  since this doc was last updated. Phase 28 fixed the mount-time crash
+  described below (`startInspection` now has an `isSupabaseConfigured`
+  guard), so both wizards render cleanly through Step 1/2 in mock mode
+  today. The wall is now the **Photos** step: `PhotoUploadGrid` needs a
+  real `inspectionId` and live storage to actually accept an upload, so
+  in mock mode it renders with zero tiles and the wizard's own
+  completeness check correctly keeps `Continue` disabled — confirmed
+  directly in the browser on `/reservations/bk_1/return` this phase (Step
+  1 → Step 2 both render correctly, odometer/fuel/cleanliness/checklist
+  all work, then Photos shows "Missing required photos: ..." with no way
+  to satisfy it and `Continue` stays disabled, no console error). This
+  means the Damage step's new `comparisonImages` UI could not be
+  exercised with a real, wizard-driven damage suggestion this session.
+  Verified instead: `npx tsc --noEmit`, `npm run lint`, all 596 vitest
+  tests, `npm run build`, and a live browser pass of the new UI itself —
+  `AiRecommendationCard`'s `comparisonImages` slot was added as a second,
+  synthetic example on `/dev/intelligence-components` (two small SVG
+  data-URI placeholders standing in for real pickup/return photos) and
+  confirmed rendering correctly in both light and dark mode with zero
+  console errors, the same technique phase 22 used to verify OCR review
+  UX pieces that couldn't be reached live either.
+- **No unit test was added for the new signed-URL resolution itself** —
+  it's thin plumbing reusing an already-proven pattern
+  (`resolveSignedUrls` in `lib/data.ts`, called from ~10 other places,
+  has never had a dedicated test of its own either). `tsc`/lint catch
+  real type mismatches; the conditional-on-`damageDetected` cost
+  discipline was verified by code review, not a fake-Supabase test.
 - **The full pickup/return wizard could not be walked through live in
-  mock mode** — a real, pre-existing gap discovered while verifying
-  this phase, not something it introduced. Both wizards call
-  `startInspection` (a Server Action) from a `useEffect` on mount; that
-  action unconditionally calls `createClient()`, which throws
+  mock mode** (original phase 15 finding, now superseded by the note
+  above — kept here for history). Both wizards call `startInspection`
+  (a Server Action) from a `useEffect` on mount; that action
+  unconditionally calls `createClient()`, which throws
   `"Supabase is not configured"` in mock mode exactly like every other
   live-only write action in this app (`createCustomer` had the
   identical issue in phase 14) — except here it fires immediately on

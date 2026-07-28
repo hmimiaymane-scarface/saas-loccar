@@ -106,6 +106,36 @@ export default function IntelligenceComponentsDemoPage() {
             />
           </DemoSection>
 
+          <DemoSection title="AI recommendation card — with comparison images (roadmap phase 29)">
+            {/* Synthetic placeholder photos (small solid-color SVGs) — the
+                pickup/return wizard walkthrough for this phase couldn't be
+                exercised live in mock mode (same recurring DB-write wall
+                every inspection action has had since phase 15/28), so this
+                is how the new comparisonImages slot is verified visually. */}
+            <AiRecommendationCard
+              observation="This return photo (rear) may show new damage — please check it against the actual vehicle before confirming."
+              reasoning="Scratch near the lower right corner of the rear bumper, not visible in the pickup photo of the same angle."
+              suggestedAction="Confirm as new damage"
+              confidence={74}
+              comparisonImages={{
+                before: {
+                  url: "data:image/svg+xml;utf8," +
+                    encodeURIComponent(
+                      '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#9ca3af"/><text x="50%" y="50%" fill="white" font-size="18" text-anchor="middle" dy=".3em">Pickup</text></svg>'
+                    ),
+                  label: "Pickup",
+                },
+                after: {
+                  url: "data:image/svg+xml;utf8," +
+                    encodeURIComponent(
+                      '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#78716c"/><circle cx="150" cy="160" r="14" fill="#ef4444"/><text x="50%" y="50%" fill="white" font-size="18" text-anchor="middle" dy=".3em">Return</text></svg>'
+                    ),
+                  label: "Return",
+                },
+              }}
+            />
+          </DemoSection>
+
           <DemoSection title="Insight feed item">
             <div className="flex flex-col divide-y divide-border">
               <InsightFeedItem

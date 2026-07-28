@@ -96,6 +96,13 @@ confirm/dismiss logic.
 />
 ```
 
+Roadmap phase 29 added one optional prop, `comparisonImages` — a
+before/after photo pair (used by the return wizard's AI damage
+comparison to show the actual pickup and return photos, not just a text
+description) rendered as two labeled thumbnails above the observation
+text, each linking to its full-size image. Undefined for every other
+consumer of this card — purely additive, no layout change when absent.
+
 ### `InsightFeedItem` — `components/domain/intelligence/insight-feed-item.tsx`
 A lighter feed row for a scrolling list (the Operations Feed): icon + title +
 description, colored by `priority: InsightPriority`, an optional single
