@@ -33,7 +33,6 @@ import { uploadFile } from "@/lib/storage-client"
 import { resolveInitialStep } from "@/lib/workflow/steps"
 import { PHOTO_SLOTS } from "@/lib/inspections/photo-slots"
 import { useStepFocus } from "@/hooks/use-step-focus"
-import { formatMad } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -42,6 +41,7 @@ import { Separator } from "@/components/ui/separator"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { WizardProgress } from "@/components/domain/wizard-progress"
 import { WizardFooter } from "@/components/domain/wizard-footer"
+import { MoneySummaryCard } from "@/components/domain/money-summary-card"
 import { DocumentConfidenceRow } from "@/components/domain/intelligence/document-confidence-row"
 import { DocumentScanCapture, type ScanCaptureResult } from "@/components/domain/customers/document-scan-capture"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -419,7 +419,53 @@ function NewRentalWizard({
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [paymentPending, startPaymentTransition] = useTransition()
 
-  const remainingMad = Math.max(0, totalDueMad - amountPaidMad)
+  // Phase 24 — "extras" reuses the existing additional_charge
+  // transaction type (already real, already supported by the general
+  // Payments module) rather than inventing an invoice/line-item
+  // concept this schema has no other trace of. Modeled as one combined
+  // action — the customer decided to add something and paid for it
+  // right now, a walk-up-counter reality, not an accounting invoice —
+  // so it adds to both the running Extras total and Paid now in the
+  // same instant; Remaining is unaffected by adding one.
+  const [extrasMad, setExtrasMad] = useState(0)
+  const [showExtraForm, setShowExtraForm] = useState(false)
+  const [extraLabel, setExtraLabel] = useState("")
+  const [extraAmount, setExtraAmount] = useState("")
+
+  const grandTotalMad = totalDueMad + extrasMad
+  const remainingMad = Math.max(0, grandTotalMad - amountPaidMad)
+
+  function submitExtra() {
+    const amount = Number(extraAmount)
+    if (!amount || amount <= 0 || !reservationId) {
+      setPaymentError("Enter an extra charge amount.")
+      return
+    }
+    if (!extraLabel.trim()) {
+      setPaymentError("Describe the extra charge.")
+      return
+    }
+    setPaymentError(null)
+    startPaymentTransition(async () => {
+      const fd = new FormData()
+      fd.set("reservationId", reservationId)
+      if (selectedCustomer) fd.set("customerId", selectedCustomer.id)
+      fd.set("transactionType", "additional_charge")
+      fd.set("amount", String(amount))
+      fd.set("method", paymentMethod)
+      fd.set("notes", extraLabel.trim())
+      const result = await recordPayment({}, fd)
+      if (result.error) {
+        setPaymentError(result.error)
+        return
+      }
+      setExtrasMad((e) => e + amount)
+      setAmountPaidMad((p) => p + amount)
+      setExtraLabel("")
+      setExtraAmount("")
+      setShowExtraForm(false)
+    })
+  }
 
   function submitPayment() {
     const amount = Number(paymentAmount)
@@ -847,27 +893,23 @@ function NewRentalWizard({
 
         {step === 2 && (
           <div className="flex flex-col gap-4">
+            <MoneySummaryCard
+              rentalPriceMad={totalDueMad}
+              extrasMad={extrasMad}
+              totalMad={grandTotalMad}
+              paidMad={amountPaidMad}
+              remainingMad={remainingMad}
+              depositCollectedMad={depositCollectedMad}
+            />
+
             <Card>
               <CardHeader>
-                <CardTitle>Rental balance</CardTitle>
+                <CardTitle>Record a payment</CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-col gap-1.5 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total</span>
-                  <span className="font-medium text-foreground">{formatMad(totalDueMad)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Paid</span>
-                  <span className="text-foreground">{formatMad(amountPaidMad)}</span>
-                </div>
-                <div className="flex justify-between font-medium">
-                  <span className="text-muted-foreground">Remaining</span>
-                  <span className="text-foreground">{formatMad(remainingMad)}</span>
-                </div>
-                <Separator className="my-2" />
+              <CardContent className="flex flex-col gap-4">
                 <div className="grid grid-cols-[1fr_auto_auto] items-end gap-2">
                   <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="paymentAmount">Record a payment (MAD)</Label>
+                    <Label htmlFor="paymentAmount">Amount (MAD)</Label>
                     <Input id="paymentAmount" type="number" step="0.01" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
                   </div>
                   <NativeSelect className="w-28" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
@@ -880,19 +922,9 @@ function NewRentalWizard({
                     Record
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Deposit</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-1.5 text-sm">
-                <div className="flex justify-between font-medium">
-                  <span className="text-muted-foreground">Collected</span>
-                  <span className="text-foreground">{formatMad(depositCollectedMad)}</span>
-                </div>
-                <Separator className="my-2" />
+                <Separator />
+
                 <div className="grid grid-cols-[1fr_auto] items-end gap-2">
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="depositAmount">Collect deposit (MAD)</Label>
@@ -902,6 +934,35 @@ function NewRentalWizard({
                     Collect
                   </Button>
                 </div>
+
+                <Separator />
+
+                {showExtraForm ? (
+                  <div className="flex flex-col gap-2">
+                    <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="extraLabel">What&apos;s the extra for?</Label>
+                        <Input id="extraLabel" placeholder="e.g. Child seat" value={extraLabel} onChange={(e) => setExtraLabel(e.target.value)} />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="extraAmount">Amount (MAD)</Label>
+                        <Input id="extraAmount" type="number" step="0.01" value={extraAmount} onChange={(e) => setExtraAmount(e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setShowExtraForm(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="button" size="sm" onClick={submitExtra} disabled={paymentPending}>
+                        Add & mark paid
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => setShowExtraForm(true)}>
+                    + Add extra charge
+                  </Button>
+                )}
               </CardContent>
             </Card>
 
