@@ -8,6 +8,7 @@ import { isSupabaseConfigured } from "@/lib/env"
 import { recordEvent } from "@/lib/activity-log"
 import { STORAGE_BUCKET, ACCEPTED_IMAGE_MIME_TYPES, validateUploadForCompany } from "@/lib/storage"
 import { compareInspectionPhotos } from "@/lib/damage-detection"
+import { recomputeMissingHandoffPhotosBestEffort } from "@/lib/operations-feed/realtime"
 import type {
   Cleanliness,
   FuelLevel,
@@ -240,6 +241,12 @@ export async function attachInspectionMedia(
       .single()
 
     if (error) return { error: friendlyDbError(error) }
+
+    // Roadmap phase 34 — surfaces a still-missing handoff photo (fuel
+    // level / odometer) the moment it's still missing, rather than
+    // waiting for tomorrow's Operations Feed cron run.
+    await recomputeMissingHandoffPhotosBestEffort(supabase, companyId, inspectionId)
+
     return { mediaId: data.id }
   } catch (err) {
     if (err instanceof ActionError) return { error: err.message }
