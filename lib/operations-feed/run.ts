@@ -17,6 +17,7 @@ import {
 } from "@/lib/operations-feed/observers"
 import { reviewPricingOutliers, type PricingReviewContext } from "@/lib/operations-feed/pricing-ai"
 import { INACTIVE_CUSTOMER_MONTHS } from "@/lib/operations-feed/thresholds"
+import { upsertOperationsFeedItem } from "@/lib/operations-feed/upsert"
 import type { FeedItemDraft } from "@/lib/operations-feed/types"
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
@@ -308,44 +309,18 @@ export async function runOperationsFeedForCompany(supabase: SupabaseServerClient
   let updated = 0
   let resolved = 0
 
+  // Roadmap phase 34 — the actual insert/update/leave-dismissed decision
+  // now lives in upsertOperationsFeedItem(), shared with the real-time
+  // trigger in lib/operations-feed/realtime.ts, so the two paths can
+  // never quietly disagree about what "open"/"dismissed" means. This
+  // loop still supplies `existing` from the one bulk fetch above rather
+  // than a query per draft — same cost as before this refactor.
   for (const draft of drafts) {
-    const key = `${draft.observerType}:${draft.entityType}:${draft.entityId}`
-    const existing = existingByKey.get(key)
-    if (!existing) {
-      const { error } = await supabase.from("operations_feed_items").insert({
-        company_id: companyId,
-        observer_type: draft.observerType,
-        entity_type: draft.entityType,
-        entity_id: draft.entityId,
-        priority_tier: draft.priorityTier,
-        observation: draft.observation,
-        reasoning: draft.reasoning,
-        suggested_action: draft.suggestedAction,
-        action_label: draft.actionLabel,
-        action_href: draft.actionHref,
-        confidence: draft.confidence,
-        status: "open",
-      })
-      if (error) throw error
-      opened++
-    } else if (existing.status === "open") {
-      const { error } = await supabase
-        .from("operations_feed_items")
-        .update({
-          priority_tier: draft.priorityTier,
-          observation: draft.observation,
-          reasoning: draft.reasoning,
-          suggested_action: draft.suggestedAction,
-          action_label: draft.actionLabel,
-          action_href: draft.actionHref,
-          confidence: draft.confidence,
-          last_seen_at: now.toISOString(),
-        })
-        .eq("id", existing.id)
-      if (error) throw error
-      updated++
-    }
-    // existing.status === "dismissed": left completely untouched.
+    const key = { observerType: draft.observerType, entityType: draft.entityType, entityId: draft.entityId }
+    const existing = existingByKey.get(`${key.observerType}:${key.entityType}:${key.entityId}`)
+    const action = await upsertOperationsFeedItem(supabase, companyId, key, draft, existing, now)
+    if (action === "opened") opened++
+    else if (action === "updated") updated++
   }
 
   const toResolve = (existingRows ?? []).filter((r) => !draftKeys.has(`${r.observer_type}:${r.entity_type}:${r.entity_id}`))
