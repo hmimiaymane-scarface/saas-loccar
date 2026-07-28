@@ -7,6 +7,7 @@ import {
   computeVehicleUtilization,
   splitWeekdayWeekend,
   buildVehicleIntelligenceInputs,
+  computeCostTrend,
   HEALTH_FACTOR_WEIGHTS,
   type VehicleHealthInput,
   type VehicleRawData,
@@ -354,5 +355,27 @@ describe("buildVehicleIntelligenceInputs", () => {
     )
     expect(result.health.totalDays).toBe(1)
     expect(result.utilization.weekdayVsWeekend).toBeUndefined()
+  })
+})
+
+describe("computeCostTrend", () => {
+  it("flags a real increase as up", () => {
+    expect(computeCostTrend(1300, 1000)).toEqual({ direction: "up", changePercent: 30 })
+  })
+
+  it("flags a real decrease as down", () => {
+    expect(computeCostTrend(700, 1000)).toEqual({ direction: "down", changePercent: -30 })
+  })
+
+  it("treats a small move as flat", () => {
+    expect(computeCostTrend(1020, 1000)).toEqual({ direction: "flat", changePercent: 2 })
+  })
+
+  it("treats zero-to-zero as flat, not a divide-by-zero crash", () => {
+    expect(computeCostTrend(0, 0)).toEqual({ direction: "flat", changePercent: 0 })
+  })
+
+  it("treats going from zero prior cost to a real cost as up, not Infinity", () => {
+    expect(computeCostTrend(500, 0)).toEqual({ direction: "up", changePercent: 100 })
   })
 })

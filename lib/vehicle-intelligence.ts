@@ -461,3 +461,35 @@ export function buildVehicleIntelligenceInputs(raw: VehicleRawData, now: Date = 
     },
   }
 }
+
+// ---------------------------------------------------------------------
+// Cost trend
+// ---------------------------------------------------------------------
+
+export interface CostTrendResult {
+  direction: "up" | "down" | "flat"
+  changePercent: number
+}
+
+/** Below this, a cost move reads as "flat" — same threshold value and
+ * reasoning as `lib/revenue-intelligence.ts#REVENUE_FLAT_THRESHOLD_PERCENT`,
+ * just for a vehicle's recorded expenses instead of company-wide revenue. */
+const COST_FLAT_THRESHOLD_PERCENT = 3
+
+/** Roadmap phase 32 ("Vehicle Personality Without Gimmicks") — "cost
+ * trend" is this month's recorded expenses vs. last month's, nothing
+ * fancier. Reuses the exact percent-change/flat-threshold shape
+ * `lib/revenue-intelligence.ts#computeRevenueIntelligence` already
+ * established for the same kind of period-over-period comparison,
+ * scoped to one vehicle's costs rather than company-wide revenue. */
+export function computeCostTrend(currentMad: number, priorMad: number): CostTrendResult {
+  if (priorMad === 0) {
+    return currentMad > 0 ? { direction: "up", changePercent: 100 } : { direction: "flat", changePercent: 0 }
+  }
+
+  const changePercent = Math.round(((currentMad - priorMad) / priorMad) * 100)
+  const direction: CostTrendResult["direction"] =
+    changePercent > COST_FLAT_THRESHOLD_PERCENT ? "up" : changePercent < -COST_FLAT_THRESHOLD_PERCENT ? "down" : "flat"
+
+  return { direction, changePercent }
+}
