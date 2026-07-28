@@ -20,6 +20,7 @@ import { ReservationStatusActions } from "@/components/domain/reservations/reser
 import { DocumentListItem } from "@/components/domain/documents/document-list-item"
 import { DepositPanel } from "@/components/domain/reservations/deposit-panel"
 import { GenerateContractButton } from "@/components/domain/contracts/generate-contract-button"
+import { RentalStartedBanner } from "@/components/domain/reservations/rental-started-banner"
 import { ContractStatusBadge } from "@/components/domain/contracts/contract-status-badge"
 import { ContractReadinessBadge } from "@/components/domain/contracts/contract-readiness-badge"
 import type { SessionContext } from "@/lib/auth/session"
@@ -62,13 +63,16 @@ const SOURCE_LABELS: Record<string, string> = {
 
 export default async function ReservationDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ justActivated?: string }>
 }) {
   const session = await getSessionContext()
   if (!session) redirect("/sign-in")
 
   const { id } = await params
+  const query = await searchParams
   const reservation = await getReservationDetail(session.company.id, id)
   if (!reservation) notFound()
 
@@ -122,6 +126,10 @@ export default async function ReservationDetailPage({
           </div>
         }
       />
+
+      {query.justActivated === "1" && reservation.status === "active" && (
+        <RentalStartedBanner reservation={reservation} timezone={tz} hasContract={contracts.length > 0} />
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="flex flex-col gap-4 lg:col-span-2">

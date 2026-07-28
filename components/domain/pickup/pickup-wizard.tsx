@@ -435,7 +435,7 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       return
     }
 
-    router.push(`/reservations/${reservation.id}`)
+    router.push(`/reservations/${reservation.id}?justActivated=1`)
   }
 
   function next() {
