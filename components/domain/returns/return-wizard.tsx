@@ -163,6 +163,11 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
     angleLabel: string
     description: string
     confidence: number
+    // Roadmap phase 29 "Damage Review UX" — undefined whenever the
+    // signed URLs couldn't be resolved; the card just falls back to
+    // text-only, same as it always has.
+    pickupImageUrl?: string
+    returnImageUrl?: string
   }
   const [damageSuggestions, setDamageSuggestions] = useState<DamageSuggestion[]>([])
   const [acceptingAngle, setAcceptingAngle] = useState<string | null>(null)
@@ -173,7 +178,14 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       if (!result.damageDetected) return
       const label = PHOTO_SLOTS.find((s) => s.key === slotKey)?.label ?? slotKey
       setDamageSuggestions((prev) => [
-        { angle: slotKey, angleLabel: label, description: result.description ?? "", confidence: result.confidence ?? 0 },
+        {
+          angle: slotKey,
+          angleLabel: label,
+          description: result.description ?? "",
+          confidence: result.confidence ?? 0,
+          pickupImageUrl: result.pickupImageUrl,
+          returnImageUrl: result.returnImageUrl,
+        },
         ...prev.filter((s) => s.angle !== slotKey),
       ])
     })()
@@ -681,6 +693,14 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
                   reasoning={s.description || "The photo differs from the pickup photo of the same angle in a way that might be damage."}
                   suggestedAction="Confirm as new damage"
                   confidence={s.confidence}
+                  comparisonImages={
+                    s.pickupImageUrl && s.returnImageUrl
+                      ? {
+                          before: { url: s.pickupImageUrl, label: "Pickup" },
+                          after: { url: s.returnImageUrl, label: "Return" },
+                        }
+                      : undefined
+                  }
                   onAccept={() => void acceptDamageSuggestion(s)}
                   onDismiss={() => dismissDamageSuggestion(s.angle)}
                   className={acceptingAngle === s.angle ? "opacity-60" : undefined}
