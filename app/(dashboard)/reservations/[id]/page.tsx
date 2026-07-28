@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { Pencil, UserRound, Car, MapPin, Clock, ClipboardCheck, Undo2, GitCompare } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
-import { getReservationDetail } from "@/lib/data"
+import { getReservationDetail, getFleetCardContext } from "@/lib/data"
 import { createClient } from "@/lib/supabase/server"
 import { getContractsForReservation, getContractReadiness, type ContractReadiness } from "@/lib/contracts/template-store"
 import { isSupabaseConfigured } from "@/lib/env"
@@ -21,6 +21,7 @@ import { DocumentListItem } from "@/components/domain/documents/document-list-it
 import { DepositPanel } from "@/components/domain/reservations/deposit-panel"
 import { GenerateContractButton } from "@/components/domain/contracts/generate-contract-button"
 import { RentalStartedBanner } from "@/components/domain/reservations/rental-started-banner"
+import { ReturnCompletedBanner } from "@/components/domain/reservations/return-completed-banner"
 import { ContractStatusBadge } from "@/components/domain/contracts/contract-status-badge"
 import { ContractReadinessBadge } from "@/components/domain/contracts/contract-readiness-badge"
 import type { SessionContext } from "@/lib/auth/session"
@@ -66,7 +67,7 @@ export default async function ReservationDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ justActivated?: string }>
+  searchParams: Promise<{ justActivated?: string; justCompleted?: string }>
 }) {
   const session = await getSessionContext()
   if (!session) redirect("/sign-in")
@@ -78,6 +79,12 @@ export default async function ReservationDetailPage({
 
   const contracts = await loadContracts(session.company.id, id)
   const contractReadiness = contracts.length === 0 ? await loadContractReadiness(session, id) : null
+
+  const showReturnCompletedBanner = query.justCompleted === "1" && reservation.status === "completed"
+  const nextReservation =
+    showReturnCompletedBanner && reservation.vehicle
+      ? ((await getFleetCardContext(session.company.id, [reservation.vehicle.id]))[reservation.vehicle.id]?.nextReservation ?? null)
+      : null
 
   const tz = session.company.timezone
   const canManage = ["owner", "manager", "agent"].includes(session.role)
@@ -129,6 +136,10 @@ export default async function ReservationDetailPage({
 
       {query.justActivated === "1" && reservation.status === "active" && (
         <RentalStartedBanner reservation={reservation} timezone={tz} hasContract={contracts.length > 0} />
+      )}
+
+      {showReturnCompletedBanner && (
+        <ReturnCompletedBanner reservation={reservation} timezone={tz} nextReservation={nextReservation} />
       )}
 
       <div className="grid gap-4 lg:grid-cols-3">

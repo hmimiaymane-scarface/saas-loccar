@@ -460,7 +460,7 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       return
     }
 
-    router.push(`/reservations/${reservation.id}`)
+    router.push(`/reservations/${reservation.id}?justCompleted=1`)
   }
 
   function next() {
