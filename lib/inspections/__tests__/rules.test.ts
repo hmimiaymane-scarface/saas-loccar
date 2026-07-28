@@ -6,6 +6,8 @@ import {
   missingRequiredPhotoSlots,
   pickupCompletenessItems,
   isPickupInspectionComplete,
+  returnCompletenessItems,
+  isReturnInspectionComplete,
 } from "../rules"
 
 const ALL_SLOTS = ["front", "rear", "driver_side", "passenger_side", "interior", "dashboard_odometer", "fuel_gauge"]
@@ -124,5 +126,44 @@ describe("pickupCompletenessItems / isPickupInspectionComplete", () => {
     const progress = { ...complete, existingDamageReviewed: false }
     expect(isPickupInspectionComplete(progress)).toBe(false)
     expect(pickupCompletenessItems(progress).find((i) => i.label === "Existing damage reviewed")?.done).toBe(false)
+  })
+})
+
+describe("returnCompletenessItems / isReturnInspectionComplete", () => {
+  const complete = {
+    odometerKm: 12150,
+    pickupOdometerKm: 12000,
+    fuelLevel: "full" as const,
+    capturedPhotoSlotKeys: ALL_SLOTS,
+  }
+
+  it("reports every item done and overall complete when everything is provided", () => {
+    const items = returnCompletenessItems(complete)
+    expect(items.every((item) => item.done)).toBe(true)
+    expect(isReturnInspectionComplete(complete)).toBe(true)
+  })
+
+  it("is not complete with a missing odometer, even if everything else is done", () => {
+    const progress = { ...complete, odometerKm: null }
+    expect(isReturnInspectionComplete(progress)).toBe(false)
+    expect(returnCompletenessItems(progress).find((i) => i.label === "Odometer reading")?.done).toBe(false)
+  })
+
+  it("is not complete when the return odometer is lower than pickup's, even though it's non-null", () => {
+    const progress = { ...complete, odometerKm: 11950 }
+    expect(isReturnInspectionComplete(progress)).toBe(false)
+    expect(returnCompletenessItems(progress).find((i) => i.label === "Odometer reading")?.done).toBe(false)
+  })
+
+  it("is not complete with a missing fuel level", () => {
+    const progress = { ...complete, fuelLevel: null }
+    expect(isReturnInspectionComplete(progress)).toBe(false)
+    expect(returnCompletenessItems(progress).find((i) => i.label === "Fuel level")?.done).toBe(false)
+  })
+
+  it("is not complete with required photos still missing", () => {
+    const progress = { ...complete, capturedPhotoSlotKeys: ["front"] }
+    expect(isReturnInspectionComplete(progress)).toBe(false)
+    expect(returnCompletenessItems(progress).find((i) => i.label === "Required photos")?.done).toBe(false)
   })
 })

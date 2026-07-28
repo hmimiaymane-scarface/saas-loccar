@@ -67,3 +67,35 @@ export function pickupCompletenessItems(progress: PickupInspectionProgress): Req
 export function isPickupInspectionComplete(progress: PickupInspectionProgress): boolean {
   return pickupCompletenessItems(progress).every((item) => item.done)
 }
+
+export interface ReturnInspectionProgress {
+  odometerKm: number | null
+  pickupOdometerKm: number | null
+  fuelLevel: FuelLevel | null
+  capturedPhotoSlotKeys: string[]
+}
+
+/**
+ * Roadmap phase 28 — the return-side counterpart to
+ * `pickupCompletenessItems`, replacing the return wizard's own hand-rolled
+ * `Boolean(odometerKm && fuelLevel && cleanliness && overallCondition)`
+ * check, which never verified required photos were captured at all. No
+ * "existing damage reviewed" item — that's a pickup-only pre-rental gate
+ * with no return-side control; cleanliness/overallCondition stay a
+ * wizard-level nudge layered outside this function, same asymmetry
+ * pickup already has.
+ */
+export function returnCompletenessItems(progress: ReturnInspectionProgress): RequirementItem[] {
+  return [
+    {
+      label: "Odometer reading",
+      done: progress.odometerKm != null && isValidReturnOdometer(progress.odometerKm, progress.pickupOdometerKm),
+    },
+    { label: "Fuel level", done: progress.fuelLevel != null },
+    { label: "Required photos", done: missingRequiredPhotoSlots(progress.capturedPhotoSlotKeys).length === 0 },
+  ]
+}
+
+export function isReturnInspectionComplete(progress: ReturnInspectionProgress): boolean {
+  return returnCompletenessItems(progress).every((item) => item.done)
+}

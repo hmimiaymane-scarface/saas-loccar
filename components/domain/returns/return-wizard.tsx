@@ -28,7 +28,7 @@ import {
 import { completeRentalAction } from "@/app/(dashboard)/reservations/actions"
 import { recordPayment, returnDeposit, retainDeposit } from "@/app/(dashboard)/payments/actions"
 import { createDamage } from "@/app/(dashboard)/damages/actions"
-import { isValidReturnOdometer, missingRequiredPhotoSlots } from "@/lib/inspections/rules"
+import { isValidReturnOdometer, missingRequiredPhotoSlots, returnCompletenessItems, isReturnInspectionComplete } from "@/lib/inspections/rules"
 import { PHOTO_SLOTS } from "@/lib/inspections/photo-slots"
 import { buildInlineNudges } from "@/lib/mobile/inline-nudges"
 import { resolveInitialStep, type RequirementItem } from "@/lib/workflow/steps"
@@ -471,10 +471,21 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
     setStep((s) => Math.max(0, s - 1))
   }
 
+  const returnProgress = useMemo(
+    () => ({
+      odometerKm: odometerKm ? Number(odometerKm) : null,
+      pickupOdometerKm: pickup?.odometerKm ?? null,
+      fuelLevel,
+      capturedPhotoSlotKeys: photos.map((p) => p.key),
+    }),
+    [odometerKm, pickup, fuelLevel, photos]
+  )
+  const inspectionCompletenessItems = useMemo(() => returnCompletenessItems(returnProgress), [returnProgress])
+
   const requirementItems: RequirementItem[] = [
     {
       label: "Inspection completed",
-      done: Boolean(odometerKm && fuelLevel && cleanliness && overallCondition),
+      done: isReturnInspectionComplete(returnProgress) && Boolean(cleanliness && overallCondition),
     },
     { label: "Balance settled", done: payment.remainingMad <= 0 },
     {
@@ -537,6 +548,8 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
 
       {step === 1 && (
         <div className="flex flex-col gap-4">
+          <RequirementsSummary items={inspectionCompletenessItems} />
+
           <Card>
             <CardHeader>
               <CardTitle>Vehicle condition</CardTitle>

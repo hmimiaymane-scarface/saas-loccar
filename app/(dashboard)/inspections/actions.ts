@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { createClient } from "@/lib/supabase/server"
+import { isSupabaseConfigured } from "@/lib/env"
 import { recordEvent } from "@/lib/activity-log"
 import { STORAGE_BUCKET, ACCEPTED_IMAGE_MIME_TYPES, validateUploadForCompany } from "@/lib/storage"
 import { compareInspectionPhotos } from "@/lib/damage-detection"
@@ -34,6 +35,9 @@ export async function startInspection(
   reservationId: string,
   type: InspectionType
 ): Promise<InspectionActionState> {
+  if (!isSupabaseConfigured) {
+    return { error: "Inspections require a connected Supabase project." }
+  }
   try {
     const session = await requireSession()
     requireRole(session, [...INSPECTION_ROLES])
