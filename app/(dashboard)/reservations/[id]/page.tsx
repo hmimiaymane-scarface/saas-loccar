@@ -5,7 +5,7 @@ import { Pencil, UserRound, Car, MapPin, Clock, ClipboardCheck, Undo2, GitCompar
 import { getSessionContext } from "@/lib/auth/session"
 import { getReservationDetail } from "@/lib/data"
 import { createClient } from "@/lib/supabase/server"
-import { getContractsForReservation } from "@/lib/contracts/template-store"
+import { getContractsForReservation, getContractReadiness, type ContractReadiness } from "@/lib/contracts/template-store"
 import { isSupabaseConfigured } from "@/lib/env"
 import { formatMad, formatDateTime } from "@/lib/format"
 import { formatInTimeZone } from "@/lib/timezone"
@@ -20,6 +20,9 @@ import { ReservationStatusActions } from "@/components/domain/reservations/reser
 import { DocumentListItem } from "@/components/domain/documents/document-list-item"
 import { DepositPanel } from "@/components/domain/reservations/deposit-panel"
 import { GenerateContractButton } from "@/components/domain/contracts/generate-contract-button"
+import { ContractStatusBadge } from "@/components/domain/contracts/contract-status-badge"
+import { ContractReadinessBadge } from "@/components/domain/contracts/contract-readiness-badge"
+import type { SessionContext } from "@/lib/auth/session"
 
 /** Same degrade-to-empty convention as every other AI/advisory feature
  * on this page's peers (fleet/[id], customers/[id]) — mock mode has no
@@ -31,6 +34,20 @@ async function loadContracts(companyId: string, reservationId: string) {
     return await getContractsForReservation(supabase, companyId, reservationId)
   } catch {
     return []
+  }
+}
+
+/** Only called when no contract exists yet (see call site) — once one
+ * has been generated, its own lifecycle status is the relevant signal,
+ * not pre-generation readiness. Same degrade-to-null convention as
+ * `loadContracts` above. */
+async function loadContractReadiness(session: SessionContext, reservationId: string): Promise<ContractReadiness | null> {
+  if (!isSupabaseConfigured) return null
+  try {
+    const supabase = await createClient()
+    return await getContractReadiness(supabase, session, reservationId)
+  } catch {
+    return null
   }
 }
 
@@ -56,6 +73,7 @@ export default async function ReservationDetailPage({
   if (!reservation) notFound()
 
   const contracts = await loadContracts(session.company.id, id)
+  const contractReadiness = contracts.length === 0 ? await loadContractReadiness(session, id) : null
 
   const tz = session.company.timezone
   const canManage = ["owner", "manager", "agent"].includes(session.role)
@@ -262,20 +280,27 @@ export default async function ReservationDetailPage({
                 <CardTitle>Contract</CardTitle>
                 <GenerateContractButton reservationId={reservation.id} />
               </CardHeader>
-              {contracts.length > 0 && (
-                <CardContent className="flex flex-col divide-y divide-border">
-                  {contracts.map((c) => (
-                    <Link
-                      key={c.id}
-                      href={`/contracts/${c.id}`}
-                      className="flex items-center justify-between py-2.5 text-sm hover:underline"
-                    >
-                      <span className="text-foreground">Generated {formatDateTime(c.generatedAt)}</span>
-                      {c.generatedByName && <span className="text-xs text-muted-foreground">{c.generatedByName}</span>}
-                    </Link>
-                  ))}
-                </CardContent>
-              )}
+              <CardContent className="flex flex-col gap-3">
+                {contracts.length > 0 ? (
+                  <div className="flex flex-col divide-y divide-border">
+                    {contracts.map((c) => (
+                      <Link
+                        key={c.id}
+                        href={`/contracts/${c.id}`}
+                        className="flex items-center justify-between py-2.5 text-sm hover:underline"
+                      >
+                        <span className="text-foreground">Generated {formatDateTime(c.generatedAt)}</span>
+                        <div className="flex items-center gap-2">
+                          {c.generatedByName && <span className="text-xs text-muted-foreground">{c.generatedByName}</span>}
+                          <ContractStatusBadge status={c.status} />
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  contractReadiness && <ContractReadinessBadge ready={contractReadiness.ready} issues={contractReadiness.issues} />
+                )}
+              </CardContent>
             </Card>
           )}
 
