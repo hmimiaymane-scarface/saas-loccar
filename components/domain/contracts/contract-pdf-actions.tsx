@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { Download, Printer, Share } from "lucide-react"
+import { Download, Printer, Share, Send } from "lucide-react"
 
 import { logContractPrintedAction, logContractDownloadedAction } from "@/app/(dashboard)/contract-templates/actions"
 import { Button } from "@/components/ui/button"
@@ -80,6 +80,16 @@ function ContractPdfActions({ contractId, pdfUrl }: { contractId: string; pdfUrl
           </a>
         </Button>
       )}
+      {/* Roadmap phase 26 — no messaging integration exists anywhere in
+          this app yet (see docs/notifications.md); an honest, disabled
+          stub beats a fake "Sent" state or silently omitting the button
+          the brief explicitly asks for. Native `title` rather than the
+          Radix Tooltip primitive — a genuinely `disabled` button doesn't
+          reliably fire the pointer events Radix's tooltip trigger needs. */}
+      <Button variant="outline" disabled title="Available once WhatsApp or email is connected">
+        <Send />
+        Send
+      </Button>
     </div>
   )
 }
