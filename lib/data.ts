@@ -4178,11 +4178,17 @@ export interface MonthlyRevenuePoint {
  * discipline every other multi-row lookup in this file already
  * follows), bucketed by month client-side using the company's own
  * timezone via `utcIsoToZonedLocal` — a payment made at 23:50 local on
- * the last day of a month must land in that month, not the next one. */
+ * the last day of a month must land in that month, not the next one.
+ *
+ * `vehicleId` (phase 32, "Vehicle Personality Without Gimmicks") scopes
+ * the same series to one vehicle instead of the whole company — reuses
+ * `computeRevenueRecord`/`computeRevenueStreak` unchanged, just fed a
+ * narrower series. */
 export async function getTrailingMonthlyRevenue(
   companyId: string,
   months: number,
-  timeZone: string
+  timeZone: string,
+  vehicleId?: string
 ): Promise<MonthlyRevenuePoint[]> {
   const trailingMonths = resolveTrailingMonths(months, timeZone)
   const fromIso = trailingMonths[0].range.fromIso
@@ -4195,6 +4201,7 @@ export async function getTrailingMonthlyRevenue(
     for (const p of mockPaymentLedger) {
       if (p.transactionType !== "rental_payment") continue
       if (p.paidAt < fromIso || p.paidAt >= toIso) continue
+      if (vehicleId && mockBookings.find((b) => b.id === p.reservationId)?.vehicle?.id !== vehicleId) continue
       const bucket = utcIsoToZonedLocal(p.paidAt, timeZone).slice(0, 7)
       if (revenueByMonth.has(bucket)) revenueByMonth.set(bucket, (revenueByMonth.get(bucket) ?? 0) + p.amountMad)
     }
@@ -4202,9 +4209,17 @@ export async function getTrailingMonthlyRevenue(
   }
 
   const supabase = await createClient()
+  // Same technique getFleetPerformanceReport already uses for the
+  // identical "filter payments by vehicle" need: an inner join brings
+  // vehicle_id along, filtered client-side rather than via a dotted
+  // .eq() on the embedded resource — a query shape not used anywhere
+  // else in this file, so this sticks to the one already proven here.
+  // Always selects the join (rather than a conditional select string,
+  // which Supabase's typed query builder can't parse) — the extra
+  // field is simply ignored when vehicleId isn't given.
   const { data, error } = await supabase
     .from("payments")
-    .select("amount, paid_at")
+    .select("amount, paid_at, reservation:reservations!inner(vehicle_id)")
     .eq("company_id", companyId)
     .eq("transaction_type", "rental_payment")
     .gte("paid_at", fromIso)
@@ -4213,6 +4228,7 @@ export async function getTrailingMonthlyRevenue(
   if (error) throw error
 
   for (const p of data ?? []) {
+    if (vehicleId && (p.reservation as unknown as { vehicle_id: string | null })?.vehicle_id !== vehicleId) continue
     const bucket = utcIsoToZonedLocal(p.paid_at, timeZone).slice(0, 7)
     if (revenueByMonth.has(bucket)) revenueByMonth.set(bucket, (revenueByMonth.get(bucket) ?? 0) + Number(p.amount))
   }

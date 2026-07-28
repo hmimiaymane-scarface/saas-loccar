@@ -206,3 +206,59 @@ export function buildPerformanceHighlights(
 
   return highlights
 }
+
+export interface VehicleRank {
+  rank: number
+  total: number
+}
+
+/** Roadmap phase 32 ("Vehicle Personality Without Gimmicks") — where
+ * this one vehicle stands among the whole fleet by revenue this month.
+ * The "compete" framing the user asked for, deliberately as real
+ * business standing (a rank among real numbers) rather than a game
+ * score — no points, no XP, nothing invented that isn't already true of
+ * the fleet. `null` when this vehicle has no recorded revenue this
+ * month (same "never crown/rank zero activity" rule `buildVehicleLeaderboard`
+ * already follows) or isn't present in `rows` at all. Ties share the
+ * same rank number (standard competition ranking — a tie for #2 doesn't
+ * skip to #4 for the next vehicle down but the one after a group of N
+ * tied vehicles is #2+N). */
+export function computeVehicleRank(rows: FleetPerformanceRow[], vehicleId: string): VehicleRank | null {
+  const activeRows = rows.filter((r) => r.recordedRevenueMad > 0)
+  const target = activeRows.find((r) => r.vehicleId === vehicleId)
+  if (!target) return null
+
+  const sorted = [...activeRows].sort((a, b) => b.recordedRevenueMad - a.recordedRevenueMad)
+  const rank = sorted.findIndex((r) => r.recordedRevenueMad === target.recordedRevenueMad) + 1
+
+  return { rank, total: activeRows.length }
+}
+
+/** Composes `computeVehicleRank` + this vehicle's own
+ * `computeRevenueRecord`/`computeRevenueStreak` (fed a per-vehicle
+ * series via `getTrailingMonthlyRevenue(..., vehicleId)`) into the same
+ * plain-sentence shape `buildPerformanceHighlights` uses company-wide —
+ * reused, not duplicated. */
+export function buildVehicleHighlights(rank: VehicleRank | null, record: RevenueRecord, streak: RevenueStreak): PerformanceHighlight[] {
+  const highlights: PerformanceHighlight[] = []
+
+  if (rank) {
+    highlights.push({ icon: "topRevenue", text: `#${rank.rank} of ${rank.total} vehicles by revenue this month.` })
+  }
+
+  if (record.isRecord) {
+    highlights.push({ icon: "record", text: `Best month yet: ${formatMad(record.bestRevenueMad)}.` })
+  }
+
+  if (streak.length >= 2 && streak.direction) {
+    highlights.push({
+      icon: "streak",
+      text:
+        streak.direction === "growth"
+          ? `Revenue growing for ${streak.length} straight months.`
+          : `Revenue declining for ${streak.length} straight months.`,
+    })
+  }
+
+  return highlights
+}

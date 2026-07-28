@@ -5,6 +5,8 @@ import {
   buildPerformanceHighlights,
   computeRevenueRecord,
   computeRevenueStreak,
+  computeVehicleRank,
+  buildVehicleHighlights,
   type VehicleLeaderboard,
 } from "@/lib/gamification"
 import type { FleetPerformanceRow } from "@/types/rental"
@@ -160,5 +162,60 @@ describe("buildPerformanceHighlights", () => {
     }
     const highlights = buildPerformanceHighlights(leaderboard, { isRecord: true, bestRevenueMad: 5000 }, { length: 2, direction: "growth" })
     expect(highlights.every((h) => !h.text.toLowerCase().includes("last month"))).toBe(true)
+  })
+})
+
+describe("computeVehicleRank", () => {
+  it("ranks a vehicle among only the vehicles with real revenue this month", () => {
+    const rows = [
+      makeRow({ vehicleId: "veh_1", recordedRevenueMad: 5000 }),
+      makeRow({ vehicleId: "veh_2", recordedRevenueMad: 3000 }),
+      makeRow({ vehicleId: "veh_3", recordedRevenueMad: 8000 }),
+      makeRow({ vehicleId: "veh_4", recordedRevenueMad: 0 }),
+    ]
+    expect(computeVehicleRank(rows, "veh_1")).toEqual({ rank: 2, total: 3 })
+    expect(computeVehicleRank(rows, "veh_3")).toEqual({ rank: 1, total: 3 })
+  })
+
+  it("returns null for a vehicle with zero revenue this month", () => {
+    const rows = [makeRow({ vehicleId: "veh_1", recordedRevenueMad: 0 })]
+    expect(computeVehicleRank(rows, "veh_1")).toBeNull()
+  })
+
+  it("returns null when the vehicle isn't in the rows at all", () => {
+    const rows = [makeRow({ vehicleId: "veh_1", recordedRevenueMad: 5000 })]
+    expect(computeVehicleRank(rows, "veh_999")).toBeNull()
+  })
+
+  it("gives tied vehicles the same rank, standard competition ranking", () => {
+    const rows = [
+      makeRow({ vehicleId: "veh_1", recordedRevenueMad: 5000 }),
+      makeRow({ vehicleId: "veh_2", recordedRevenueMad: 5000 }),
+      makeRow({ vehicleId: "veh_3", recordedRevenueMad: 2000 }),
+    ]
+    expect(computeVehicleRank(rows, "veh_1")?.rank).toBe(1)
+    expect(computeVehicleRank(rows, "veh_2")?.rank).toBe(1)
+    expect(computeVehicleRank(rows, "veh_3")?.rank).toBe(3)
+  })
+})
+
+describe("buildVehicleHighlights", () => {
+  it("returns nothing when there's nothing to say", () => {
+    expect(buildVehicleHighlights(null, { isRecord: false, bestRevenueMad: 0 }, { length: 0, direction: null })).toEqual([])
+  })
+
+  it("includes rank only when non-null", () => {
+    const highlights = buildVehicleHighlights({ rank: 2, total: 24 }, { isRecord: false, bestRevenueMad: 0 }, { length: 0, direction: null })
+    expect(highlights).toEqual([{ icon: "topRevenue", text: "#2 of 24 vehicles by revenue this month." }])
+  })
+
+  it("includes a best-month line only when isRecord is true", () => {
+    const highlights = buildVehicleHighlights(null, { isRecord: true, bestRevenueMad: 5000 }, { length: 0, direction: null })
+    expect(highlights).toEqual([{ icon: "record", text: "Best month yet: 5.000 MAD." }])
+  })
+
+  it("includes a growth-streak line only when length >= 2", () => {
+    const highlights = buildVehicleHighlights(null, { isRecord: false, bestRevenueMad: 0 }, { length: 3, direction: "growth" })
+    expect(highlights).toEqual([{ icon: "streak", text: "Revenue growing for 3 straight months." }])
   })
 })
