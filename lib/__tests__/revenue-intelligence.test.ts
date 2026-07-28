@@ -60,11 +60,16 @@ describe("computeRevenuePulseHeadline", () => {
 
   it("never names a driver, unlike computeRevenueIntelligence", () => {
     const headline = computeRevenuePulseHeadline(114_000, 100_000)
-    expect(headline.toLowerCase()).not.toContain("occupancy")
-    expect(headline.toLowerCase()).not.toContain("rental")
+    expect(headline).not.toBeNull()
+    expect(headline?.toLowerCase()).not.toContain("occupancy")
+    expect(headline?.toLowerCase()).not.toContain("rental")
   })
 
   it("handles a zero prior-period revenue without dividing by zero", () => {
     expect(computeRevenuePulseHeadline(5_000, 0)).toBe("Strong month: revenue is up 100%.")
+  })
+
+  it("returns null rather than a fabricated 'steady' claim when both periods are zero", () => {
+    expect(computeRevenuePulseHeadline(0, 0)).toBeNull()
   })
 })

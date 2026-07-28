@@ -80,8 +80,13 @@ export function computeRevenueIntelligence(current: RevenuePeriodFigures, prior:
  * homework, not a conclusion — the whole point of this phase's brief),
  * just the headline number, reusing the exact same percent-change/
  * flat-threshold logic so the two never silently disagree about what
- * counts as "up" vs. "flat." */
-export function computeRevenuePulseHeadline(currentMad: number, priorMad: number): string {
+ * counts as "up" vs. "flat." `null` when both periods are exactly zero
+ * — a company with no revenue history yet has nothing to conclude, and
+ * "Steady month" would be a fabricated claim of stability rather than
+ * an honest absence of data. */
+export function computeRevenuePulseHeadline(currentMad: number, priorMad: number): string | null {
+  if (currentMad === 0 && priorMad === 0) return null
+
   const changePercent = Math.round(pctChange(currentMad, priorMad))
   const direction: "up" | "down" | "flat" =
     changePercent > REVENUE_FLAT_THRESHOLD_PERCENT ? "up" : changePercent < -REVENUE_FLAT_THRESHOLD_PERCENT ? "down" : "flat"
