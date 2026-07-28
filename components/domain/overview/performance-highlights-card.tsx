@@ -17,17 +17,20 @@ const HIGHLIGHT_ICON: Record<PerformanceHighlightIcon, LucideIcon> = {
  * one small monochrome icon each, no coins/XP/cartoon badges (the
  * brief's own explicit non-goal). Purely presentational: which
  * highlights qualify and what they say is decided by
- * `lib/gamification.ts#buildPerformanceHighlights`, not here. Renders
- * nothing (not an empty-state card) when there's nothing to show —
- * same convention `vehicle-insights-section.tsx` already established.
- */
-function PerformanceHighlightsCard({ highlights }: { highlights: PerformanceHighlight[] }) {
+ * `lib/gamification.ts#buildPerformanceHighlights`/`buildVehicleHighlights`,
+ * not here. Renders nothing (not an empty-state card) when there's
+ * nothing to show — same convention `vehicle-insights-section.tsx`
+ * already established. `title` is overridable (phase 32 reuses this
+ * same card on a single vehicle's page via `buildVehicleHighlights`,
+ * where "Performance Highlights" reads oddly — cheaper to reuse this
+ * generic, already-built card than duplicate its JSX). */
+function PerformanceHighlightsCard({ highlights, title = "Performance Highlights" }: { highlights: PerformanceHighlight[]; title?: string }) {
   if (highlights.length === 0) return null
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Performance Highlights</CardTitle>
+        <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2.5">
         {highlights.map((highlight, i) => {
