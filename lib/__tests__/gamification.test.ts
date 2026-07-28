@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildVehicleLeaderboard,
+  buildPerformanceHighlights,
   computeRevenueRecord,
   computeRevenueStreak,
+  type VehicleLeaderboard,
 } from "@/lib/gamification"
 import type { FleetPerformanceRow } from "@/types/rental"
 import type { MonthlyRevenuePoint } from "@/lib/data"
@@ -119,5 +121,44 @@ describe("computeRevenueStreak", () => {
   it("stops counting the instant the direction breaks", () => {
     // most recent 3 transitions: 100->90 (decline), 90->95 (growth) breaks it
     expect(computeRevenueStreak(series(80, 90, 95, 100, 90))).toEqual({ length: 0, direction: null })
+  })
+})
+
+const EMPTY_LEADERBOARD: VehicleLeaderboard = { topRevenue: null, topRentals: null, topUtilization: null, mostIdle: null }
+
+describe("buildPerformanceHighlights", () => {
+  it("returns nothing when there's nothing to say", () => {
+    expect(buildPerformanceHighlights(EMPTY_LEADERBOARD, { isRecord: false, bestRevenueMad: 0 }, { length: 0, direction: null })).toEqual([])
+  })
+
+  it("includes a leaderboard entry only when it's non-null", () => {
+    const leaderboard: VehicleLeaderboard = {
+      ...EMPTY_LEADERBOARD,
+      topRevenue: { vehicleId: "veh_1", vehicleLabel: "Dacia Duster", plate: "1234-A-5", value: 5000 },
+    }
+    const highlights = buildPerformanceHighlights(leaderboard, { isRecord: false, bestRevenueMad: 0 }, { length: 0, direction: null })
+    expect(highlights).toHaveLength(1)
+    expect(highlights[0].icon).toBe("topRevenue")
+    expect(highlights[0].text).toContain("Dacia Duster")
+    expect(highlights[0].text).toContain("5.000 MAD")
+  })
+
+  it("includes a record line only when isRecord is true", () => {
+    const highlights = buildPerformanceHighlights(EMPTY_LEADERBOARD, { isRecord: true, bestRevenueMad: 9000 }, { length: 0, direction: null })
+    expect(highlights).toEqual([{ icon: "record", text: "New revenue record this month: 9.000 MAD." }])
+  })
+
+  it("includes a streak line only when length >= 2", () => {
+    const highlights = buildPerformanceHighlights(EMPTY_LEADERBOARD, { isRecord: false, bestRevenueMad: 0 }, { length: 3, direction: "growth" })
+    expect(highlights).toEqual([{ icon: "streak", text: "Revenue has grown for 3 straight months." }])
+  })
+
+  it("never includes a month-vs-last-month line (that's RevenueIntelligenceCard's job)", () => {
+    const leaderboard: VehicleLeaderboard = {
+      ...EMPTY_LEADERBOARD,
+      topRevenue: { vehicleId: "veh_1", vehicleLabel: "Dacia Duster", plate: "1234-A-5", value: 5000 },
+    }
+    const highlights = buildPerformanceHighlights(leaderboard, { isRecord: true, bestRevenueMad: 5000 }, { length: 2, direction: "growth" })
+    expect(highlights.every((h) => !h.text.toLowerCase().includes("last month"))).toBe(true)
   })
 })

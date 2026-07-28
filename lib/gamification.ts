@@ -1,5 +1,6 @@
 import type { FleetPerformanceRow } from "@/types/rental"
 import type { MonthlyRevenuePoint } from "@/lib/data"
+import { formatMad } from "@/lib/format"
 
 /**
  * Roadmap phase 31 ("Business Gamification Layer") — pure derivations
@@ -137,4 +138,71 @@ export function computeRevenueStreak(series: MonthlyRevenuePoint[]): RevenueStre
   }
 
   return length >= 2 ? { length, direction } : { length: 0, direction: null }
+}
+
+export type PerformanceHighlightIcon = "topRevenue" | "topRentals" | "topUtilization" | "idle" | "record" | "streak"
+
+export interface PerformanceHighlight {
+  icon: PerformanceHighlightIcon
+  text: string
+}
+
+/** Composes the leaderboard/record/streak results above into the plain
+ * sentences `PerformanceHighlightsCard` renders — kept here, not in the
+ * component, so the "which highlights qualify and what they say" logic
+ * is unit-testable without React. No coins/XP/badges (the brief's own
+ * explicit non-goal) — every entry is a short, factual sentence; the
+ * component's job is only to pair each with an icon. Deliberately does
+ * NOT include a "month vs last month" line — `RevenueIntelligenceCard`
+ * already owns that fact on the same page. */
+export function buildPerformanceHighlights(
+  leaderboard: VehicleLeaderboard,
+  record: RevenueRecord,
+  streak: RevenueStreak
+): PerformanceHighlight[] {
+  const highlights: PerformanceHighlight[] = []
+
+  if (leaderboard.topRevenue) {
+    highlights.push({
+      icon: "topRevenue",
+      text: `Top vehicle by revenue this month: ${leaderboard.topRevenue.vehicleLabel} (${leaderboard.topRevenue.plate}) — ${formatMad(leaderboard.topRevenue.value)}.`,
+    })
+  }
+
+  if (leaderboard.topRentals) {
+    highlights.push({
+      icon: "topRentals",
+      text: `Most rented this month: ${leaderboard.topRentals.vehicleLabel} (${leaderboard.topRentals.plate}) — ${leaderboard.topRentals.value} rental${leaderboard.topRentals.value === 1 ? "" : "s"}.`,
+    })
+  }
+
+  if (leaderboard.topUtilization) {
+    highlights.push({
+      icon: "topUtilization",
+      text: `Highest utilization: ${leaderboard.topUtilization.vehicleLabel} (${leaderboard.topUtilization.plate}) at ${leaderboard.topUtilization.value}%.`,
+    })
+  }
+
+  if (record.isRecord) {
+    highlights.push({ icon: "record", text: `New revenue record this month: ${formatMad(record.bestRevenueMad)}.` })
+  }
+
+  if (streak.length >= 2 && streak.direction) {
+    highlights.push({
+      icon: "streak",
+      text:
+        streak.direction === "growth"
+          ? `Revenue has grown for ${streak.length} straight months.`
+          : `Revenue has declined for ${streak.length} straight months.`,
+    })
+  }
+
+  if (leaderboard.mostIdle) {
+    highlights.push({
+      icon: "idle",
+      text: `${leaderboard.mostIdle.vehicleLabel} (${leaderboard.mostIdle.plate}) hasn't had a rental in ${leaderboard.mostIdle.idleDaysThisMonth} day${leaderboard.mostIdle.idleDaysThisMonth === 1 ? "" : "s"} this month.`,
+    })
+  }
+
+  return highlights
 }
