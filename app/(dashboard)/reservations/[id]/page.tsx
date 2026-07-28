@@ -22,6 +22,7 @@ import { DepositPanel } from "@/components/domain/reservations/deposit-panel"
 import { GenerateContractButton } from "@/components/domain/contracts/generate-contract-button"
 import { RentalStartedBanner } from "@/components/domain/reservations/rental-started-banner"
 import { ReturnCompletedBanner } from "@/components/domain/reservations/return-completed-banner"
+import { ReturnCompletionSummary } from "@/components/domain/reservations/return-completion-summary"
 import { ContractStatusBadge } from "@/components/domain/contracts/contract-status-badge"
 import { ContractReadinessBadge } from "@/components/domain/contracts/contract-readiness-badge"
 import type { SessionContext } from "@/lib/auth/session"
@@ -139,7 +140,10 @@ export default async function ReservationDetailPage({
       )}
 
       {showReturnCompletedBanner && (
-        <ReturnCompletedBanner reservation={reservation} timezone={tz} nextReservation={nextReservation} />
+        <>
+          <ReturnCompletedBanner reservation={reservation} timezone={tz} nextReservation={nextReservation} />
+          <ReturnCompletionSummary reservation={reservation} />
+        </>
       )}
 
       <div className="grid gap-4 lg:grid-cols-3">
