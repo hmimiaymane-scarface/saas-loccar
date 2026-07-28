@@ -6,6 +6,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ConfidenceIndicator } from "@/components/domain/intelligence/confidence-indicator"
 
+interface ComparisonImage {
+  url: string
+  label: string
+}
+
 interface AiRecommendationCardProps {
   observation: string
   reasoning: string
@@ -15,6 +20,13 @@ interface AiRecommendationCardProps {
   onAccept?: () => void
   onDismiss?: () => void
   className?: string
+  /** Roadmap phase 29 "Damage Review UX" — an optional before/after photo
+   * pair (e.g. a pickup vs. return inspection photo) shown above the
+   * observation text so staff can judge the AI's suggestion against the
+   * actual images, not just its description. Undefined for every other
+   * consumer of this card (vehicle/customer recommendations have no
+   * photo pair to show) — purely additive, no layout change when absent. */
+  comparisonImages?: { before: ComparisonImage; after: ComparisonImage }
 }
 
 /** The canonical way an AI-generated suggestion appears anywhere in the
@@ -30,6 +42,7 @@ function AiRecommendationCard({
   onAccept,
   onDismiss,
   className,
+  comparisonImages,
 }: AiRecommendationCardProps) {
   return (
     <Card className={className}>
@@ -38,6 +51,19 @@ function AiRecommendationCard({
           <Sparkles aria-hidden="true" className="size-3.5" />
           AI recommendation
         </div>
+        {comparisonImages && (
+          <div className="grid grid-cols-2 gap-2">
+            {[comparisonImages.before, comparisonImages.after].map((image) => (
+              <a key={image.label} href={image.url} target="_blank" rel="noreferrer" className="flex flex-col gap-1">
+                <span className="aspect-square overflow-hidden rounded-2xl border border-border">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={image.url} alt={image.label} className="size-full object-cover" />
+                </span>
+                <span className="text-center text-[11px] font-medium text-muted-foreground">{image.label}</span>
+              </a>
+            ))}
+          </div>
+        )}
         <p className="text-sm text-foreground">{observation}</p>
         <p className="text-sm text-muted-foreground">{reasoning}</p>
         <p className="rounded-2xl bg-muted px-3 py-2 text-sm font-medium text-foreground">{suggestedAction}</p>
