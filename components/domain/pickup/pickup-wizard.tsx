@@ -47,6 +47,7 @@ import { WizardProgress } from "@/components/domain/wizard-progress"
 import { OfflineStatusBanner } from "@/components/domain/offline-status-banner"
 import { InlineNudgeList } from "@/components/domain/mobile/inline-nudge-list"
 import { WizardFooter } from "@/components/domain/wizard-footer"
+import { MoneySummaryCard } from "@/components/domain/money-summary-card"
 import { SummaryRow } from "@/components/domain/summary-row"
 import { RequirementsSummary } from "@/components/domain/requirements-summary"
 import { SegmentedSelector } from "@/components/domain/inspections/segmented-selector"
@@ -226,6 +227,50 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       notes: d?.notes ?? null,
     }))
     setDepositAmount("")
+  }
+
+  // Phase 24 — "extras" reuses the existing additional_charge
+  // transaction type (already real, already supported by the general
+  // Payments module) rather than inventing an invoice/line-item
+  // concept. One combined action — the customer decided to add
+  // something and paid for it right now — adds to both the running
+  // Extras total and Paid now in the same instant.
+  const [extrasMad, setExtrasMad] = useState(0)
+  const [showExtraForm, setShowExtraForm] = useState(false)
+  const [extraLabel, setExtraLabel] = useState("")
+  const [extraAmount, setExtraAmount] = useState("")
+
+  async function submitExtra() {
+    const amount = Number(extraAmount)
+    if (!amount || amount <= 0) {
+      setStepError("Enter an extra charge amount.")
+      return
+    }
+    if (!extraLabel.trim()) {
+      setStepError("Describe the extra charge.")
+      return
+    }
+    setStepError(null)
+    const formData = new FormData()
+    formData.set("customerId", reservation.customer.id)
+    formData.set("reservationId", reservation.id)
+    formData.set("transactionType", "additional_charge")
+    formData.set("amount", String(amount))
+    formData.set("method", paymentMethod)
+    formData.set("notes", extraLabel.trim())
+    const result = await recordPayment({}, formData)
+    if (result.error) {
+      setStepError(result.error)
+      return
+    }
+    setExtrasMad((e) => e + amount)
+    setPayment((p) => ({
+      ...p,
+      amountPaidMad: p.amountPaidMad + amount,
+    }))
+    setExtraLabel("")
+    setExtraAmount("")
+    setShowExtraForm(false)
   }
 
   // Quick "new damage" from the inspection step -------------------------------
@@ -480,27 +525,24 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
 
       {step === 2 && (
         <div className="flex flex-col gap-4">
+          <MoneySummaryCard
+            rentalPriceMad={payment.totalDueMad}
+            extrasMad={extrasMad}
+            totalMad={payment.totalDueMad + extrasMad}
+            paidMad={payment.amountPaidMad}
+            remainingMad={payment.remainingMad}
+            depositCollectedMad={deposit?.collectedMad ?? 0}
+            depositExpectedMad={deposit?.expectedMad}
+          />
+
           <Card>
             <CardHeader>
-              <CardTitle>Rental balance</CardTitle>
+              <CardTitle>Record a payment</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-1.5 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total</span>
-                <span className="font-medium text-foreground">{formatMad(payment.totalDueMad)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Paid</span>
-                <span className="text-foreground">{formatMad(payment.amountPaidMad)}</span>
-              </div>
-              <div className="flex justify-between font-medium">
-                <span className="text-muted-foreground">Remaining</span>
-                <span className="text-foreground">{formatMad(payment.remainingMad)}</span>
-              </div>
-              <Separator className="my-2" />
+            <CardContent className="flex flex-col gap-4">
               <div className="grid grid-cols-[1fr_auto_auto] items-end gap-2">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="paymentAmount">Record a payment (MAD)</Label>
+                  <Label htmlFor="paymentAmount">Amount (MAD)</Label>
                   <Input
                     id="paymentAmount"
                     type="number"
@@ -523,23 +565,9 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
                   Record
                 </Button>
               </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Deposit</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-1.5 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Expected</span>
-                <span className="text-foreground">{formatMad(deposit?.expectedMad ?? 0)}</span>
-              </div>
-              <div className="flex justify-between font-medium">
-                <span className="text-muted-foreground">Collected</span>
-                <span className="text-foreground">{formatMad(deposit?.collectedMad ?? 0)}</span>
-              </div>
-              <Separator className="my-2" />
+              <Separator />
+
               <div className="grid grid-cols-[1fr_auto] items-end gap-2">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="depositAmount">Collect deposit (MAD)</Label>
@@ -555,6 +583,35 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
                   Collect
                 </Button>
               </div>
+
+              <Separator />
+
+              {showExtraForm ? (
+                <div className="flex flex-col gap-2">
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="extraLabel">What&apos;s the extra for?</Label>
+                      <Input id="extraLabel" placeholder="e.g. Child seat" value={extraLabel} onChange={(e) => setExtraLabel(e.target.value)} />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="extraAmount">Amount (MAD)</Label>
+                      <Input id="extraAmount" type="number" step="0.01" value={extraAmount} onChange={(e) => setExtraAmount(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowExtraForm(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="button" size="sm" onClick={() => startTransition(submitExtra)} disabled={isPending}>
+                      Add & mark paid
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => setShowExtraForm(true)}>
+                  + Add extra charge
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>
