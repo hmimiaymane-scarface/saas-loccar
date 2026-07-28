@@ -279,6 +279,14 @@ export interface DetectReturnDamageResult {
   damageDetected?: boolean
   confidence?: number
   description?: string
+  /** Signed (1hr) URLs for the two compared photos — roadmap phase 29
+   * "Damage Review UX". Only resolved when damageDetected is true, since
+   * these are the only cases the UI ever shows an image for; no point
+   * spending a signed-URL round trip on a suggestion that never
+   * surfaces. Never a raw storage path, same convention as every other
+   * photo/document URL this app exposes (see lib/data.ts#resolveSignedUrls). */
+  pickupImageUrl?: string
+  returnImageUrl?: string
 }
 
 /**
@@ -364,7 +372,23 @@ export async function detectReturnDamage(returnInspectionId: string, angle: stri
     )
 
     if (!result.ok) return { error: result.message }
-    return { damageDetected: result.damageDetected, confidence: result.confidence, description: result.description }
+    if (!result.damageDetected) {
+      return { damageDetected: false, confidence: result.confidence, description: result.description }
+    }
+
+    const { data: signedUrls } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .createSignedUrls([pickupMedia.storage_path, returnMedia.storage_path], 3600)
+    const pickupImageUrl = signedUrls?.find((u) => u.path === pickupMedia.storage_path)?.signedUrl
+    const returnImageUrl = signedUrls?.find((u) => u.path === returnMedia.storage_path)?.signedUrl
+
+    return {
+      damageDetected: true,
+      confidence: result.confidence,
+      description: result.description,
+      pickupImageUrl: pickupImageUrl ?? undefined,
+      returnImageUrl: returnImageUrl ?? undefined,
+    }
   } catch (err) {
     if (err instanceof ActionError) return { error: err.message }
     throw err
