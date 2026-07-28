@@ -40,6 +40,7 @@ import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { MoneySummaryCard } from "@/components/domain/money-summary-card"
 import { WizardProgress } from "@/components/domain/wizard-progress"
 import { OfflineStatusBanner } from "@/components/domain/offline-status-banner"
 import { InlineNudgeList } from "@/components/domain/mobile/inline-nudge-list"
@@ -748,15 +749,21 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
 
       {step === 3 && (
         <div className="flex flex-col gap-4">
+          <MoneySummaryCard
+            rentalPriceMad={reservation.payment.totalDueMad}
+            extrasMad={payment.totalDueMad - reservation.payment.totalDueMad}
+            totalMad={payment.totalDueMad}
+            paidMad={payment.amountPaidMad}
+            remainingMad={payment.remainingMad}
+            depositCollectedMad={deposit?.collectedMad ?? 0}
+            depositExpectedMad={deposit?.expectedMad}
+          />
+
           <Card>
             <CardHeader>
               <CardTitle>Additional charges</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Current balance</span>
-                <span className="font-medium text-foreground">{formatMad(payment.remainingMad)} remaining</span>
-              </div>
               <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                 <NativeSelect value={chargeType} onChange={(e) => setChargeType(e.target.value as typeof chargeType)}>
                   <option value="additional_charge">Additional charge (fuel, late, cleaning…)</option>
