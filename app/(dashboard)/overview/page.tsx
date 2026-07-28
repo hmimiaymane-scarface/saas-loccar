@@ -16,6 +16,7 @@ import {
   getTeamMembers,
   getPendingInvitations,
   hasFinancialReportsAccess,
+  getTrailingMonthlyRevenue,
 } from "@/lib/data"
 import { getExpiringDocuments } from "@/lib/documents"
 import { resolveReportPeriod } from "@/lib/reports"
@@ -23,6 +24,14 @@ import { getFleetHealthRollup, getCustomerHealthRollup, type ScoreRollup } from 
 import { getOpenOperationsFeedItems, type OperationsFeedItem } from "@/lib/operations-feed/data"
 import { computeBusinessPulse, type BusinessPulseSummary } from "@/lib/business-pulse"
 import { computeRevenueIntelligence, type RevenueIntelligenceResult } from "@/lib/revenue-intelligence"
+import {
+  GAMIFICATION_TRAILING_MONTHS,
+  buildVehicleLeaderboard,
+  computeRevenueRecord,
+  computeRevenueStreak,
+  buildPerformanceHighlights,
+  type PerformanceHighlight,
+} from "@/lib/gamification"
 import { searchContracts, type ContractSearchResult } from "@/lib/contracts/template-store"
 import { getUpcomingReservationsMissingIdentityDocument } from "@/lib/customer-readiness-store"
 import { buildNeedsAttentionFeed, type MissingIdentityDocumentFlag } from "@/lib/needs-attention"
@@ -43,6 +52,7 @@ import { MorningBriefing } from "@/components/domain/overview/morning-briefing"
 import { BusinessPulseGrid } from "@/components/domain/overview/business-pulse-grid"
 import { HealthOverviewCard } from "@/components/domain/overview/health-overview-card"
 import { RevenueIntelligenceCard } from "@/components/domain/overview/revenue-intelligence-card"
+import { PerformanceHighlightsCard } from "@/components/domain/overview/performance-highlights-card"
 import { OperationsFeedList } from "@/components/domain/operations-feed/operations-feed-list"
 
 /**
@@ -65,6 +75,7 @@ async function loadIntelligenceExtras(session: SessionContext) {
     customerHealth: { averageScore: 0, entityCount: 0, bandCounts: {} } as ScoreRollup,
     contractsAwaitingSignature: [] as ContractSearchResult[],
     missingDocuments: [] as MissingIdentityDocumentFlag[],
+    performanceHighlights: [] as PerformanceHighlight[],
   }
   if (!isSupabaseConfigured) return empty
 
@@ -93,6 +104,7 @@ async function loadIntelligenceExtras(session: SessionContext) {
       alertsForMaintenance,
       contractsAwaitingSignatureResult,
       missingDocuments,
+      trailingRevenue,
     ] = await Promise.all([
       getOpenOperationsFeedItems(supabase, companyId),
       getFleetHealthRollup(supabase, companyId),
@@ -111,6 +123,7 @@ async function loadIntelligenceExtras(session: SessionContext) {
       getLiveAlerts(companyId, { maintenanceReminderDays: session.company.maintenanceReminderDays, documentExpiryWarningDays: session.company.documentExpiryWarningDays }),
       searchContracts(supabase, companyId, { status: "awaiting_signature" }, 1, 10),
       getUpcomingReservationsMissingIdentityDocument(supabase, companyId),
+      getTrailingMonthlyRevenue(companyId, GAMIFICATION_TRAILING_MONTHS, tz),
     ])
 
     const pulse = computeBusinessPulse({
@@ -133,11 +146,25 @@ async function loadIntelligenceExtras(session: SessionContext) {
       { revenueMad: financialLastMonth.rentalPaymentsMad, occupancyRate: fleetPerfLastMonth.occupancyRate, averageDurationDays: reservationPerfLastMonth.averageDurationDays }
     )
 
+    // Roadmap phase 31 — leaderboard/record/streak derived from data this
+    // function already fetched for other cards (fleetPerfThisMonth.rows
+    // was computed but never read before this phase) plus the one new
+    // trailingRevenue query above.
+    const periodDaysThisMonth = Math.max(
+      1,
+      Math.round((new Date(thisMonth.toIso).getTime() - new Date(thisMonth.fromIso).getTime()) / 86_400_000)
+    )
+    const leaderboard = buildVehicleLeaderboard(fleetPerfThisMonth.rows, periodDaysThisMonth)
+    const revenueRecord = computeRevenueRecord(trailingRevenue)
+    const revenueStreak = computeRevenueStreak(trailingRevenue)
+    const performanceHighlights = buildPerformanceHighlights(leaderboard, revenueRecord, revenueStreak)
+
     return {
       feedItems,
       pulse,
       revenueIntel,
       revenueThisMonthMad: financialThisMonth.rentalPaymentsMad,
+      performanceHighlights,
       fleetHealth,
       customerHealth,
       contractsAwaitingSignature: contractsAwaitingSignatureResult.items,
@@ -255,6 +282,7 @@ export default async function OverviewPage() {
           <HealthOverviewCard title="Customer Health" rollup={extras.customerHealth} />
         </div>
       </div>
+      <PerformanceHighlightsCard highlights={extras.performanceHighlights} />
 
       {/* Level 4 — Opportunities. */}
       {opportunityFeedItems.length > 0 && (
