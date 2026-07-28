@@ -3,13 +3,28 @@ import { notFound, redirect } from "next/navigation"
 import { Pencil, Plus, Gauge, MapPin, AlertTriangle, Wrench, Sparkles } from "lucide-react"
 
 import { getSessionContext, type SessionContext } from "@/lib/auth/session"
-import { getVehicleDetail, getVehicleMaintenanceHistory, getVehicleEconomics, getActivityLogList } from "@/lib/data"
+import {
+  getVehicleDetail,
+  getVehicleMaintenanceHistory,
+  getVehicleEconomics,
+  getActivityLogList,
+  getFleetPerformanceReport,
+  getTrailingMonthlyRevenue,
+} from "@/lib/data"
 import { formatMad, formatDate, formatDateTime } from "@/lib/format"
 import { vehicleStatusConfig, damageStatusConfig, maintenanceRecordStatusConfig, MAINTENANCE_TYPE_LABELS } from "@/lib/status"
 import { resolveReportPeriod, type ReportPeriod } from "@/lib/reports"
 import { isSupabaseConfigured } from "@/lib/env"
 import { createClient } from "@/lib/supabase/server"
 import { getVehicleIntelligence } from "@/lib/vehicle-intelligence-store"
+import { computeCostTrend } from "@/lib/vehicle-intelligence"
+import {
+  GAMIFICATION_TRAILING_MONTHS,
+  computeVehicleRank,
+  computeRevenueRecord,
+  computeRevenueStreak,
+  buildVehicleHighlights,
+} from "@/lib/gamification"
 import { StatusBadge } from "@/components/domain/status-badge"
 import { SectionHeader } from "@/components/domain/section-header"
 import { Button } from "@/components/ui/button"
@@ -21,6 +36,8 @@ import { DocumentListItem } from "@/components/domain/documents/document-list-it
 import { VehicleEconomicsCard } from "@/components/domain/fleet/vehicle-economics-card"
 import { VehicleIntelligenceCard } from "@/components/domain/fleet/vehicle-intelligence-card"
 import { VehicleInsightsSection } from "@/components/domain/fleet/vehicle-insights-section"
+import { VehicleSnapshotStrip } from "@/components/domain/fleet/vehicle-snapshot-strip"
+import { PerformanceHighlightsCard } from "@/components/domain/overview/performance-highlights-card"
 import { EntityTimeline } from "@/components/domain/intelligence/entity-timeline"
 
 // Bible Chapter 3 §5 also lists a "Customer Reviews" section — omitted
@@ -93,14 +110,33 @@ export default async function VehicleDetailPage({
   const today = new Date().toISOString().slice(0, 10)
   const range = resolveReportPeriod(period, session.company.timezone, { from: query.from ?? today, to: query.to ?? today })
 
-  const [vehicle, maintenanceHistory, economics, intelligence, timeline] = await Promise.all([
-    getVehicleDetail(session.company.id, id),
-    getVehicleMaintenanceHistory(session.company.id, id),
-    getVehicleEconomics(session.company.id, id, range),
-    loadVehicleIntelligence(session, id),
-    getActivityLogList(session.company.id, { vehicleId: id }, 1, 20),
-  ])
+  // Roadmap phase 32 ("Vehicle Personality Without Gimmicks") — the
+  // snapshot strip's "this month" facts are always this_month/last_month
+  // specifically, independent of the page's own period selector above
+  // (which scopes the separate "Revenue & expenses" card further down).
+  const tz = session.company.timezone
+  const thisMonth = resolveReportPeriod("this_month", tz)
+  const lastMonth = resolveReportPeriod("last_month", tz)
+
+  const [vehicle, maintenanceHistory, economics, intelligence, timeline, economicsThisMonth, economicsLastMonth, fleetPerfThisMonth, vehicleTrailingRevenue] =
+    await Promise.all([
+      getVehicleDetail(session.company.id, id),
+      getVehicleMaintenanceHistory(session.company.id, id),
+      getVehicleEconomics(session.company.id, id, range),
+      loadVehicleIntelligence(session, id),
+      getActivityLogList(session.company.id, { vehicleId: id }, 1, 20),
+      getVehicleEconomics(session.company.id, id, thisMonth),
+      getVehicleEconomics(session.company.id, id, lastMonth),
+      getFleetPerformanceReport(session.company.id, thisMonth),
+      getTrailingMonthlyRevenue(session.company.id, GAMIFICATION_TRAILING_MONTHS, tz, id),
+    ])
   if (!vehicle) notFound()
+
+  const costTrend = computeCostTrend(economicsThisMonth.recordedExpensesMad, economicsLastMonth.recordedExpensesMad)
+  const rank = computeVehicleRank(fleetPerfThisMonth.rows, id)
+  const revenueRecord = computeRevenueRecord(vehicleTrailingRevenue)
+  const revenueStreak = computeRevenueStreak(vehicleTrailingRevenue)
+  const vehicleHighlights = buildVehicleHighlights(rank, revenueRecord, revenueStreak)
 
   const canManage = session.role === "owner" || session.role === "manager"
   // Server Component rendered fresh per request — "now" here is correct,
@@ -156,6 +192,12 @@ export default async function VehicleDetailPage({
           {intelligence.summary}
         </div>
       )}
+
+      {/* Roadmap phase 32 ("Vehicle Personality Without Gimmicks") —
+          the "compare two vehicles at a flip" glance strip, ahead of
+          the detailed cards below. */}
+      <VehicleSnapshotStrip vehicle={vehicle} economics={economicsThisMonth} costTrend={costTrend} intelligence={intelligence} rank={rank} />
+      <PerformanceHighlightsCard highlights={vehicleHighlights} title="This vehicle" />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="flex flex-col gap-4 lg:col-span-2">
