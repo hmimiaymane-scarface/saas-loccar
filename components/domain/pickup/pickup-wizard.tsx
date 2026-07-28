@@ -32,7 +32,7 @@ import { activateRentalAction } from "@/app/(dashboard)/reservations/actions"
 import { collectDeposit, recordPayment } from "@/app/(dashboard)/payments/actions"
 import { createDamage } from "@/app/(dashboard)/damages/actions"
 import { resolveInitialStep, type RequirementItem } from "@/lib/workflow/steps"
-import { missingRequiredPhotoSlots } from "@/lib/inspections/rules"
+import { missingRequiredPhotoSlots, pickupCompletenessItems, isPickupInspectionComplete } from "@/lib/inspections/rules"
 import { PHOTO_SLOTS } from "@/lib/inspections/photo-slots"
 import { buildInlineNudges } from "@/lib/mobile/inline-nudges"
 import { useStepFocus } from "@/hooks/use-step-focus"
@@ -109,10 +109,14 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       DOCUMENT_SLOTS.every((slot) => reservation.documents.some((d) => d.category === slot.category)),
       reservation.payment.remainingMad <= 0,
       Boolean(
-        reservation.pickupInspection?.odometerKm != null &&
-          reservation.pickupInspection?.fuelLevel &&
-          reservation.pickupInspection?.cleanliness &&
-          reservation.pickupInspection?.overallCondition
+        reservation.pickupInspection?.cleanliness &&
+          reservation.pickupInspection?.overallCondition &&
+          isPickupInspectionComplete({
+            odometerKm: reservation.pickupInspection?.odometerKm ?? null,
+            fuelLevel: reservation.pickupInspection?.fuelLevel ?? null,
+            capturedPhotoSlotKeys: (reservation.pickupInspection?.media ?? []).map((m) => m.caption ?? ""),
+            existingDamageReviewed: reservation.pickupInspection?.existingDamageReviewed ?? false,
+          })
       ),
       false,
     ])
@@ -144,6 +148,12 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
     reservation.pickupInspection?.overallCondition ?? null
   )
   const [inspectionNotes, setInspectionNotes] = useState(reservation.pickupInspection?.notes ?? "")
+  // Phase 25 — completing a pickup inspection can't skip actually looking
+  // at the vehicle's existing damage with the customer; see
+  // complete_inspection() in 20260808090000_pickup_existing_damage_review.sql.
+  const [existingDamageReviewed, setExistingDamageReviewed] = useState(
+    reservation.pickupInspection?.existingDamageReviewed ?? false
+  )
   const [responses, setResponses] = useState<Record<string, ChecklistResponseValue>>(() => {
     const initial: Record<string, ChecklistResponseValue> = {}
     for (const r of reservation.pickupInspection?.checklist ?? []) initial[r.itemKey] = r.response
@@ -346,6 +356,7 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       cleanliness: cleanliness ?? undefined,
       overallCondition: overallCondition ?? undefined,
       notes: inspectionNotes || undefined,
+      existingDamageReviewed,
     }
 
     if (!isOnline) {
@@ -376,6 +387,14 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
     if (missingSlots.length > 0 && !reason) {
       const labels = missingSlots.map((key) => PHOTO_SLOTS.find((s) => s.key === key)?.label ?? key)
       setStepError(`Missing required photos: ${labels.join(", ")}.`)
+      return
+    }
+
+    // Same "specific message before the RPC" treatment as the photo
+    // check above — see complete_inspection()'s pickup-only check in
+    // 20260808090000_pickup_existing_damage_review.sql.
+    if (!existingDamageReviewed && !reason) {
+      setStepError("Confirm you've reviewed the vehicle's existing damage before activating.")
       return
     }
 
@@ -423,6 +442,22 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
     setStep((s) => Math.max(0, s - 1))
   }
 
+  // Phase 25 — the single definition of "is the inspection actually done"
+  // (odometer, fuel, every required photo, existing-damage review — the
+  // same checks complete_inspection() enforces), shared by the step-3
+  // completeness banner below and this wizard-level strip so the two can
+  // never silently disagree about what "done" means.
+  const pickupProgress = useMemo(
+    () => ({
+      odometerKm: odometerKm ? Number(odometerKm) : null,
+      fuelLevel,
+      capturedPhotoSlotKeys: photos.map((p) => p.key),
+      existingDamageReviewed,
+    }),
+    [odometerKm, fuelLevel, photos, existingDamageReviewed]
+  )
+  const inspectionCompletenessItems = useMemo(() => pickupCompletenessItems(pickupProgress), [pickupProgress])
+
   const requirementItems: RequirementItem[] = [
     { label: "Vehicle assigned", done: Boolean(reservation.vehicle) },
     {
@@ -432,7 +467,7 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
     { label: "Balance settled", done: payment.remainingMad <= 0 },
     {
       label: "Inspection completed",
-      done: Boolean(odometerKm && fuelLevel && cleanliness && overallCondition),
+      done: isPickupInspectionComplete(pickupProgress) && Boolean(cleanliness && overallCondition),
     },
   ]
 
@@ -619,6 +654,8 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
 
       {step === 3 && (
         <div className="flex flex-col gap-4">
+          <RequirementsSummary items={inspectionCompletenessItems} />
+
           <Card>
             <CardHeader>
               <CardTitle>Vehicle condition</CardTitle>
@@ -685,6 +722,16 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
                   Note existing damage
                 </Button>
               )}
+              <Separator />
+              <label className="flex items-start gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={existingDamageReviewed}
+                  onChange={(e) => setExistingDamageReviewed(e.target.checked)}
+                  className="mt-0.5 size-4 rounded border-border"
+                />
+                I&apos;ve reviewed the vehicle for existing damage with the customer.
+              </label>
             </CardContent>
           </Card>
 
