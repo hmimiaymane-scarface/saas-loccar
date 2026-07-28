@@ -69,6 +69,7 @@ import {
   knownOperatingResult,
   isReturningCustomer,
   resolveTrailingMonths,
+  resolveReportPeriod,
   type ReportDateRange,
 } from "@/lib/reports"
 import { utcIsoToZonedLocal } from "@/lib/timezone"
@@ -4234,6 +4235,60 @@ export async function getTrailingMonthlyRevenue(
   }
 
   return trailingMonths.map((m) => ({ month: m.month, revenueMad: revenueByMonth.get(m.month) ?? 0 }))
+}
+
+export interface DailyPickupCount {
+  /** "YYYY-MM-DD" in the company's timezone. */
+  date: string
+  count: number
+}
+
+/** Roadmap phase 33 ("Simplify Business Pulse") — mobile home's
+ * "busiest pickup day this week" conclusion needs to know how many
+ * pickups land on each of this week's 7 days; nothing in this file
+ * counted reservations by day before this phase. One query over the
+ * whole week (`resolveReportPeriod("this_week", timeZone)`), bucketed
+ * by local calendar date via `utcIsoToZonedLocal` — same
+ * one-query-not-seven discipline every other multi-row lookup here
+ * follows. Excludes cancelled/no-show bookings, same convention
+ * `getFinancialReport`'s own mock branch already uses for "a real
+ * booking that's actually still happening." */
+export async function getWeeklyPickupCounts(companyId: string, timeZone: string): Promise<DailyPickupCount[]> {
+  const week = resolveReportPeriod("this_week", timeZone)
+  const days: string[] = []
+  for (let i = 0; i < 7; i++) {
+    const dayIso = new Date(new Date(week.fromIso).getTime() + i * 86_400_000).toISOString()
+    days.push(utcIsoToZonedLocal(dayIso, timeZone).slice(0, 10))
+  }
+
+  const countByDay = new Map<string, number>()
+  for (const d of days) countByDay.set(d, 0)
+
+  if (isMockMode()) {
+    for (const b of mockBookings) {
+      if (b.status === "cancelled" || b.status === "no_show") continue
+      if (countByDay.has(b.startDate)) countByDay.set(b.startDate, (countByDay.get(b.startDate) ?? 0) + 1)
+    }
+    return days.map((date) => ({ date, count: countByDay.get(date) ?? 0 }))
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("pickup_at")
+    .eq("company_id", companyId)
+    .not("status", "in", "(cancelled,no_show)")
+    .gte("pickup_at", week.fromIso)
+    .lt("pickup_at", week.toIso)
+
+  if (error) throw error
+
+  for (const r of data ?? []) {
+    const day = utcIsoToZonedLocal(r.pickup_at, timeZone).slice(0, 10)
+    if (countByDay.has(day)) countByDay.set(day, (countByDay.get(day) ?? 0) + 1)
+  }
+
+  return days.map((date) => ({ date, count: countByDay.get(date) ?? 0 }))
 }
 
 /** "Created in this period" cohort — every count below is about
