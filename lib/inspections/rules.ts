@@ -1,5 +1,6 @@
 import type { FuelLevel } from "@/types/rental"
 import { REQUIRED_PHOTO_SLOT_KEYS } from "@/lib/inspections/photo-slots"
+import type { RequirementItem } from "@/lib/workflow/steps"
 
 /**
  * Pure mirrors of the cross-field checks enforced by complete_inspection()
@@ -34,4 +35,35 @@ export function isValidReturnOdometer(returnOdometerKm: number, pickupOdometerKm
 export function missingRequiredPhotoSlots(capturedSlotKeys: string[]): string[] {
   const captured = new Set(capturedSlotKeys)
   return REQUIRED_PHOTO_SLOT_KEYS.filter((key) => !captured.has(key))
+}
+
+export interface PickupInspectionProgress {
+  odometerKm: number | null
+  fuelLevel: FuelLevel | null
+  capturedPhotoSlotKeys: string[]
+  existingDamageReviewed: boolean
+}
+
+/**
+ * Roadmap phase 25 — the single definition of "is this pickup inspection
+ * actually done," used both for the step-level completeness indicator
+ * and the wizard-level "what's left" strip, so the two can never
+ * silently disagree about what "done" means (previously the wizard-level
+ * check only looked at odometer/fuel/cleanliness/overallCondition — it
+ * could say "done" while required photos or the damage review were
+ * still outstanding, even though activating was already correctly
+ * blocked on those). Mirrors complete_inspection()'s pickup-specific
+ * checks in 20260808090000_pickup_existing_damage_review.sql.
+ */
+export function pickupCompletenessItems(progress: PickupInspectionProgress): RequirementItem[] {
+  return [
+    { label: "Odometer reading", done: progress.odometerKm != null },
+    { label: "Fuel level", done: progress.fuelLevel != null },
+    { label: "Required photos", done: missingRequiredPhotoSlots(progress.capturedPhotoSlotKeys).length === 0 },
+    { label: "Existing damage reviewed", done: progress.existingDamageReviewed },
+  ]
+}
+
+export function isPickupInspectionComplete(progress: PickupInspectionProgress): boolean {
+  return pickupCompletenessItems(progress).every((item) => item.done)
 }

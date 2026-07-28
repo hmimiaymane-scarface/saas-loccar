@@ -12,16 +12,17 @@
 export interface PhotoSlotDef {
   key: string
   label: string
+  required?: boolean
 }
 
 export const PHOTO_SLOTS: PhotoSlotDef[] = [
-  { key: "front", label: "Front" },
-  { key: "rear", label: "Rear" },
-  { key: "driver_side", label: "Driver side" },
-  { key: "passenger_side", label: "Passenger side" },
-  { key: "interior", label: "Interior" },
-  { key: "dashboard_odometer", label: "Odometer" },
-  { key: "fuel_gauge", label: "Fuel gauge" },
+  { key: "front", label: "Front", required: true },
+  { key: "rear", label: "Rear", required: true },
+  { key: "driver_side", label: "Driver side", required: true },
+  { key: "passenger_side", label: "Passenger side", required: true },
+  { key: "interior", label: "Interior", required: true },
+  { key: "dashboard_odometer", label: "Odometer", required: true },
+  { key: "fuel_gauge", label: "Fuel gauge", required: true },
 ]
 
 export const REQUIRED_PHOTO_SLOT_KEYS: string[] = PHOTO_SLOTS.map((s) => s.key)

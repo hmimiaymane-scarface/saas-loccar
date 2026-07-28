@@ -1092,6 +1092,7 @@ export type Database = {
           notes: string | null
           customer_acknowledged: boolean
           customer_acknowledged_at: Timestamp | null
+          existing_damage_reviewed: boolean
           completed_at: Timestamp | null
           correction_reason: string | null
           corrected_by: string | null
@@ -1116,6 +1117,7 @@ export type Database = {
           notes?: string | null
           customer_acknowledged?: boolean
           customer_acknowledged_at?: Timestamp | null
+          existing_damage_reviewed?: boolean
           completed_at?: Timestamp | null
         }
         Update: Partial<Database["public"]["Tables"]["inspections"]["Insert"]>

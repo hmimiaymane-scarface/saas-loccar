@@ -107,6 +107,9 @@ export interface InspectionFieldsInput {
   cleanliness?: Cleanliness
   overallCondition?: OverallCondition
   notes?: string
+  /** Roadmap phase 25 — required to complete a pickup inspection, see
+   * complete_inspection() in 20260808090000_pickup_existing_damage_review.sql. */
+  existingDamageReviewed?: boolean
 }
 
 /** Saves progress on a draft inspection — called as the employee moves
@@ -129,6 +132,7 @@ export async function saveInspectionFields(
         cleanliness: fields.cleanliness,
         overall_condition: fields.overallCondition,
         notes: fields.notes,
+        existing_damage_reviewed: fields.existingDamageReviewed,
       })
       .eq("id", inspectionId)
 

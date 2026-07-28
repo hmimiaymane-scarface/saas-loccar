@@ -530,6 +530,11 @@ export interface Inspection {
   overallCondition: OverallCondition | null
   notes: string | null
   customerAcknowledged: boolean
+  /** Roadmap phase 25 — a pickup inspection can't complete without this
+   * being true (see complete_inspection() in
+   * 20260808090000_pickup_existing_damage_review.sql). Unused on a
+   * return inspection. */
+  existingDamageReviewed: boolean
   completedAt: string | null
   correctionReason: string | null
   correctedAt: string | null

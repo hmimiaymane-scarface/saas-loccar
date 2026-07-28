@@ -703,7 +703,7 @@ export async function getVehicleDetail(
       .order("created_at", { ascending: false }),
     supabase
       .from("inspections")
-      .select("id, reservation_id, vehicle_id, customer_id, type, status, performed_by, odometer_km, fuel_level, cleanliness, overall_condition, notes, customer_acknowledged, completed_at, correction_reason, corrected_at, created_at")
+      .select("id, reservation_id, vehicle_id, customer_id, type, status, performed_by, odometer_km, fuel_level, cleanliness, overall_condition, notes, customer_acknowledged, existing_damage_reviewed, completed_at, correction_reason, corrected_at, created_at")
       .eq("company_id", companyId)
       .eq("vehicle_id", vehicleId)
       .order("created_at", { ascending: false })
@@ -753,6 +753,7 @@ export async function getVehicleDetail(
     overallCondition: r.overall_condition as OverallCondition | null,
     notes: r.notes,
     customerAcknowledged: r.customer_acknowledged,
+    existingDamageReviewed: r.existing_damage_reviewed,
     completedAt: r.completed_at,
     correctionReason: r.correction_reason,
     correctedAt: r.corrected_at,
@@ -1413,7 +1414,7 @@ export async function getReservationDetail(
       supabase.from("deposits").select("*").eq("company_id", companyId).eq("reservation_id", reservationId).maybeSingle(),
       supabase
         .from("inspections")
-        .select("id, reservation_id, vehicle_id, customer_id, type, status, performed_by, odometer_km, fuel_level, cleanliness, overall_condition, notes, customer_acknowledged, completed_at, correction_reason, corrected_at, created_at")
+        .select("id, reservation_id, vehicle_id, customer_id, type, status, performed_by, odometer_km, fuel_level, cleanliness, overall_condition, notes, customer_acknowledged, existing_damage_reviewed, completed_at, correction_reason, corrected_at, created_at")
         .eq("company_id", companyId)
         .eq("reservation_id", reservationId),
       supabase
@@ -1477,6 +1478,7 @@ export async function getReservationDetail(
     overallCondition: r.overall_condition as OverallCondition | null,
     notes: r.notes,
     customerAcknowledged: r.customer_acknowledged,
+    existingDamageReviewed: r.existing_damage_reviewed,
     completedAt: r.completed_at,
     correctionReason: r.correction_reason,
     correctedAt: r.corrected_at,
@@ -2520,7 +2522,7 @@ export async function getChecklistTemplate(companyId: string): Promise<Checklist
 // ---------------------------------------------------------------------
 
 const INSPECTION_SELECT =
-  "id, reservation_id, vehicle_id, customer_id, type, status, performed_by, odometer_km, fuel_level, cleanliness, overall_condition, notes, customer_acknowledged, completed_at, correction_reason, corrected_at, created_at"
+  "id, reservation_id, vehicle_id, customer_id, type, status, performed_by, odometer_km, fuel_level, cleanliness, overall_condition, notes, customer_acknowledged, existing_damage_reviewed, completed_at, correction_reason, corrected_at, created_at"
 
 export async function getInspectionDetail(
   companyId: string,
@@ -2575,6 +2577,7 @@ export async function getInspectionDetail(
     overallCondition: row.overall_condition as OverallCondition | null,
     notes: row.notes,
     customerAcknowledged: row.customer_acknowledged,
+    existingDamageReviewed: row.existing_damage_reviewed,
     completedAt: row.completed_at,
     correctionReason: row.correction_reason,
     correctedAt: row.corrected_at,

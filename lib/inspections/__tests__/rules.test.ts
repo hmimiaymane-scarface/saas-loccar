@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest"
 
-import { hasRequiredFieldsToComplete, isValidReturnOdometer, missingRequiredPhotoSlots } from "../rules"
+import {
+  hasRequiredFieldsToComplete,
+  isValidReturnOdometer,
+  missingRequiredPhotoSlots,
+  pickupCompletenessItems,
+  isPickupInspectionComplete,
+} from "../rules"
+
+const ALL_SLOTS = ["front", "rear", "driver_side", "passenger_side", "interior", "dashboard_odometer", "fuel_gauge"]
 
 describe("hasRequiredFieldsToComplete", () => {
   it("requires both odometer and fuel level", () => {
@@ -83,5 +91,38 @@ describe("missingRequiredPhotoSlots", () => {
       "dashboard_odometer",
       "fuel_gauge",
     ])
+  })
+})
+
+describe("pickupCompletenessItems / isPickupInspectionComplete", () => {
+  const complete = {
+    odometerKm: 12000,
+    fuelLevel: "full" as const,
+    capturedPhotoSlotKeys: ALL_SLOTS,
+    existingDamageReviewed: true,
+  }
+
+  it("reports every item done and overall complete when everything is provided", () => {
+    const items = pickupCompletenessItems(complete)
+    expect(items.every((item) => item.done)).toBe(true)
+    expect(isPickupInspectionComplete(complete)).toBe(true)
+  })
+
+  it("is not complete with a missing odometer, even if everything else is done", () => {
+    const progress = { ...complete, odometerKm: null }
+    expect(isPickupInspectionComplete(progress)).toBe(false)
+    expect(pickupCompletenessItems(progress).find((i) => i.label === "Odometer reading")?.done).toBe(false)
+  })
+
+  it("is not complete with required photos still missing", () => {
+    const progress = { ...complete, capturedPhotoSlotKeys: ["front"] }
+    expect(isPickupInspectionComplete(progress)).toBe(false)
+    expect(pickupCompletenessItems(progress).find((i) => i.label === "Required photos")?.done).toBe(false)
+  })
+
+  it("is not complete when existing damage hasn't been reviewed, even with a vehicle that has zero damage on file", () => {
+    const progress = { ...complete, existingDamageReviewed: false }
+    expect(isPickupInspectionComplete(progress)).toBe(false)
+    expect(pickupCompletenessItems(progress).find((i) => i.label === "Existing damage reviewed")?.done).toBe(false)
   })
 })
