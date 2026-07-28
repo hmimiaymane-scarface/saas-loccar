@@ -1,5 +1,5 @@
 import { calculateChargedDays } from "@/lib/pricing"
-import { zonedTimeToUtcIso } from "@/lib/timezone"
+import { zonedTimeToUtcIso, utcIsoToZonedLocal } from "@/lib/timezone"
 
 /**
  * Pure calculation definitions shared by the overview page, the reports
@@ -142,4 +142,44 @@ export function resolveReportPeriod(
     fromIso: localDateToUtcIso(lastMonth.year, lastMonth.month, 1, timeZone),
     toIso: localDateToUtcIso(thisMonthStart.year, thisMonthStart.month, 1, timeZone),
   }
+}
+
+export interface TrailingMonth {
+  /** "YYYY-MM" in the company's timezone. */
+  month: string
+  range: ReportDateRange
+}
+
+/** Roadmap phase 31 ("Business Gamification Layer") — the trailing
+ * calendar-month series "personal best"/"revenue streak" need, that no
+ * report function before this phase required (every one of them only
+ * ever compares a period against its immediate prior period). Oldest
+ * to newest, always ending at the current month — anchored off
+ * `resolveReportPeriod("this_month", ...)` itself so the two never
+ * silently disagree about what "this month" means. */
+export function resolveTrailingMonths(count: number, timeZone: string): TrailingMonth[] {
+  const thisMonth = resolveReportPeriod("this_month", timeZone)
+  const anchor = utcIsoToZonedLocal(thisMonth.fromIso, timeZone)
+  const anchorYear = Number(anchor.slice(0, 4))
+  const anchorMonth = Number(anchor.slice(5, 7))
+
+  const months: TrailingMonth[] = []
+  for (let i = count - 1; i >= 0; i--) {
+    let year = anchorYear
+    let month = anchorMonth - i
+    while (month <= 0) {
+      month += 12
+      year -= 1
+    }
+    const nextMonth = month === 12 ? 1 : month + 1
+    const nextYear = month === 12 ? year + 1 : year
+    months.push({
+      month: `${year}-${String(month).padStart(2, "0")}`,
+      range: {
+        fromIso: localDateToUtcIso(year, month, 1, timeZone),
+        toIso: localDateToUtcIso(nextYear, nextMonth, 1, timeZone),
+      },
+    })
+  }
+  return months
 }

@@ -68,8 +68,10 @@ import {
   downtimeDays as downtimeDaysFn,
   knownOperatingResult,
   isReturningCustomer,
+  resolveTrailingMonths,
   type ReportDateRange,
 } from "@/lib/reports"
+import { utcIsoToZonedLocal } from "@/lib/timezone"
 import type {
   Booking,
   BookingStatus,
@@ -4161,6 +4163,61 @@ export async function getFleetPerformanceReport(companyId: string, range: Report
     occupancyRate: occupancyRateFn(rows.reduce((sum, r) => sum + r.rentalDays, 0), fleetSize, periodDays),
     rows,
   }
+}
+
+export interface MonthlyRevenuePoint {
+  /** "YYYY-MM" in the company's timezone. */
+  month: string
+  revenueMad: number
+}
+
+/** Roadmap phase 31 ("Business Gamification Layer") — the trailing
+ * monthly revenue series `lib/gamification.ts`'s "personal best"/
+ * "revenue streak" derivations need. One query spanning the whole
+ * trailing window (not one query per month, the same batching
+ * discipline every other multi-row lookup in this file already
+ * follows), bucketed by month client-side using the company's own
+ * timezone via `utcIsoToZonedLocal` — a payment made at 23:50 local on
+ * the last day of a month must land in that month, not the next one. */
+export async function getTrailingMonthlyRevenue(
+  companyId: string,
+  months: number,
+  timeZone: string
+): Promise<MonthlyRevenuePoint[]> {
+  const trailingMonths = resolveTrailingMonths(months, timeZone)
+  const fromIso = trailingMonths[0].range.fromIso
+  const toIso = trailingMonths[trailingMonths.length - 1].range.toIso
+
+  const revenueByMonth = new Map<string, number>()
+  for (const m of trailingMonths) revenueByMonth.set(m.month, 0)
+
+  if (isMockMode()) {
+    for (const p of mockPaymentLedger) {
+      if (p.transactionType !== "rental_payment") continue
+      if (p.paidAt < fromIso || p.paidAt >= toIso) continue
+      const bucket = utcIsoToZonedLocal(p.paidAt, timeZone).slice(0, 7)
+      if (revenueByMonth.has(bucket)) revenueByMonth.set(bucket, (revenueByMonth.get(bucket) ?? 0) + p.amountMad)
+    }
+    return trailingMonths.map((m) => ({ month: m.month, revenueMad: revenueByMonth.get(m.month) ?? 0 }))
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("payments")
+    .select("amount, paid_at")
+    .eq("company_id", companyId)
+    .eq("transaction_type", "rental_payment")
+    .gte("paid_at", fromIso)
+    .lt("paid_at", toIso)
+
+  if (error) throw error
+
+  for (const p of data ?? []) {
+    const bucket = utcIsoToZonedLocal(p.paid_at, timeZone).slice(0, 7)
+    if (revenueByMonth.has(bucket)) revenueByMonth.set(bucket, (revenueByMonth.get(bucket) ?? 0) + Number(p.amount))
+  }
+
+  return trailingMonths.map((m) => ({ month: m.month, revenueMad: revenueByMonth.get(m.month) ?? 0 }))
 }
 
 /** "Created in this period" cohort — every count below is about

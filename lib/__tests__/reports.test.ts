@@ -7,6 +7,7 @@ import {
   knownOperatingResult,
   isReturningCustomer,
   resolveReportPeriod,
+  resolveTrailingMonths,
 } from "../reports"
 
 describe("rentalDaysFor", () => {
@@ -98,5 +99,42 @@ describe("resolveReportPeriod", () => {
     const range = resolveReportPeriod("today", tz)
     const days = (new Date(range.toIso).getTime() - new Date(range.fromIso).getTime()) / 86_400_000
     expect(days).toBe(1)
+  })
+})
+
+describe("resolveTrailingMonths", () => {
+  const tz = "Africa/Casablanca"
+
+  it("returns exactly `count` months", () => {
+    expect(resolveTrailingMonths(12, tz)).toHaveLength(12)
+    expect(resolveTrailingMonths(3, tz)).toHaveLength(3)
+  })
+
+  it("ends at the current month, matching resolveReportPeriod exactly", () => {
+    const months = resolveTrailingMonths(6, tz)
+    const thisMonth = resolveReportPeriod("this_month", tz)
+    expect(months[months.length - 1].range).toEqual(thisMonth)
+  })
+
+  it("is chronologically contiguous with no gaps or overlaps", () => {
+    const months = resolveTrailingMonths(12, tz)
+    for (let i = 1; i < months.length; i++) {
+      expect(months[i - 1].range.toIso).toBe(months[i].range.fromIso)
+    }
+  })
+
+  it("labels each month as a distinct, strictly increasing YYYY-MM", () => {
+    const months = resolveTrailingMonths(14, tz)
+    const labels = months.map((m) => m.month)
+    expect(new Set(labels).size).toBe(labels.length)
+    for (let i = 1; i < labels.length; i++) {
+      expect(labels[i] > labels[i - 1]).toBe(true)
+    }
+  })
+
+  it("correctly rolls back across a year boundary", () => {
+    // 14 trailing months always spans a January somewhere in the middle.
+    const months = resolveTrailingMonths(14, tz)
+    expect(months.some((m) => m.month.endsWith("-01"))).toBe(true)
   })
 })
