@@ -599,6 +599,38 @@ export async function previewContract(
   }
 }
 
+export interface ContractReadiness {
+  ready: boolean
+  issues: ValidationIssue[]
+}
+
+/**
+ * Roadmap phase 26 — a cheap readiness check for the reservation detail
+ * page's Contract card ("Ready to generate" vs "Needs review, here's
+ * why," visible before ever navigating away). Deliberately calls
+ * `resolveContractInputs` directly rather than `previewContract` —
+ * `previewContract` also runs `flagContractPreviewIssues`, a real
+ * `askAI()` call this check must not trigger just to render a badge on
+ * every reservation page view. A `resolveContractInputs` failure (no
+ * active template, reservation not found, etc.) is itself surfaced as
+ * "not ready" with that message as the one issue, rather than a
+ * separate error state the card would need to handle differently.
+ */
+export async function getContractReadiness(
+  supabase: SupabaseServerClient,
+  session: SessionContext,
+  reservationId: string
+): Promise<ContractReadiness> {
+  const resolved = await resolveContractInputs(supabase, session, { reservationId })
+  if (!resolved.ok) {
+    return { ready: false, issues: [{ code: "not_resolvable", message: resolved.error, severity: "error" }] }
+  }
+  return {
+    ready: !hasBlockingErrors(resolved.data.validationIssues),
+    issues: resolved.data.validationIssues,
+  }
+}
+
 /**
  * Requirement 3 — generates a contract for one reservation against one
  * template's currently-active version. Blocks with a specific,

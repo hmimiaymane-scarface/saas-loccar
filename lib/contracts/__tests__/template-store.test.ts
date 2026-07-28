@@ -21,6 +21,7 @@ import {
   createEditedVersion,
   generateContract,
   previewContract,
+  getContractReadiness,
   prepareContract,
   sendContractForSignature,
   addContractSignature,
@@ -596,6 +597,89 @@ describe("previewContract", () => {
     expect(preview.validationIssues.map((i) => i.code)).toContain("no_vehicle")
     expect(preview.aiWarnings).toEqual([{ message: "Total looks low for a 4-day rental.", severity: "warning" }])
     expect(tables.contracts).toHaveLength(0) // read-only — nothing generated
+  })
+})
+
+describe("getContractReadiness", () => {
+  it("reports not ready with the specific issue when the reservation has no vehicle, and never calls the AI advisory layer", async () => {
+    const { client, tables } = makeFakeSupabase()
+    tables.contract_templates.push({ id: "tpl_1", company_id: "co_1", name: "Standard", language: "fr", active_version_id: "v1" })
+    tables.contract_template_versions.push({
+      id: "v1",
+      template_id: "tpl_1",
+      company_id: "co_1",
+      version_number: 1,
+      status: "active",
+      sections: [{ id: "s1", title: "Renter", bodyText: "{{customer.fullName}}", condition: null }],
+      variable_mappings: [],
+      legal_footer_text: null,
+      created_at: "2026-01-01T00:00:00Z",
+    })
+    tables.reservations.push({
+      id: "res_1",
+      company_id: "co_1",
+      reference: "RB-3391",
+      pickup_at: "2026-07-15T10:00:00Z",
+      return_at: "2026-07-19T10:00:00Z",
+      pickup_location: "Airport",
+      return_location: "Airport",
+      daily_rate: 380,
+      discount_amount: 0,
+      total_amount: 1520,
+      customer: { id: "cus_1", full_name: "Ahmed Tazi", phone: "+212 662-897431", email: null, address: null, nationality: null, license_number: "MA-1", license_expires_on: "2028-01-01", id_document_number: null, date_of_birth: "1990-01-01" },
+      vehicle: null,
+    })
+    tables.companies.push({ id: "co_1", name: "Atlas Rent Car", address: null, city: null, country: "Morocco", tax_id: null, business_register: null })
+    tables.documents.push({ company_id: "co_1", customer_id: "cus_1", status: "active", category: "identity_document", expires_on: "2029-01-01" })
+
+    const readiness = await getContractReadiness(client, makeSession(), "res_1")
+    expect(readiness.ready).toBe(false)
+    expect(readiness.issues.map((i) => i.code)).toContain("no_vehicle")
+    expect(previewAiMock.flagContractPreviewIssues).not.toHaveBeenCalled()
+  })
+
+  it("reports ready with zero issues once everything required is on file", async () => {
+    const { client, tables } = makeFakeSupabase()
+    tables.contract_templates.push({ id: "tpl_1", company_id: "co_1", name: "Standard", language: "fr", active_version_id: "v1" })
+    tables.contract_template_versions.push({
+      id: "v1",
+      template_id: "tpl_1",
+      company_id: "co_1",
+      version_number: 1,
+      status: "active",
+      sections: [{ id: "s1", title: "Renter", bodyText: "{{customer.fullName}}", condition: null }],
+      variable_mappings: [],
+      legal_footer_text: null,
+      created_at: "2026-01-01T00:00:00Z",
+    })
+    tables.reservations.push({
+      id: "res_1",
+      company_id: "co_1",
+      reference: "RB-3391",
+      pickup_at: "2026-07-15T10:00:00Z",
+      return_at: "2026-07-19T10:00:00Z",
+      pickup_location: "Airport",
+      return_location: "Airport",
+      daily_rate: 380,
+      discount_amount: 0,
+      total_amount: 1520,
+      customer: { id: "cus_1", full_name: "Ahmed Tazi", phone: "+212 662-897431", email: null, address: null, nationality: null, license_number: "MA-1", license_expires_on: "2028-01-01", id_document_number: null, date_of_birth: "1990-01-01" },
+      vehicle: { id: "veh_1", make: "Dacia", model: "Duster", year: 2023, registration_number: "12345-A-6", color: null, category: "suv", seats: 5, fuel_type: "diesel", transmission: "manual" },
+    })
+    tables.companies.push({ id: "co_1", name: "Atlas Rent Car", address: null, city: null, country: "Morocco", tax_id: null, business_register: null })
+    tables.documents.push({ company_id: "co_1", customer_id: "cus_1", status: "active", category: "identity_document", expires_on: "2029-01-01" })
+
+    const readiness = await getContractReadiness(client, makeSession(), "res_1")
+    expect(readiness.ready).toBe(true)
+    expect(readiness.issues).toEqual([])
+    expect(previewAiMock.flagContractPreviewIssues).not.toHaveBeenCalled()
+  })
+
+  it("reports not ready with the resolver's own error when there's no active template", async () => {
+    const { client } = makeFakeSupabase()
+    const readiness = await getContractReadiness(client, makeSession(), "res_missing")
+    expect(readiness.ready).toBe(false)
+    expect(readiness.issues[0].message).toMatch(/no active contract template/i)
   })
 })
 

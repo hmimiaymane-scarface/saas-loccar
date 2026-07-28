@@ -11,6 +11,7 @@ import {
   activateVersion,
   generateContract,
   previewContract,
+  getContractReadiness,
   prepareContract,
   sendContractForSignature,
   addContractSignature,
@@ -25,6 +26,7 @@ import {
   logContractDownloaded,
   type VariableMapping,
   type ContractPreview,
+  type ContractReadiness,
   type SignerType,
   type AmendmentType,
 } from "@/lib/contracts/template-store"
@@ -109,6 +111,13 @@ export async function previewContractAction(
   requireRole(session, [...GENERATE_ROLES])
   const supabase = await createClient()
   return previewContract(supabase, session, { reservationId, templateId })
+}
+
+export async function getContractReadinessAction(reservationId: string): Promise<ContractReadiness> {
+  const session = await requireSession()
+  requireRole(session, [...GENERATE_ROLES])
+  const supabase = await createClient()
+  return getContractReadiness(supabase, session, reservationId)
 }
 
 export async function generateContractAction(
