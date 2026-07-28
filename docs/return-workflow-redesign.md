@@ -124,9 +124,69 @@ values.
 
 - No live Postgres/Supabase access in this environment — a repo-wide
   constraint since phase 03, not specific to this phase.
-- Phase 30's fuller "Return Completion Reward" summary (revenue,
+- ~~Phase 30's fuller "Return Completion Reward" summary (revenue,
   duration, deposit result, vehicle state) is deliberately deferred, not
-  built here — see gap 3 above.
+  built here — see gap 3 above.~~ Done — see below.
 - The 6 other unguarded `createClient()` call sites in
   `app/(dashboard)/inspections/actions.ts` and its siblings remain a
   known, open gap for a future phase, not silently left unmentioned.
+
+## Phase 30 — "Return Completion Reward"
+
+Picks up exactly where the note above left off: a second, separate
+component, `ReturnCompletionSummary`
+(`components/domain/reservations/return-completion-summary.tsx`),
+composed alongside `ReturnCompletedBanner` under the same
+`justCompleted=1` gate on `app/(dashboard)/reservations/[id]/page.tsx` —
+"the numbers" (a plain card) next to "the acknowledgment" (the existing
+emerald banner), the same two-separate-later-composed-pieces split this
+doc's own phase-28 note called for.
+
+All of it derives from the `ReservationDetail` the page already loads —
+no new schema, no new query:
+
+- **Revenue** — `payment.totalDueMad`.
+- **Duration** — the *actual* pickup→return span
+  (`pickupAt` → `returnInspection.completedAt`), not the originally
+  booked `numDays`. Confirmed by reading `complete_rental()`
+  directly that it never updates `return_at` — so `numDays` alone would
+  have quietly shown a **booked** figure in a component whose whole
+  point is reporting what **actually** happened. Falls back to
+  `numDays` (labeled "Duration (booked)" instead of "(actual)", never
+  silently passed off as real) when there's no completed return
+  inspection — an owner/manager can complete a rental via override
+  without one.
+- **Deposit result** — phrased plainly per `Deposit.status`, not just
+  the raw status label: "returned in full," "retained," "returned +
+  retained" together, or "not yet resolved" for anything still open
+  (collected/partially_collected/held/disputed).
+- **Vehicle state** — `returnInspection.overallCondition` plus a
+  new-damage count using the exact same `!preExisting` filter the
+  `/comparison` page already uses for "newDamages" — no second damage
+  classification invented.
+- **Balance due** — `payment.remainingMad`, shown only when nonzero
+  (never a dead "0 MAD due" line).
+
+The derivation itself lives in a pure module,
+`lib/reservations/completion-summary.ts#buildReturnCompletionSummary`
+(no Supabase dependency, same shape as `lib/reservations/smart-defaults.ts`),
+with 12 hand-fixture tests covering the duration fallback and every
+deposit-status branch.
+
+**Real live verification, and better than phases 28/29's own — this
+piece needed no wizard interaction at all.** `justCompleted=1` reads
+straight off the already-completed mock reservation `bk_2`, so unlike
+`MoneySummaryCard`/the AI damage-comparison UI (both stuck behind the
+mock-mode mutation wall), this was fully exercisable live: confirmed on
+`/reservations/bk_2?justCompleted=1` that Revenue (1,400 MAD), Duration
+(actual, 4 days), Deposit result ("1600 MAD returned, 400 MAD
+retained," amber tone), and Vehicle state ("Good condition — 1 new
+damage noted") all match the Rental/Pricing/Inspections/Damages cards
+further down the same page exactly — in both light and dark mode
+(forced via `document.documentElement.classList.add('dark')`, this app
+still has no in-app theme toggle), zero console errors. **One thing
+that could not be exercised live**: no mock fixture has a completed
+reservation with a nonzero remaining balance, so the "Balance due" row
+rests on its unit test (`reports revenue and remaining balance...`)
+rather than a live observation — an honest, narrow gap, not glossed
+over.
