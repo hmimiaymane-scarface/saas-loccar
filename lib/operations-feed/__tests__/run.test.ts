@@ -240,4 +240,52 @@ describe("runOperationsFeedForCompany", () => {
     expect(secondRun.resolved).toBe(0)
     expect(JSON.stringify(tables.operations_feed_items.find((i) => i.observer_type === "idle_vehicle"))).toBe(dismissedSnapshot)
   })
+
+  it("flags a still-in-progress (draft) inspection missing a required handoff photo", async () => {
+    const { client, tables } = makeFakeSupabase()
+    seedBaseline(tables)
+    tables.reservations.push({ id: "res_1", company_id: COMPANY, reference: "RB-1" })
+    tables.inspections.push({
+      id: "insp_1",
+      company_id: COMPANY,
+      reservation_id: "res_1",
+      type: "pickup",
+      status: "draft",
+      created_at: "2026-07-21T09:00:00Z",
+    })
+    tables.media.push({ id: "med_1", company_id: COMPANY, entity_type: "inspection", entity_id: "insp_1", caption: "dashboard_odometer" })
+    // fuel_gauge never captured.
+
+    const now = new Date("2026-07-21T12:00:00Z")
+    const summary = await runOperationsFeedForCompany(client, COMPANY, now)
+
+    expect(summary.opened).toBe(1)
+    const item = tables.operations_feed_items.find((i) => i.observer_type === "missing_handoff_photos")
+    expect(item).toBeTruthy()
+    expect(item?.entity_id).toBe("insp_1")
+  })
+
+  it("never flags a completed inspection for missing handoff photos — that path is unreachable now that complete_inspection() hard-requires both photos", async () => {
+    const { client, tables } = makeFakeSupabase()
+    seedBaseline(tables)
+    tables.reservations.push({ id: "res_1", company_id: COMPANY, reference: "RB-1" })
+    // A real completed inspection could never exist without both photos
+    // (the RPC's own hard gate) — seeded with none here specifically to
+    // prove this phase's fix (only "draft" status is fetched) rather
+    // than relying on the fixture happening to have them.
+    tables.inspections.push({
+      id: "insp_2",
+      company_id: COMPANY,
+      reservation_id: "res_1",
+      type: "pickup",
+      status: "completed",
+      created_at: "2026-07-20T09:00:00Z",
+    })
+
+    const now = new Date("2026-07-21T12:00:00Z")
+    const summary = await runOperationsFeedForCompany(client, COMPANY, now)
+
+    expect(summary.opened).toBe(0)
+    expect(tables.operations_feed_items.find((i) => i.observer_type === "missing_handoff_photos")).toBeUndefined()
+  })
 })

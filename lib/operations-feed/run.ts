@@ -205,54 +205,64 @@ async function gatherVehicleHealthDrafts(supabase: SupabaseServerClient, company
   return drafts
 }
 
+/** Roadmap phase 34 — `evaluateMissingHandoffPhotos` used to run against
+ * `completed` inspections, but `complete_inspection()`'s own hard
+ * photo-completeness gate (added in a later migration than this
+ * observer) already guarantees both required handoff photos exist
+ * before an inspection can reach `completed` — meaning the check could
+ * never actually fire there. The condition is still real, just on
+ * still-in-progress (`draft`) inspections instead — which is also the
+ * only status a real-time trigger (`lib/operations-feed/realtime.ts`)
+ * can usefully catch, since it fires from a photo upload that happens
+ * before completion. Only `draft` status is fetched now — `evaluateStaleInspection`
+ * and `evaluateMissingHandoffPhotos` both run against the same rows. */
 async function gatherInspectionDrafts(supabase: SupabaseServerClient, companyId: string, now: Date): Promise<FeedItemDraft[]> {
   const { data: inspections, error } = await supabase
     .from("inspections")
     .select("id, reservation_id, type, status, created_at, reservation:reservations(reference)")
     .eq("company_id", companyId)
-    .in("status", ["draft", "completed"])
+    .eq("status", "draft")
   if (error) throw error
 
   const drafts: FeedItemDraft[] = []
-  const completedIds: string[] = []
-  const completedById = new Map<string, { reservationId: string; reference: string; type: string }>()
+  const inProgressIds: string[] = []
+  const inProgressById = new Map<string, { reservationId: string; reference: string; type: string }>()
 
   for (const insp of inspections ?? []) {
     const reservation = insp.reservation as unknown as { reference: string } | null
     if (!reservation) continue
-    if (insp.status === "draft") {
-      const draft = evaluateStaleInspection({
-        inspectionId: insp.id,
-        reservationId: insp.reservation_id,
-        reservationReference: reservation.reference,
-        type: insp.type as never,
-        createdAt: insp.created_at,
-        now,
-      })
-      if (draft) drafts.push(draft)
-    } else {
-      completedIds.push(insp.id)
-      completedById.set(insp.id, { reservationId: insp.reservation_id, reference: reservation.reference, type: insp.type as string })
-    }
+
+    const staleDraft = evaluateStaleInspection({
+      inspectionId: insp.id,
+      reservationId: insp.reservation_id,
+      reservationReference: reservation.reference,
+      type: insp.type as never,
+      createdAt: insp.created_at,
+      now,
+    })
+    if (staleDraft) drafts.push(staleDraft)
+
+    inProgressIds.push(insp.id)
+    inProgressById.set(insp.id, { reservationId: insp.reservation_id, reference: reservation.reference, type: insp.type as string })
   }
 
-  if (completedIds.length > 0) {
-    const { data: media } = await supabase.from("media").select("entity_id, caption").eq("company_id", companyId).eq("entity_type", "inspection").in("entity_id", completedIds)
+  if (inProgressIds.length > 0) {
+    const { data: media } = await supabase.from("media").select("entity_id, caption").eq("company_id", companyId).eq("entity_type", "inspection").in("entity_id", inProgressIds)
     const slotsByInspection = new Map<string, string[]>()
     for (const m of media ?? []) {
       const list = slotsByInspection.get(m.entity_id as string) ?? []
       if (m.caption) list.push(m.caption as string)
       slotsByInspection.set(m.entity_id as string, list)
     }
-    for (const [inspectionId, info] of completedById) {
-      const draft = evaluateMissingHandoffPhotos({
+    for (const [inspectionId, info] of inProgressById) {
+      const photosDraft = evaluateMissingHandoffPhotos({
         inspectionId,
         reservationId: info.reservationId,
         reservationReference: info.reference,
         type: info.type as never,
         capturedSlots: slotsByInspection.get(inspectionId) ?? [],
       })
-      if (draft) drafts.push(draft)
+      if (photosDraft) drafts.push(photosDraft)
     }
   }
 
