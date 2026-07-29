@@ -24,6 +24,7 @@ import { createClient } from "@/lib/supabase/server"
 import { callAndOpenActions } from "@/lib/notifications/actions"
 import { agePriority } from "@/lib/notifications/aging"
 import { filterByFinancialAccess } from "@/lib/notifications/permission-filter"
+import { collapseDuplicateNotifications } from "@/lib/notifications/dedupe"
 import { assessReturningCustomerReadiness } from "@/lib/customer-readiness"
 import { mostCommonAmount, mostCommonHour, mostCommonString } from "@/lib/reservations/smart-defaults"
 import type { InsightPriority } from "@/lib/tone"
@@ -3873,10 +3874,15 @@ export async function getNotificationFeed(
   // filtered here, not just hidden by the UI.
   const visibleItems = filterByFinancialAccess([...liveItems, ...eventItems], hasFinancialAccess)
 
+  // Roadmap phase 35 — a structural guarantee against the same
+  // notification (same type, same destination) ever appearing twice,
+  // keeping whichever instance is most recent.
+  const deduped = collapseDuplicateNotifications(visibleItems)
+
   // requirement 6: unresolved items rise in priority the longer they sit
   // — never applied to something already read/dismissed.
   const now = new Date()
-  const aged = visibleItems.map((item) => ({
+  const aged = deduped.map((item) => ({
     ...item,
     priority: item.isRead ? item.priority : agePriority(item.priority, item.createdAt, now),
   }))
