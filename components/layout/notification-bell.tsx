@@ -19,6 +19,12 @@ const PRIORITY_DOT: Record<NotificationItem["priority"], string> = Object.fromEn
 ) as Record<NotificationItem["priority"], string>
 
 function NotificationBell({ notifications, unreadCount }: { notifications: NotificationItem[]; unreadCount: number }) {
+  // Roadmap phase 35 ("Notification Center Rebuild") — informational
+  // items never occupy a preview slot here, same "kept out of the
+  // primary view entirely, not just deprioritized" principle phase 13
+  // already applied to the Overview page's operations-feed items.
+  const actionable = notifications.filter((n) => n.priority !== "informational")
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -36,11 +42,11 @@ function NotificationBell({ notifications, unreadCount }: { notifications: Notif
           <span className="text-sm font-medium text-foreground">Notifications</span>
           {unreadCount > 0 && <span className="text-xs text-muted-foreground">{unreadCount} unread</span>}
         </div>
-        {notifications.length === 0 ? (
+        {actionable.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">You&apos;re all caught up.</p>
         ) : (
           <div className="flex flex-col divide-y divide-border">
-            {notifications.map((n) => (
+            {actionable.map((n) => (
               <Link
                 key={n.id}
                 href={n.href ?? "/notifications"}

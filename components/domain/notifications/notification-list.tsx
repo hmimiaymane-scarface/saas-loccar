@@ -31,6 +31,40 @@ function groupByDate(items: NotificationItem[]) {
   return Array.from(groups.entries()).sort(([dayA], [dayB]) => dayB.localeCompare(dayA))
 }
 
+/** One notification row — shared by the main (attention) list and the
+ * collapsed informational section below it, so the two never drift
+ * apart in what a row actually looks like. */
+function NotificationRow({ item, isPending, onMarkRead }: { item: NotificationItem; isPending: boolean; onMarkRead: (item: NotificationItem) => void }) {
+  const tone = toneClasses[insightPriorityTone[item.priority]]
+  return (
+    <div className="flex items-start gap-3 p-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <Link href={item.href ?? "/notifications"} className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <span className={cn("text-sm", item.isRead ? "text-muted-foreground" : "font-medium text-foreground")}>{item.title}</span>
+            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", tone.badge)}>{item.priority}</span>
+          </div>
+          {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+        </Link>
+        {item.actions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {item.actions.map((action) => (
+              <a key={action.href + action.label} href={action.href} className="text-xs font-medium text-primary hover:underline">
+                {action.label}
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+      {!item.isRead && (
+        <Button variant="ghost" size="icon-sm" onClick={() => onMarkRead(item)} disabled={isPending} title="Mark as read">
+          <Check className="size-4" />
+        </Button>
+      )}
+    </div>
+  )
+}
+
 function NotificationList({ initialItems }: { initialItems: NotificationItem[] }) {
   const [items, setItems] = useState(initialItems)
   const [isPending, startTransition] = useTransition()
@@ -82,6 +116,13 @@ function NotificationList({ initialItems }: { initialItems: NotificationItem[] }
     return <EmptyPlaceholder icon={Bell} title="No notifications" description="You'll see pickups, returns, maintenance and other alerts here as they come up." />
   }
 
+  // Roadmap phase 35 ("Notification Center Rebuild") — informational
+  // items are never deleted, just kept out of the main feed, same
+  // "still reachable on a secondary surface" principle phase 13 already
+  // applied to the Operations Feed's own informational-tier items.
+  const attention = items.filter((i) => i.priority !== "informational")
+  const informational = items.filter((i) => i.priority === "informational")
+
   return (
     <div className="flex flex-col gap-4">
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -93,51 +134,32 @@ function NotificationList({ initialItems }: { initialItems: NotificationItem[] }
           </Button>
         </div>
       )}
-      {groupByDate(items).map(([day, dayItems]) => (
-        <div key={day} className="flex flex-col gap-2">
-          <p className="text-xs font-medium text-muted-foreground">{formatDateTime(dayItems[0].createdAt).split(",")[0]}</p>
-          <div className="flex flex-col divide-y divide-border rounded-3xl border border-border bg-card">
-            {dayItems.map((item) => {
-              const tone = toneClasses[insightPriorityTone[item.priority]]
-              return (
-                <div key={item.id} className="flex items-start gap-3 p-3">
-                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    <Link href={item.href ?? "/notifications"} className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <span className={cn("text-sm", item.isRead ? "text-muted-foreground" : "font-medium text-foreground")}>
-                          {item.title}
-                        </span>
-                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", tone.badge)}>
-                          {item.priority}
-                        </span>
-                      </div>
-                      {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
-                    </Link>
-                    {item.actions.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        {item.actions.map((action) => (
-                          <a
-                            key={action.href + action.label}
-                            href={action.href}
-                            className="text-xs font-medium text-primary hover:underline"
-                          >
-                            {action.label}
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {!item.isRead && (
-                    <Button variant="ghost" size="icon-sm" onClick={() => markOne(item)} disabled={isPending} title="Mark as read">
-                      <Check className="size-4" />
-                    </Button>
-                  )}
-                </div>
-              )
-            })}
+      {attention.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">Nothing needs your attention right now.</p>
+      ) : (
+        groupByDate(attention).map(([day, dayItems]) => (
+          <div key={day} className="flex flex-col gap-2">
+            <p className="text-xs font-medium text-muted-foreground">{formatDateTime(dayItems[0].createdAt).split(",")[0]}</p>
+            <div className="flex flex-col divide-y divide-border rounded-3xl border border-border bg-card">
+              {dayItems.map((item) => (
+                <NotificationRow key={item.id} item={item} isPending={isPending} onMarkRead={markOne} />
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))
+      )}
+      {informational.length > 0 && (
+        <details className="group rounded-3xl border border-border">
+          <summary className="cursor-pointer list-none px-4 py-2.5 text-sm font-medium text-muted-foreground marker:content-none">
+            Informational ({informational.length})
+          </summary>
+          <div className="flex flex-col divide-y divide-border border-t border-border">
+            {informational.map((item) => (
+              <NotificationRow key={item.id} item={item} isPending={isPending} onMarkRead={markOne} />
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   )
 }
