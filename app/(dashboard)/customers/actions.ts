@@ -10,7 +10,7 @@ import { recordEvent } from "@/lib/activity-log"
 import { validateFile, ACCEPTED_SCAN_MIME_TYPES } from "@/lib/storage"
 import { classifyAndExtractBytes, type ExtractedFields } from "@/lib/document-extraction"
 import type { DuplicateMatch } from "@/lib/customer-matching"
-import type { DocumentCategory } from "@/types/rental"
+import type { ActivityType, DocumentCategory } from "@/types/rental"
 
 const CUSTOMER_ROLES = ["owner", "manager", "agent"] as const
 const CUSTOMER_STATUS_ROLES = ["owner", "manager"] as const
@@ -321,5 +321,64 @@ export async function setCustomerStatus(
   } catch (err) {
     if (err instanceof ActionError) return { error: err.message }
     throw err
+  }
+}
+
+// ---------------------------------------------------------------------
+// Communication log (roadmap phase 46) — "what have we already done
+// with this customer?"
+// ---------------------------------------------------------------------
+
+type CommunicationLogType =
+  | "whatsapp_confirmation_sent"
+  | "whatsapp_pickup_reminder_sent"
+  | "whatsapp_return_reminder_sent"
+  | "whatsapp_payment_reminder_sent"
+  | "whatsapp_contract_sent"
+  | "call_logged"
+
+export interface LogCommunicationInput {
+  type: CommunicationLogType
+  customerId: string
+  reservationId?: string
+  title: string
+  description?: string
+}
+
+/**
+ * Fired from `WhatsAppButton`/`CallButton`'s `onClick` the instant staff
+ * clicks — the only moment this app can actually observe (see
+ * `ACTIVITY_TYPES`' own comment in `types/rental.ts`: this app has no
+ * visibility into whether the WhatsApp draft was actually sent, or a
+ * dialed call answered). `entityType: "customer"` so it satisfies
+ * `getCustomerTimeline`'s first OR-clause directly, regardless of
+ * whether a `reservationId` is available — `metadata.reservation_id`
+ * is included when it is, for a future reservation-level timeline to
+ * pick up too, not because the customer timeline itself requires it.
+ *
+ * Best-effort by design, same convention as `logContractViewedAction`:
+ * a failed log write must never surface as an error to someone who
+ * just opened WhatsApp or dialed a number — the primary action already
+ * happened outside this app's control by the time this fires.
+ */
+export async function logCommunicationAction(input: LogCommunicationInput): Promise<void> {
+  try {
+    const session = await requireSession()
+    const supabase = await createClient()
+    await recordEvent(supabase, {
+      companyId: session.company.id,
+      actorId: session.userId,
+      type: input.type as ActivityType,
+      entityType: "customer",
+      entityId: input.customerId,
+      title: input.title,
+      description: input.description,
+      metadata: input.reservationId
+        ? { reservation_id: input.reservationId, customer_id: input.customerId }
+        : { customer_id: input.customerId },
+    })
+    revalidatePath(`/customers/${input.customerId}`)
+  } catch {
+    // Best-effort — see doc comment above.
   }
 }
