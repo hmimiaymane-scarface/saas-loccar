@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
-import { Pencil, UserRound, Car, MapPin, Clock, ClipboardCheck, Undo2, GitCompare, Phone } from "lucide-react"
+import { Pencil, UserRound, Car, MapPin, Clock, ClipboardCheck, Undo2, GitCompare } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
 import { getReservationDetail, getFleetCardContext } from "@/lib/data"
@@ -23,6 +23,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { WhatsAppButton } from "@/components/domain/whatsapp-button"
+import { CallButton } from "@/components/domain/call-button"
 import { ReservationStatusActions } from "@/components/domain/reservations/reservation-status-actions"
 import { DocumentListItem } from "@/components/domain/documents/document-list-item"
 import { DepositPanel } from "@/components/domain/reservations/deposit-panel"
@@ -214,12 +215,17 @@ export default async function ReservationDetailPage({
               </div>
               {canManage && (
                 <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={`tel:${reservation.customer.phone}`}>
-                      <Phone />
-                      Call
-                    </a>
-                  </Button>
+                  <CallButton
+                    phone={reservation.customer.phone}
+                    size="sm"
+                    logEvent={{
+                      type: "call_logged",
+                      customerId: reservation.customer.id,
+                      reservationId: reservation.id,
+                      title: `Called ${reservation.customer.fullName}`,
+                      description: `About reservation ${reservation.reference}`,
+                    }}
+                  />
                   {["request", "pending", "confirmed"].includes(reservation.status) && (
                     <WhatsAppButton
                       phone={reservation.customer.phone}
@@ -233,6 +239,13 @@ export default async function ReservationDetailPage({
                         pickupLocation: reservation.pickupLocation,
                         timezone: tz,
                       })}
+                      logEvent={{
+                        type: "whatsapp_confirmation_sent",
+                        customerId: reservation.customer.id,
+                        reservationId: reservation.id,
+                        title: `Confirmation sent to ${reservation.customer.fullName}`,
+                        description: `Reservation ${reservation.reference}`,
+                      }}
                     />
                   )}
                   {["pending", "confirmed"].includes(reservation.status) && (
@@ -247,6 +260,13 @@ export default async function ReservationDetailPage({
                         pickupLocation: reservation.pickupLocation,
                         timezone: tz,
                       })}
+                      logEvent={{
+                        type: "whatsapp_pickup_reminder_sent",
+                        customerId: reservation.customer.id,
+                        reservationId: reservation.id,
+                        title: `Pickup reminder sent to ${reservation.customer.fullName}`,
+                        description: `Reservation ${reservation.reference}`,
+                      }}
                     />
                   )}
                   {reservation.status === "active" && (
@@ -261,6 +281,13 @@ export default async function ReservationDetailPage({
                         returnLocation: reservation.returnLocation,
                         timezone: tz,
                       })}
+                      logEvent={{
+                        type: "whatsapp_return_reminder_sent",
+                        customerId: reservation.customer.id,
+                        reservationId: reservation.id,
+                        title: `Return reminder sent to ${reservation.customer.fullName}`,
+                        description: `Reservation ${reservation.reference}`,
+                      }}
                     />
                   )}
                 </div>
@@ -314,6 +341,13 @@ export default async function ReservationDetailPage({
                       reference: reservation.reference,
                       remainingMad: reservation.payment.remainingMad,
                     })}
+                    logEvent={{
+                      type: "whatsapp_payment_reminder_sent",
+                      customerId: reservation.customer.id,
+                      reservationId: reservation.id,
+                      title: `Payment reminder sent to ${reservation.customer.fullName}`,
+                      description: `Reservation ${reservation.reference}`,
+                    }}
                   />
                 </div>
               )}
