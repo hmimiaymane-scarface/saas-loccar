@@ -57,7 +57,13 @@ export default async function ContractViewPage({ params }: { params: Promise<{ i
             <Button variant="outline" asChild>
               <Link href={`/reservations/${contract.reservationId}`}>Back to reservation</Link>
             </Button>
-            <ContractPdfActions contractId={contract.id} pdfUrl={pdfUrl} />
+            <ContractPdfActions
+              contractId={contract.id}
+              pdfUrl={pdfUrl}
+              customerName={contract.resolvedContext["customer.fullName"] ?? "there"}
+              customerPhone={contract.resolvedContext["customer.phone"] ?? null}
+              reservationReference={contract.resolvedContext["reservation.reference"] ?? ""}
+            />
           </div>
         }
       />

@@ -1,10 +1,12 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { Download, Printer, Share, Send } from "lucide-react"
+import { Download, Printer, Share } from "lucide-react"
 
 import { logContractPrintedAction, logContractDownloadedAction } from "@/app/(dashboard)/contract-templates/actions"
+import { buildContractMessage } from "@/lib/whatsapp-messages"
 import { Button } from "@/components/ui/button"
+import { WhatsAppButton } from "@/components/domain/whatsapp-button"
 
 /** Roadmap phase 11 requirement 9 — logs before acting so the audit
  * trail reflects intent even if the user closes the tab mid-download.
@@ -25,7 +27,15 @@ import { Button } from "@/components/ui/button"
  * WhatsApp/email/AirDrop is the realistic field equivalent of "print
  * it," not a print dialog. Download stays available everywhere; it's
  * the one action that always works regardless of device. */
-function ContractPdfActions({ contractId, pdfUrl }: { contractId: string; pdfUrl: string | null }) {
+interface ContractPdfActionsProps {
+  contractId: string
+  pdfUrl: string | null
+  customerName: string
+  customerPhone: string | null
+  reservationReference: string
+}
+
+function ContractPdfActions({ contractId, pdfUrl, customerName, customerPhone, reservationReference }: ContractPdfActionsProps) {
   const [, startTransition] = useTransition()
   const [canShare, setCanShare] = useState(false)
 
@@ -80,16 +90,21 @@ function ContractPdfActions({ contractId, pdfUrl }: { contractId: string; pdfUrl
           </a>
         </Button>
       )}
-      {/* Roadmap phase 26 — no messaging integration exists anywhere in
-          this app yet (see docs/notifications.md); an honest, disabled
-          stub beats a fake "Sent" state or silently omitting the button
-          the brief explicitly asks for. Native `title` rather than the
-          Radix Tooltip primitive — a genuinely `disabled` button doesn't
-          reliably fire the pointer events Radix's tooltip trigger needs. */}
-      <Button variant="outline" disabled title="Available once WhatsApp or email is connected">
-        <Send />
-        Send
-      </Button>
+      {/* Roadmap phase 26 built this as a disabled stub — "no messaging
+          integration exists anywhere in this app yet." Roadmap phase 45
+          found that framing only holds for a real Business-API/email
+          integration; WhatsApp's own `wa.me` click-to-chat link needs
+          neither and is a real, working "Send" now. Email stays out of
+          scope for this phase (no deep-link equivalent without knowing
+          the recipient wants to open their own mail client, and the
+          brief only names WhatsApp/Call) — not re-added as a stub here
+          since a single real action beats a bundle of one working button
+          and one still-fake one. */}
+      <WhatsAppButton
+        phone={customerPhone}
+        label="Send"
+        message={buildContractMessage({ customerName, reference: reservationReference, pdfUrl })}
+      />
     </div>
   )
 }
