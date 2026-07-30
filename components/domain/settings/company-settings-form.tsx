@@ -8,6 +8,7 @@ import type { NotificationType, RentalCompany } from "@/types/rental"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { NativeSelect } from "@/components/ui/native-select"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 
@@ -88,14 +89,60 @@ function CompanySettingsForm({ company }: { company: RentalCompany }) {
 
           <Separator />
 
-          <div className="grid gap-4 sm:grid-cols-2 text-sm">
-            <div className="flex flex-col gap-1">
-              <span className="text-muted-foreground">Currency</span>
-              <span className="text-foreground">{company.currency}</span>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="currency">Currency</Label>
+              <NativeSelect id="currency" name="currency" defaultValue={company.currency}>
+                <option value="MAD">MAD — Moroccan dirham</option>
+                <option value="EUR">EUR — Euro</option>
+                <option value="USD">USD — US dollar</option>
+              </NativeSelect>
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 text-sm">
               <span className="text-muted-foreground">Time zone</span>
-              <span className="text-foreground">{company.timezone}</span>
+              <span className="pt-2 text-foreground">{company.timezone}</span>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="email">Contact email</Label>
+              <Input id="email" name="email" type="email" defaultValue={company.email ?? ""} placeholder="contact@yourcompany.com" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="address">Address</Label>
+              <Input id="address" name="address" defaultValue={company.address ?? ""} placeholder="123 Avenue Mohammed V" />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="defaultDepositMad">Default deposit (MAD)</Label>
+              <Input
+                id="defaultDepositMad"
+                name="defaultDepositMad"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={company.defaultDepositMad ?? ""}
+                placeholder="3000"
+              />
+              <p className="text-xs text-muted-foreground">Prefills the expected deposit amount on new reservations.</p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="overdueGracePeriodHours">Overdue grace period (hours)</Label>
+              <Input
+                id="overdueGracePeriodHours"
+                name="overdueGracePeriodHours"
+                type="number"
+                min="0"
+                max="168"
+                defaultValue={company.overdueGracePeriodHours}
+                required
+              />
+              <p className="text-xs text-muted-foreground">Wait this long past the return time before flagging a rental as overdue.</p>
             </div>
           </div>
 

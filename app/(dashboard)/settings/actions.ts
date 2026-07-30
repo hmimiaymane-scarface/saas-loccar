@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 
 import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
-import { requiredString, optionalString, requiredNumber } from "@/lib/form-input"
+import { requiredString, optionalString, requiredNumber, optionalNumber } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
 import type { NotificationType } from "@/types/rental"
 
@@ -29,6 +29,17 @@ export async function updateCompanySettings(
     if (documentExpiryWarningDays <= 0) throw new ActionError("Document expiry warning threshold must be a positive number of days.")
     const agentsCanRecordExpenses = formData.get("agentsCanRecordExpenses") === "on"
     const mutedTypes = formData.getAll("mutedNotificationTypes").map(String) as NotificationType[]
+    const currency = requiredString(formData, "currency", "Currency")
+    const email = optionalString(formData, "email")
+    const address = optionalString(formData, "address")
+    const defaultDepositMad = optionalNumber(formData, "defaultDepositMad")
+    if (defaultDepositMad != null && defaultDepositMad < 0) {
+      throw new ActionError("Default deposit can't be negative.")
+    }
+    const overdueGracePeriodHours = requiredNumber(formData, "overdueGracePeriodHours", "Overdue grace period")
+    if (overdueGracePeriodHours < 0 || overdueGracePeriodHours > 168) {
+      throw new ActionError("Overdue grace period must be between 0 and 168 hours.")
+    }
 
     const { error } = await supabase
       .from("companies")
@@ -37,6 +48,11 @@ export async function updateCompanySettings(
         document_expiry_warning_days: documentExpiryWarningDays,
         agents_can_record_expenses: agentsCanRecordExpenses,
         muted_notification_types: mutedTypes,
+        currency,
+        email,
+        address,
+        default_deposit_mad: defaultDepositMad,
+        overdue_grace_period_hours: overdueGracePeriodHours,
       })
       .eq("id", companyId)
 
