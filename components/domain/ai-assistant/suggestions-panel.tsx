@@ -7,6 +7,7 @@ import { Lightbulb, Loader2, MessageCircle } from "lucide-react"
 import { generateSuggestions, createConversation, type Suggestion } from "@/app/(dashboard)/ai-assistant/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { InlineEmpty } from "@/components/domain/empty-placeholder"
 
 /** Purely on-demand — no background job, no polling. The owner asks for
  * suggestions when they want them; nothing is generated or shown
@@ -54,7 +55,7 @@ function SuggestionsPanel() {
             Get today&apos;s suggestions
           </Button>
         ) : suggestions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing stands out right now — all clear.</p>
+          <InlineEmpty>Nothing stands out right now — all clear.</InlineEmpty>
         ) : (
           <div className="flex flex-col gap-2">
             {suggestions.map((s, i) => (

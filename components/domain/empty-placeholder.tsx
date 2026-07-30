@@ -1,4 +1,7 @@
+import type { ReactNode } from "react"
 import type { LucideIcon } from "lucide-react"
+
+import { cn } from "@/lib/utils"
 
 interface EmptyPlaceholderProps {
   icon: LucideIcon
@@ -25,4 +28,23 @@ function EmptyPlaceholder({ icon: Icon, title, description }: EmptyPlaceholderPr
   )
 }
 
-export { EmptyPlaceholder }
+interface InlineEmptyProps {
+  children: ReactNode
+  className?: string
+}
+
+/**
+ * Roadmap phase 51 (UI Consistency Audit) — a minimal "nothing here"
+ * message for small embedded lists (a sidebar, a search dropdown)
+ * where the full `EmptyPlaceholder` above (icon + title + description,
+ * sized for a whole page) would be too heavy. Standardizes on
+ * `text-sm text-muted-foreground` — alignment/padding stays a
+ * per-caller `className`, since that genuinely varies by context (a
+ * left-aligned sidebar list vs. a centered "no search results"
+ * message), not arbitrary drift worth flattening away.
+ */
+function InlineEmpty({ children, className }: InlineEmptyProps) {
+  return <p className={cn("text-sm text-muted-foreground", className)}>{children}</p>
+}
+
+export { EmptyPlaceholder, InlineEmpty }

@@ -11,6 +11,7 @@ import { formatRelativeTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { NativeSelect } from "@/components/ui/native-select"
+import { InlineEmpty } from "@/components/domain/empty-placeholder"
 
 function ConversationSidebar({
   conversations,
@@ -69,7 +70,7 @@ function ConversationSidebar({
 
       <div className="flex flex-1 flex-col gap-1 overflow-y-auto">
         {conversations.length === 0 ? (
-          <p className="px-2 py-4 text-xs text-muted-foreground">No conversations yet.</p>
+          <InlineEmpty className="px-2 py-4">No conversations yet.</InlineEmpty>
         ) : (
           conversations.map((c) => (
             <div

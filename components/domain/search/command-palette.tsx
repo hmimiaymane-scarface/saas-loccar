@@ -7,6 +7,7 @@ import { Search, Car, User, ClipboardList, FileSignature, FileText, UserCog, Loa
 
 import { globalSearchAction } from "@/app/(dashboard)/search/actions"
 import { groupSearchResultsByType, type SearchResult, type SearchResultType } from "@/lib/search"
+import { InlineEmpty } from "@/components/domain/empty-placeholder"
 import { cn } from "@/lib/utils"
 
 const TYPE_ICON: Record<SearchResultType, typeof Car> = {
@@ -102,9 +103,9 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
 
           <div className="max-h-96 overflow-y-auto p-2">
             {query.trim().length < 2 ? (
-              <p className="px-3 py-6 text-center text-sm text-muted-foreground">Type at least 2 characters to search.</p>
+              <InlineEmpty className="px-3 py-6 text-center">Type at least 2 characters to search.</InlineEmpty>
             ) : results.length === 0 && !pending ? (
-              <p className="px-3 py-6 text-center text-sm text-muted-foreground">No results for &quot;{query}&quot;.</p>
+              <InlineEmpty className="px-3 py-6 text-center">No results for &quot;{query}&quot;.</InlineEmpty>
             ) : (
               <div className="flex flex-col gap-3">
                 {groupSearchResultsByType(results).map((group) => (

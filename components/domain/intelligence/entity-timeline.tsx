@@ -1,6 +1,7 @@
 import type { ActivityItem } from "@/types/rental"
 import { formatRelativeTime } from "@/lib/format"
 import { activityIcon } from "@/components/domain/overview/activity-feed-card"
+import { InlineEmpty } from "@/components/domain/empty-placeholder"
 import { cn } from "@/lib/utils"
 
 interface EntityTimelineProps {
@@ -15,7 +16,7 @@ interface EntityTimelineProps {
  * activity-feed-card's icon-per-type map instead of duplicating it. */
 function EntityTimeline({ items, className }: EntityTimelineProps) {
   if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground">No activity yet.</p>
+    return <InlineEmpty>No activity yet.</InlineEmpty>
   }
 
   return (
