@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 
@@ -68,7 +69,7 @@ function CompanySettingsForm({ company }: { company: RentalCompany }) {
           </div>
 
           <label className="flex items-center gap-2 text-sm text-foreground">
-            <input type="checkbox" name="agentsCanRecordExpenses" defaultChecked={company.agentsCanRecordExpenses} />
+            <Checkbox name="agentsCanRecordExpenses" defaultChecked={company.agentsCanRecordExpenses} />
             Allow agents to record expenses
           </label>
 
@@ -80,7 +81,7 @@ function CompanySettingsForm({ company }: { company: RentalCompany }) {
             <div className="grid gap-2 sm:grid-cols-2">
               {MUTABLE_NOTIFICATION_TYPES.map((t) => (
                 <label key={t.value} className="flex items-center gap-2 text-sm text-foreground">
-                  <input type="checkbox" name="mutedNotificationTypes" value={t.value} defaultChecked={muted.has(t.value)} />
+                  <Checkbox name="mutedNotificationTypes" value={t.value} defaultChecked={muted.has(t.value)} />
                   {t.label}
                 </label>
               ))}

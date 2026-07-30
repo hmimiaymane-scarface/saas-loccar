@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { SubmitButton } from "@/components/ui/submit-button"
 import { useSlowPending } from "@/hooks/use-slow-pending"
 
@@ -167,7 +168,7 @@ function MaintenanceDetailActions({
             </div>
           </div>
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <input type="checkbox" checked={createExpense} onChange={(e) => setCreateExpense(e.target.checked)} />
+            <Checkbox checked={createExpense} onChange={(e) => setCreateExpense(e.target.checked)} />
             Record this cost as an expense
           </label>
           {error && <p className="text-xs text-destructive">{error}</p>}

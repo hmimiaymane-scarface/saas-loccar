@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { SummaryRow } from "@/components/domain/summary-row"
@@ -589,14 +590,12 @@ function ReservationForm({
               ))}
             </NativeSelect>
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={unassigned}
                 onChange={(e) => {
                   setUnassigned(e.target.checked)
                   if (e.target.checked) setVehicleId(null)
                 }}
-                className="size-4 rounded border-border"
               />
               Leave unassigned for now (request only)
             </label>

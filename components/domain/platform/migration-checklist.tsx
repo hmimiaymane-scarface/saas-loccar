@@ -8,6 +8,7 @@ import { toggleMigrationChecklistItem } from "@/app/platform/actions"
 import { MIGRATION_CHECKLIST_STEPS, migrationChecklistProgress, type MigrationChecklistStepDef } from "@/lib/platform/migration-checklist"
 import { formatRelativeTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import type { MigrationChecklistItem } from "@/types/platform"
 
@@ -65,7 +66,7 @@ function ChecklistRow({
 
   return (
     <div className="flex items-start gap-3 px-6 py-3">
-      <input type="checkbox" checked={isDone} onChange={toggle} disabled={isPending} className="mt-0.5 size-4 shrink-0" />
+      <Checkbox checked={isDone} onChange={toggle} disabled={isPending} className="mt-0.5" />
       <div className="flex flex-1 flex-col gap-0.5">
         <span className={cn("text-sm text-foreground", isDone && "line-through decoration-muted-foreground/50")}>
           {step.label}

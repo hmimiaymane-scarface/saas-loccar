@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { WizardProgress } from "@/components/domain/wizard-progress"
 import { WizardFooter } from "@/components/domain/wizard-footer"
@@ -439,7 +440,7 @@ function PreviewStep({
 
         {duplicateCount > 0 && (
           <label className="flex items-center gap-2 text-sm text-foreground">
-            <input type="checkbox" checked={overrideDuplicates} onChange={(e) => onOverrideChange(e.target.checked)} />
+            <Checkbox checked={overrideDuplicates} onChange={(e) => onOverrideChange(e.target.checked)} />
             Import the {duplicateCount} flagged duplicate{duplicateCount === 1 ? "" : "s"} anyway
           </label>
         )}

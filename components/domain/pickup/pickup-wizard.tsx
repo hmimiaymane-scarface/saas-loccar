@@ -42,6 +42,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { WizardProgress } from "@/components/domain/wizard-progress"
@@ -766,11 +767,10 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
               )}
               <Separator />
               <label className="flex items-start gap-2 text-sm text-foreground">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={existingDamageReviewed}
                   onChange={(e) => setExistingDamageReviewed(e.target.checked)}
-                  className="mt-0.5 size-4 rounded border-border"
+                  className="mt-0.5"
                 />
                 I&apos;ve reviewed the vehicle for existing damage with the customer.
               </label>

@@ -40,6 +40,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { WizardProgress } from "@/components/domain/wizard-progress"
@@ -1144,12 +1145,7 @@ function NewRentalWizard({
                           </div>
                         </div>
                         <label className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <input
-                            type="checkbox"
-                            checked={signerConfirmed}
-                            onChange={(e) => setSignerConfirmed(e.target.checked)}
-                            className="mt-0.5 size-4 rounded border-border"
-                          />
+                          <Checkbox checked={signerConfirmed} onChange={(e) => setSignerConfirmed(e.target.checked)} className="mt-0.5" />
                           I confirm this represents {signerName.trim() || "the signer"}&apos;s agreement to this contract.
                         </label>
                         <div className="flex justify-end">

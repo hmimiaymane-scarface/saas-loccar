@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { SubmitButton } from "@/components/ui/submit-button"
 import { useSlowPending } from "@/hooks/use-slow-pending"
 
@@ -94,13 +95,7 @@ function CustomerEditForm({ customer }: { customer: CustomerDetail }) {
         <Textarea id="notes" name="notes" rows={2} defaultValue={customer.notes ?? undefined} />
       </div>
       <label className="flex items-center gap-2 text-sm text-foreground">
-        <input
-          type="checkbox"
-          name="marketingConsent"
-          value="true"
-          defaultChecked={customer.marketingConsent}
-          className="size-4 rounded border-input"
-        />
+        <Checkbox name="marketingConsent" value="true" defaultChecked={customer.marketingConsent} />
         Customer has consented to marketing communications
       </label>
 

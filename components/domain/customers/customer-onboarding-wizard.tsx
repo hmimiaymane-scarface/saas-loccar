@@ -19,6 +19,7 @@ import { SummaryRow } from "@/components/domain/summary-row"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { WizardProgress } from "@/components/domain/wizard-progress"
 import { WizardFooter } from "@/components/domain/wizard-footer"
@@ -488,12 +489,7 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
                 <Field label="Address" name="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Optional" />
               </div>
               <label className="flex items-center gap-2 text-sm text-foreground sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={marketingConsent}
-                  onChange={(e) => setMarketingConsent(e.target.checked)}
-                  className="size-4 rounded border-input"
-                />
+                <Checkbox checked={marketingConsent} onChange={(e) => setMarketingConsent(e.target.checked)} />
                 Customer has consented to marketing communications
               </label>
               <div className="flex flex-col gap-1.5 sm:col-span-2">

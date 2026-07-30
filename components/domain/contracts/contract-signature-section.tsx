@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { SignaturePad } from "@/components/domain/contracts/signature-pad"
@@ -185,12 +186,7 @@ function ContractSignatureSection({
               ) : (
                 <div className="flex flex-col gap-3">
                   <label className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <input
-                      type="checkbox"
-                      checked={confirmed}
-                      onChange={(e) => setConfirmed(e.target.checked)}
-                      className="mt-0.5 size-4 rounded border-border"
-                    />
+                    <Checkbox checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5" />
                     I confirm this represents {signerName.trim() || "the signer"}&apos;s agreement to this contract, typed by them or on their
                     explicit behalf.
                   </label>
