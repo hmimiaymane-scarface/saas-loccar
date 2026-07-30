@@ -14,6 +14,10 @@ export interface OnboardingActionState {
    * `/onboarding` lets the client wizard move to the next step instead
    * of leaving the flow after just one screen. */
   companyCreated?: boolean
+  /** So later wizard steps (the contract-template upload, which needs
+   * a `companyId` prop) don't have to re-fetch the session just to
+   * learn an id the client already just watched get created. */
+  companyId?: string
 }
 
 /**
@@ -39,7 +43,7 @@ export async function createCompany(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc("create_company_with_owner", {
+  const { data, error } = await supabase.rpc("create_company_with_owner", {
     p_name: name,
     p_city: city || null,
     p_phone: phone || null,
@@ -51,7 +55,7 @@ export async function createCompany(
     return { error: error.message }
   }
 
-  return { companyCreated: true }
+  return { companyCreated: true, companyId: data ?? undefined }
 }
 
 // ---------------------------------------------------------------------
