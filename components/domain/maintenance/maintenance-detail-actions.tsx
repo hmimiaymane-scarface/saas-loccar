@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, AlertTriangle } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 import Link from "next/link"
 
 import {
@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
+import { SubmitButton } from "@/components/ui/submit-button"
+import { useSlowPending } from "@/hooks/use-slow-pending"
 
 const OUTCOME_OPTIONS: { value: VehicleStatus; label: string }[] = [
   { value: "available", label: "Available" },
@@ -34,7 +36,12 @@ function MaintenanceDetailActions({
   const router = useRouter()
   const [mode, setMode] = useState<Mode>(null)
   const [isPending, startTransition] = useTransition()
+  const isSlowPending = useSlowPending(isPending)
   const [error, setError] = useState<string | null>(null)
+  // Only one of start/complete/cancel is ever the "active" action for a
+  // given mode (see render below), so one shared status computation is
+  // safe -- no risk of one action's error bleeding into another's button.
+  const status = isPending ? (isSlowPending ? "slow" : "pending") : error ? "error" : "idle"
   const [actualCost, setActualCost] = useState(record.estimatedCostMad != null ? String(record.estimatedCostMad) : "")
   const [nextServiceOn, setNextServiceOn] = useState("")
   const [nextServiceOdometerKm, setNextServiceOdometerKm] = useState("")
@@ -105,23 +112,25 @@ function MaintenanceDetailActions({
       )}
 
       {mode === null && (
-        <div className="flex flex-wrap gap-2">
-          {canStart && (
-            <Button type="button" onClick={start} disabled={isPending}>
-              {isPending && <Loader2 className="animate-spin" />}
-              Start now
-            </Button>
-          )}
-          {isOccupying && (
-            <Button type="button" onClick={() => setMode("complete")} disabled={isPending}>
-              Complete
-            </Button>
-          )}
-          {canCancel && (
-            <Button type="button" variant="outline" onClick={() => setMode("cancel")} disabled={isPending}>
-              Cancel
-            </Button>
-          )}
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-2">
+            {canStart && (
+              <SubmitButton type="button" onClick={start} status={status}>
+                Start now
+              </SubmitButton>
+            )}
+            {isOccupying && (
+              <Button type="button" onClick={() => setMode("complete")} disabled={isPending}>
+                Complete
+              </Button>
+            )}
+            {canCancel && (
+              <Button type="button" variant="outline" onClick={() => setMode("cancel")} disabled={isPending}>
+                Cancel
+              </Button>
+            )}
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
       )}
 
@@ -166,10 +175,9 @@ function MaintenanceDetailActions({
             <Button type="button" variant="ghost" size="sm" onClick={() => setMode(null)}>
               Cancel
             </Button>
-            <Button type="button" size="sm" onClick={complete} disabled={isPending}>
-              {isPending && <Loader2 className="animate-spin" />}
+            <SubmitButton type="button" size="sm" onClick={complete} status={status}>
               Mark completed
-            </Button>
+            </SubmitButton>
           </div>
         </div>
       )}
@@ -193,10 +201,9 @@ function MaintenanceDetailActions({
             <Button type="button" variant="ghost" size="sm" onClick={() => setMode(null)}>
               Back
             </Button>
-            <Button type="button" variant="destructive" size="sm" onClick={cancel} disabled={isPending}>
-              {isPending && <Loader2 className="animate-spin" />}
+            <SubmitButton type="button" size="sm" variant="destructive" onClick={cancel} status={status}>
               Confirm cancel
-            </Button>
+            </SubmitButton>
           </div>
         </div>
       )}
