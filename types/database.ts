@@ -1629,6 +1629,20 @@ export type Database = {
           created_at: string
         }[]
       }
+      platform_get_migration_checklist: {
+        Args: { p_company_id: string }
+        Returns: {
+          step_key: string
+          sort_order: number
+          is_done: boolean
+          completed_at: string | null
+          completed_by_email: string | null
+        }[]
+      }
+      platform_toggle_migration_checklist_item: {
+        Args: { p_company_id: string; p_step_key: string; p_is_done: boolean }
+        Returns: undefined
+      }
     }
     Enums: Record<string, never>
   }
