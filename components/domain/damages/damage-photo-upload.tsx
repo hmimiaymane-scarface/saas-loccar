@@ -5,6 +5,7 @@ import { Camera, Loader2 } from "lucide-react"
 
 import { buildStoragePath, validateFile, ACCEPTED_IMAGE_MIME_TYPES } from "@/lib/storage"
 import { uploadFile } from "@/lib/storage-client"
+import { compressImageFile, EVIDENCE_PHOTO_MAX_DIMENSION, EVIDENCE_PHOTO_JPEG_QUALITY } from "@/lib/image-processing"
 import { attachDamageMedia } from "@/app/(dashboard)/damages/actions"
 import type { MediaFile } from "@/types/rental"
 
@@ -28,14 +29,20 @@ function DamagePhotoUpload({
       return
     }
     setBusy(true)
-    const path = buildStoragePath(companyId, ["damages", damageId], file.name)
-    const upload = await uploadFile(path, file)
+    let compressed: File
+    try {
+      compressed = await compressImageFile(file, { maxDimension: EVIDENCE_PHOTO_MAX_DIMENSION, quality: EVIDENCE_PHOTO_JPEG_QUALITY })
+    } catch {
+      compressed = file
+    }
+    const path = buildStoragePath(companyId, ["damages", damageId], compressed.name)
+    const upload = await uploadFile(path, compressed)
     if (upload.error) {
       setError(upload.error)
       setBusy(false)
       return
     }
-    const result = await attachDamageMedia(damageId, path, file.name, file.type, file.size)
+    const result = await attachDamageMedia(damageId, path, compressed.name, compressed.type, compressed.size)
     setBusy(false)
     if (result.error) {
       setError(result.error)
@@ -45,8 +52,8 @@ function DamagePhotoUpload({
       id: result.mediaId!,
       entityType: "damage",
       entityId: damageId,
-      originalFilename: file.name,
-      mimeType: file.type,
+      originalFilename: compressed.name,
+      mimeType: compressed.type,
       caption: null,
       url: null,
       createdAt: new Date().toISOString(),

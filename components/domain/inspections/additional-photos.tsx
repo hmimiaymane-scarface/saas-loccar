@@ -5,6 +5,7 @@ import { Camera, Loader2 } from "lucide-react"
 
 import { buildStoragePath, validateFile, ACCEPTED_IMAGE_MIME_TYPES } from "@/lib/storage"
 import { uploadFile } from "@/lib/storage-client"
+import { compressImageFile, EVIDENCE_PHOTO_MAX_DIMENSION, EVIDENCE_PHOTO_JPEG_QUALITY } from "@/lib/image-processing"
 import { cn } from "@/lib/utils"
 
 interface AdditionalPhotosProps {
@@ -36,18 +37,25 @@ function AdditionalPhotos({ companyId, pathSegments, count, onUpload, onQueueOff
     }
     setBusy(true)
 
+    let compressed: File
+    try {
+      compressed = await compressImageFile(file, { maxDimension: EVIDENCE_PHOTO_MAX_DIMENSION, quality: EVIDENCE_PHOTO_JPEG_QUALITY })
+    } catch {
+      compressed = file
+    }
+
     if (onQueueOffline && !navigator.onLine) {
-      const queued = await onQueueOffline(file)
+      const queued = await onQueueOffline(compressed)
       if (queued.error) setError(queued.error)
       setBusy(false)
       return
     }
 
-    const path = buildStoragePath(companyId, pathSegments, file.name)
-    const upload = await uploadFile(path, file)
+    const path = buildStoragePath(companyId, pathSegments, compressed.name)
+    const upload = await uploadFile(path, compressed)
     if (upload.error) {
       if (onQueueOffline) {
-        const queued = await onQueueOffline(file)
+        const queued = await onQueueOffline(compressed)
         if (queued.error) setError(queued.error)
         setBusy(false)
         return
@@ -56,7 +64,7 @@ function AdditionalPhotos({ companyId, pathSegments, count, onUpload, onQueueOff
       setBusy(false)
       return
     }
-    const result = await onUpload(file, path)
+    const result = await onUpload(compressed, path)
     if (result.error) setError(result.error)
     setBusy(false)
   }

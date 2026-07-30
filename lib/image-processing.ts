@@ -24,6 +24,17 @@
  * just assumed.
  */
 
+/** Roadmap phase 38 — the one set of dimension/quality constants every
+ * evidence-photo capture path (inspection photos, damage photos,
+ * additional/free-form inspection photos) shares, so "how much do we
+ * compress a piece of dispute evidence" is decided once, not
+ * duplicated per component. Deliberately higher than document-scan-capture.tsx's
+ * own 1600px/0.82 (an ID card just needs to be legible; this is
+ * evidence for a damage dispute and needs finer detail preserved — the
+ * brief's own "size limits that do not destroy evidence quality" line). */
+export const EVIDENCE_PHOTO_MAX_DIMENSION = 2000
+export const EVIDENCE_PHOTO_JPEG_QUALITY = 0.85
+
 export function loadFileToImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
