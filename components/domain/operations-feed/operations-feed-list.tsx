@@ -1,6 +1,6 @@
 "use client"
 
-import { useTransition } from "react"
+import { useOptimistic, useTransition } from "react"
 import { useRouter } from "next/navigation"
 
 import { dismissFeedItemAction } from "@/app/(dashboard)/operations-feed/actions"
@@ -32,13 +32,30 @@ export interface OperationsFeedListItem {
  * one-click actions: `actionHref` always navigates somewhere real
  * (an internal route, or a `tel:` link for "Call" — handled with a
  * hard navigation since Next's router only understands internal
- * routes), never a dead button. Dismiss is a real server action;
- * optimistic-enough via `router.refresh()` after it resolves, same
- * pattern as every other lifecycle action in this app.
+ * routes), never a dead button.
+ *
+ * Roadmap phase 40 — dismiss used to wait on the full server round
+ * trip (dismiss action, then `router.refresh()`) before the item
+ * visibly left the list, which reads as sluggish on a slow connection
+ * for an action that's genuinely safe to show instantly: dismissing an
+ * Operations Feed item is reversible in spirit (the reconciler in
+ * `lib/operations-feed/run.ts` re-surfaces it if the underlying
+ * condition resolves and later recurs) and touches no money/inventory
+ * state. `useOptimistic` removes it from view the moment it's clicked;
+ * if the server call fails, the transition ends without a
+ * `router.refresh()` ever changing the base `items` prop, so the
+ * optimistic list reverts to including it again — the same "safe
+ * because reversible" reasoning does NOT extend to reservation/
+ * payment/deposit actions elsewhere in this app, which stay on the
+ * wait-for-the-server pattern deliberately.
  */
 function OperationsFeedList({ items }: { items: OperationsFeedListItem[] }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
+  const [optimisticItems, dismissOptimistically] = useOptimistic(
+    items,
+    (state, dismissedId: string) => state.filter((item) => item.id !== dismissedId)
+  )
 
   function handleAction(href: string) {
     if (href.startsWith("tel:") || href.startsWith("http")) {
@@ -55,12 +72,13 @@ function OperationsFeedList({ items }: { items: OperationsFeedListItem[] }) {
 
   function handleDismiss(id: string) {
     startTransition(async () => {
+      dismissOptimistically(id)
       await dismissFeedItemAction(id)
       router.refresh()
     })
   }
 
-  if (items.length === 0) {
+  if (optimisticItems.length === 0) {
     return (
       <EmptyPlaceholder
         icon={CheckCircle2}
@@ -72,7 +90,7 @@ function OperationsFeedList({ items }: { items: OperationsFeedListItem[] }) {
 
   return (
     <div className="flex flex-col divide-y divide-border">
-      {items.map((item) => (
+      {optimisticItems.map((item) => (
         <InsightFeedItem
           key={item.id}
           priority={TIER_TO_PRIORITY[item.priorityTier]}

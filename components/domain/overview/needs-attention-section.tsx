@@ -1,6 +1,6 @@
 "use client"
 
-import { useTransition } from "react"
+import { useOptimistic, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { PartyPopper } from "lucide-react"
 
@@ -17,10 +17,18 @@ import type { AttentionCard } from "@/lib/needs-attention"
  * `OperationsFeedList` already established — only `card.dismissible`
  * cards call `dismissFeedItemAction` (the rest have no
  * `operations_feed_items` row to dismiss).
+ *
+ * Roadmap phase 40 — same optimistic-dismiss reasoning as
+ * `OperationsFeedList` (see its own comment): reversible, non-financial,
+ * safe to remove from view before the server confirms.
  */
 function NeedsAttentionSection({ cards }: { cards: AttentionCard[] }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
+  const [optimisticCards, dismissOptimistically] = useOptimistic(
+    cards,
+    (state, dismissedId: string) => state.filter((card) => card.id !== dismissedId)
+  )
 
   function handleAction(href: string) {
     if (href.startsWith("tel:") || href.startsWith("http")) {
@@ -32,12 +40,13 @@ function NeedsAttentionSection({ cards }: { cards: AttentionCard[] }) {
 
   function handleDismiss(id: string) {
     startTransition(async () => {
+      dismissOptimistically(id)
       await dismissFeedItemAction(id)
       router.refresh()
     })
   }
 
-  if (cards.length === 0) {
+  if (optimisticCards.length === 0) {
     return (
       <EmptyPlaceholder
         icon={PartyPopper}
@@ -49,7 +58,7 @@ function NeedsAttentionSection({ cards }: { cards: AttentionCard[] }) {
 
   return (
     <div className="flex flex-col divide-y divide-border rounded-3xl border border-border px-4">
-      {cards.map((card) => (
+      {optimisticCards.map((card) => (
         <InsightFeedItem
           key={card.id}
           priority={card.priority}
