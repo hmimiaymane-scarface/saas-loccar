@@ -3,41 +3,44 @@ import Link from "next/link"
 import { Users, UserPlus } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
-import { getCustomers, getCustomerCardContext } from "@/lib/data"
+import { getCustomersList, getCustomerCardContext } from "@/lib/data"
 import { SectionHeader } from "@/components/domain/section-header"
 import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
 import { CustomerSearch } from "@/components/domain/customers/customer-search"
 import { CustomerListItem } from "@/components/domain/customers/customer-list-item"
+import { PaginationBar } from "@/components/domain/pagination-bar"
 import { ExportButton } from "@/components/domain/export-button"
 import { Button } from "@/components/ui/button"
 
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string }>
+  searchParams: Promise<{ search?: string; page?: string }>
 }) {
   const session = await getSessionContext()
   if (!session) redirect("/sign-in")
   if (!["owner", "manager", "agent"].includes(session.role)) redirect("/overview")
 
   const params = await searchParams
-  const customers = await getCustomers(session.company.id)
+  const page = Math.max(1, Number(params.page) || 1)
 
-  const query = params.search?.trim().toLowerCase()
-  const filtered = query
-    ? customers.filter((c) => c.fullName.toLowerCase().includes(query) || c.phone.includes(query))
-    : customers
+  // Roadmap phase 41 — this used to fetch every customer in the
+  // company unconditionally (`getCustomers`, no `.range()`/limit at
+  // all) and filter client-side in this function. The one genuinely
+  // unpaginated list this phase's performance audit found; now matches
+  // the fleet/reservations pages' own server-side `.range()` pattern.
+  const result = await getCustomersList(session.company.id, { search: params.search }, page, 20)
 
-  // Productization wave 2 phase 16 — scoped to just the displayed set,
-  // not the whole company (getCustomers itself has no pagination yet —
-  // a known, separate scalability gap, out of this phase's own scope).
-  const cardContext = await getCustomerCardContext(session.company.id, filtered)
+  // Scoped to just this page's customers, not the whole company —
+  // same convention `getFleetCardContext` on the fleet page already
+  // established (Productization wave 2 phase 16).
+  const cardContext = await getCustomerCardContext(session.company.id, result.items)
 
   return (
     <>
       <SectionHeader
         title="Customers"
-        description={`${filtered.length} customer${filtered.length === 1 ? "" : "s"}`}
+        description={`${result.total} customer${result.total === 1 ? "" : "s"}`}
         actions={
           <div className="flex gap-2">
             <ExportButton resource="customers" />
@@ -53,7 +56,7 @@ export default async function CustomersPage({
 
       <CustomerSearch />
 
-      {filtered.length === 0 ? (
+      {result.items.length === 0 ? (
         <EmptyPlaceholder
           icon={Users}
           title="No customers match your search"
@@ -61,11 +64,13 @@ export default async function CustomersPage({
         />
       ) : (
         <div className="flex flex-col gap-3">
-          {filtered.map((customer) => (
+          {result.items.map((customer) => (
             <CustomerListItem key={customer.id} customer={customer} context={cardContext[customer.id]} />
           ))}
         </div>
       )}
+
+      <PaginationBar total={result.total} page={result.page} pageSize={result.pageSize} />
     </>
   )
 }

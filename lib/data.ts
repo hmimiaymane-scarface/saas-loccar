@@ -937,6 +937,56 @@ export async function getCustomers(companyId: string): Promise<Customer[]> {
   return (data ?? []).map(mapCustomerRow)
 }
 
+export interface CustomerListFilters {
+  search?: string
+}
+
+/**
+ * Roadmap phase 41 — `getCustomers` above selects every customer for
+ * the company with no `.range()`/limit at all, the one genuinely
+ * unbounded list read this phase's performance audit found (fleet and
+ * reservations already had this exact `*List` split since early in the
+ * roadmap). `getCustomers` itself is left unchanged and still used
+ * where the full set is genuinely needed (payments/documents page
+ * dropdowns, CSV export) — this is a new, additional function for the
+ * one place (`/customers`) that renders a page-length list and can
+ * page through it server-side the same way fleet/reservations do.
+ */
+export async function getCustomersList(
+  companyId: string,
+  filters: CustomerListFilters = {},
+  page = 1,
+  pageSize = 20
+): Promise<PaginatedResult<Customer>> {
+  if (isMockMode()) {
+    let items = [...mockCustomers]
+    if (filters.search) {
+      const q = filters.search.toLowerCase()
+      items = items.filter((c) => c.fullName.toLowerCase().includes(q) || c.phone.includes(q))
+    }
+    const total = items.length
+    const start = (page - 1) * pageSize
+    return { items: items.slice(start, start + pageSize), total, page, pageSize }
+  }
+
+  const supabase = await createClient()
+  let query = supabase
+    .from("customers")
+    .select("id, full_name, phone, email, license_number, license_expires_on", { count: "exact" })
+    .eq("company_id", companyId)
+
+  if (filters.search) {
+    const q = escapeIlike(filters.search)
+    query = query.or(`full_name.ilike.%${q}%,phone.ilike.%${q}%`)
+  }
+
+  const start = (page - 1) * pageSize
+  const { data, error, count } = await query.order("full_name").range(start, start + pageSize - 1)
+
+  if (error) throw error
+  return { items: (data ?? []).map(mapCustomerRow), total: count ?? 0, page, pageSize }
+}
+
 /**
  * Productization wave 2 phase 16 — the mobile customer card's
  * per-customer enrichment, mirroring `getFleetCardContext`'s (phase
