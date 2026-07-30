@@ -308,7 +308,8 @@ export type Database = {
           registration_expires_on: string | null
           inspection_expires_on: string | null
           photo_path: string | null
-        
+          import_batch_id: string | null
+
           created_at: Timestamp
           updated_at: Timestamp
         }
@@ -335,6 +336,7 @@ export type Database = {
           registration_expires_on?: string | null
           inspection_expires_on?: string | null
           photo_path?: string | null
+          import_batch_id?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["vehicles"]["Insert"]>
         Relationships: []
@@ -356,6 +358,7 @@ export type Database = {
           status: string
           date_of_birth: string | null
           marketing_consent: boolean
+          import_batch_id: string | null
 
           created_at: Timestamp
           updated_at: Timestamp
@@ -376,8 +379,32 @@ export type Database = {
           status?: string
           date_of_birth?: string | null
           marketing_consent?: boolean
+          import_batch_id?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["customers"]["Insert"]>
+        Relationships: []
+      }
+      import_batches: {
+        Row: {
+          id: string
+          company_id: string
+          entity_type: string
+          created_by: string | null
+          row_count: number
+          error_count: number
+          undone_at: Timestamp | null
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          entity_type: string
+          created_by?: string | null
+          row_count?: number
+          error_count?: number
+          undone_at?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["import_batches"]["Insert"]>
         Relationships: []
       }
       reservations: {
