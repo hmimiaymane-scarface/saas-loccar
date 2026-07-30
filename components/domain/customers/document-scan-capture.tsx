@@ -6,6 +6,7 @@ import { Camera, Loader2, AlertTriangle, RotateCcw } from "lucide-react"
 import { validateFile, ACCEPTED_SCAN_MIME_TYPES } from "@/lib/storage"
 import { extractOnboardingDocument } from "@/app/(dashboard)/customers/actions"
 import { assessScanQuality, cropBoxForAspectRatio, type ScanQualityResult } from "@/lib/document-scan-quality"
+import { loadFileToImage, drawToCanvas, canvasToCompressedFile } from "@/lib/image-processing"
 import type { ExtractedFields } from "@/lib/document-extraction"
 import type { DocumentCategory } from "@/types/rental"
 import { Button } from "@/components/ui/button"
@@ -24,32 +25,6 @@ const ANALYSIS_MAX_DIMENSION = 400
 const OUTPUT_MAX_DIMENSION = 1600
 const OUTPUT_JPEG_QUALITY = 0.82
 
-function loadFileToImage(file: File): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      resolve(img)
-    }
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error("Could not read that photo."))
-    }
-    img.src = url
-  })
-}
-
-function drawToCanvas(img: HTMLImageElement, maxDimension?: number): HTMLCanvasElement {
-  const scale = maxDimension ? Math.min(1, maxDimension / Math.max(img.naturalWidth, img.naturalHeight)) : 1
-  const canvas = document.createElement("canvas")
-  canvas.width = Math.round(img.naturalWidth * scale)
-  canvas.height = Math.round(img.naturalHeight * scale)
-  const ctx = canvas.getContext("2d")
-  ctx?.drawImage(img, 0, 0, canvas.width, canvas.height)
-  return canvas
-}
-
 function getLuminance(canvas: HTMLCanvasElement): number[] {
   const ctx = canvas.getContext("2d")
   if (!ctx) return []
@@ -62,28 +37,19 @@ function getLuminance(canvas: HTMLCanvasElement): number[] {
   return luminance
 }
 
+/** Crops to the ID-card aspect ratio, then hands the resize/encode tail
+ * to the shared `canvasToCompressedFile` (lib/image-processing.ts) —
+ * the one piece of this pipeline that's genuinely specific to document
+ * scanning, everything after it is generic. */
 function cropAndCompress(canvas: HTMLCanvasElement, filename: string): Promise<File> {
   const box = cropBoxForAspectRatio(canvas.width, canvas.height)
-  const scale = Math.min(1, OUTPUT_MAX_DIMENSION / Math.max(box.width, box.height))
-  const output = document.createElement("canvas")
-  output.width = Math.round(box.width * scale)
-  output.height = Math.round(box.height * scale)
-  const ctx = output.getContext("2d")
-  ctx?.drawImage(canvas, box.x, box.y, box.width, box.height, 0, 0, output.width, output.height)
+  const cropped = document.createElement("canvas")
+  cropped.width = box.width
+  cropped.height = box.height
+  const ctx = cropped.getContext("2d")
+  ctx?.drawImage(canvas, box.x, box.y, box.width, box.height, 0, 0, box.width, box.height)
 
-  return new Promise((resolve, reject) => {
-    output.toBlob(
-      (blob) => {
-        if (!blob) {
-          reject(new Error("Could not process that photo."))
-          return
-        }
-        resolve(new File([blob], filename, { type: "image/jpeg" }))
-      },
-      "image/jpeg",
-      OUTPUT_JPEG_QUALITY
-    )
-  })
+  return canvasToCompressedFile(cropped, filename, { maxDimension: OUTPUT_MAX_DIMENSION, quality: OUTPUT_JPEG_QUALITY })
 }
 
 /**
