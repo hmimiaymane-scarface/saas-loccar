@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { notify } from "@/lib/notifications/service"
 import { callAndOpenActions } from "@/lib/notifications/actions"
+import { getOwnerManagerRecipients, type NotificationRecipient } from "@/lib/notifications/recipients"
 import { formatInTimeZone } from "@/lib/timezone"
 import { getUpcomingReservationsMissingIdentityDocument } from "@/lib/customer-readiness-store"
 
@@ -48,20 +49,6 @@ export interface ReminderRunSummary {
   pushed: number
 }
 
-interface ReminderRecipient {
-  userId: string
-}
-
-async function getReminderRecipients(supabase: SupabaseServerClient, companyId: string): Promise<ReminderRecipient[]> {
-  const { data, error } = await supabase
-    .from("company_memberships")
-    .select("user_id")
-    .eq("company_id", companyId)
-    .in("role", ["owner", "manager"])
-  if (error) throw error
-  return (data ?? []).map((row) => ({ userId: row.user_id }))
-}
-
 /** Returns true only if this is a genuinely new occurrence (the
  * dedupe insert succeeded) — a unique-violation (23505) means this
  * exact key was already pushed to this user, a silent no-op, not an
@@ -85,7 +72,7 @@ async function claimDedupe(
 async function pushToRecipients(
   supabase: SupabaseServerClient,
   companyId: string,
-  recipients: ReminderRecipient[],
+  recipients: NotificationRecipient[],
   dedupeKeyPrefix: string,
   entityId: string,
   payload: Omit<Parameters<typeof notify>[0], "recipients" | "channels" | "companyId">
@@ -105,7 +92,7 @@ export async function runNotificationRemindersForCompany(
   companyId: string,
   timezone: string
 ): Promise<ReminderRunSummary> {
-  const recipients = await getReminderRecipients(supabase, companyId)
+  const recipients = await getOwnerManagerRecipients(supabase, companyId)
   const now = new Date()
   const windowEnd = new Date(now.getTime() + APPROACHING_WINDOW_HOURS * 3_600_000)
   let pushed = 0

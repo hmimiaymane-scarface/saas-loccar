@@ -19,6 +19,8 @@ import { recordEvent } from "@/lib/activity-log"
 import { isEditableStatus } from "@/lib/reservations/status"
 import { recomputeVehicleIntelligenceBestEffort } from "@/lib/vehicle-intelligence-store"
 import { recomputeCustomerIntelligenceBestEffort } from "@/lib/customer-intelligence-store"
+import { notify } from "@/lib/notifications/service"
+import { getOwnerManagerRecipients } from "@/lib/notifications/recipients"
 import type { BookingStatus, Customer, ReservationSource, Vehicle, VehicleCategory } from "@/types/rental"
 
 export interface ReservationActionState {
@@ -84,6 +86,43 @@ function readSharedFields(formData: FormData, timeZone: string) {
     dailyRate,
     notes,
     pricing,
+  }
+}
+
+/**
+ * Roadmap phase 44 — unlike the reminder cron's conditions (state
+ * recomputed on a schedule), a new booking request is a genuine
+ * one-off event with no ongoing state to re-derive — matches
+ * `notifications`'s own "genuine one-off events" category exactly
+ * (see that table's migration comment), so this goes through both
+ * `in_app` (a real stored row is correct here) and `push`. Best-effort:
+ * a push failure must never turn a successful reservation creation
+ * into an error response, same convention as
+ * `recomputeVehicleIntelligenceBestEffort`.
+ */
+async function notifyNewBookingRequestBestEffort(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  companyId: string,
+  reference: string,
+  reservationId: string
+): Promise<void> {
+  try {
+    const recipients = await getOwnerManagerRecipients(supabase, companyId)
+    if (recipients.length === 0) return
+    const href = `/reservations/${reservationId}`
+    await notify({
+      companyId,
+      type: "booking_request_received",
+      priority: "important",
+      title: `New booking request: ${reference}`,
+      description: "A new reservation request needs review.",
+      linkHref: href,
+      actions: [{ label: "Open request", href, kind: "link" }],
+      recipients,
+      channels: ["in_app", "push"],
+    })
+  } catch {
+    // Best-effort — see doc comment above.
   }
 }
 
@@ -190,6 +229,10 @@ async function insertReservation(formData: FormData, redirectOnSuccess: boolean)
       description: `${shared.pricing.numDays}-day booking for ${quickCustomerName ?? "an existing customer"}`,
       metadata: { reservation_id: reservation.id },
     })
+
+    if (status === "request") {
+      await notifyNewBookingRequestBestEffort(supabase, companyId, reference, reservation.id as string)
+    }
 
     revalidatePath("/reservations")
     revalidatePath("/calendar")
