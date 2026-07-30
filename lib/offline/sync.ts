@@ -148,7 +148,13 @@ export async function syncOfflineMutations(companyId: string): Promise<SyncResul
   const result: SyncResult = { synced: 0, needsReview: 0, stillPending: 0 }
   const all = await listMutations()
   const pending = all.filter((m) => m.status !== "needs_review")
-  const doneIds = new Set(all.filter((m) => m.status === "needs_review").map((m) => m.id))
+  // Only a mutation that actually SYNCED this pass counts as done. A
+  // dependency sitting in needs_review is a real, unresolved rejection
+  // — not seeding it here (a past bug) is what keeps a dependent like
+  // completeInspection from running while a required photo attach is
+  // still stuck waiting on a human, which would otherwise silently mark
+  // an inspection complete despite genuinely missing evidence.
+  const doneIds = new Set<string>()
 
   for (const mutation of pending) {
     if (!isMutationReady(mutation.dependsOn, all, doneIds)) {
