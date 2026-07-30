@@ -40,7 +40,7 @@ function CompanySettingsForm({ company }: { company: RentalCompany }) {
         <CardDescription>Sensible defaults — change only what you need to.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form action={formAction} className="flex flex-col gap-5">
+        <form action={formAction} className="flex flex-col gap-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="maintenanceReminderDays">Maintenance reminder threshold (days)</Label>
