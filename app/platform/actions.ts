@@ -125,3 +125,27 @@ export async function updateNotes(companyId: string, notes: string): Promise<{ e
     throw err
   }
 }
+
+/** Roadmap phase 49 — toggles one step of the founder-assisted
+ * onboarding checklist (lib/platform/migration-checklist.ts). */
+export async function toggleMigrationChecklistItem(
+  companyId: string,
+  stepKey: string,
+  isDone: boolean
+): Promise<{ error?: string }> {
+  try {
+    await requirePlatformAdminAction()
+    const supabase = await createClient()
+    const { error } = await supabase.rpc("platform_toggle_migration_checklist_item", {
+      p_company_id: companyId,
+      p_step_key: stepKey,
+      p_is_done: isDone,
+    })
+    if (error) return { error: friendlyDbError(error) }
+    revalidateCompany(companyId)
+    return {}
+  } catch (err) {
+    if (err instanceof ActionError) return { error: err.message }
+    throw err
+  }
+}

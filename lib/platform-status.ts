@@ -32,4 +32,6 @@ export const PLATFORM_ACTION_LABELS: Record<string, string> = {
   plan_label_changed: "Plan changed",
   subscription_dates_updated: "Subscription dates updated",
   internal_note_updated: "Internal note updated",
+  migration_checklist_item_completed: "Migration checklist item completed",
+  migration_checklist_item_reopened: "Migration checklist item reopened",
 }
