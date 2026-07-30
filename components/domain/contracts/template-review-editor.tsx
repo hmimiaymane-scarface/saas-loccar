@@ -12,6 +12,7 @@ import { toneClasses } from "@/lib/tone"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 
@@ -168,11 +169,10 @@ function TemplateReviewEditor({
                   <Trash2 className="size-4" />
                 </Button>
               </div>
-              <textarea
+              <Textarea
                 value={section.bodyText}
                 onChange={(e) => updateSection(section.id, { bodyText: e.target.value })}
                 rows={4}
-                className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
               />
               <p className="text-xs text-muted-foreground">
                 Use <code>{"{{field.path}}"}</code> to insert a value — see the mappings below for available fields.
@@ -238,12 +238,11 @@ function TemplateReviewEditor({
           <CardTitle>Legal footer</CardTitle>
         </CardHeader>
         <CardContent>
-          <textarea
+          <Textarea
             value={legalFooterText}
             onChange={(e) => setLegalFooterText(e.target.value)}
             rows={3}
             placeholder="Optional small print printed at the bottom of every contract from this template."
-            className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
           />
         </CardContent>
       </Card>

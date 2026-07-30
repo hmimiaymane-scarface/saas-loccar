@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
+import { Textarea } from "@/components/ui/textarea"
 
 const initialState: DamageActionState = {}
 
@@ -67,14 +68,7 @@ function DamageEditForm({ damage }: { damage: Damage }) {
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="description">Description</Label>
-        <textarea
-          id="description"
-          name="description"
-          rows={3}
-          required
-          defaultValue={damage.description}
-          className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-        />
+        <Textarea id="description" name="description" rows={3} required defaultValue={damage.description} />
       </div>
       {state.error && <p className="text-xs text-destructive">{state.error}</p>}
       <div className="flex justify-end gap-2">

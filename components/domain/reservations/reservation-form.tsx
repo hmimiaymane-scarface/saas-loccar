@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { SummaryRow } from "@/components/domain/summary-row"
@@ -815,14 +816,7 @@ function ReservationForm({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="notes">Internal notes</Label>
-            <textarea
-              id="notes"
-              name="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-            />
+            <Textarea id="notes" name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
           </div>
         </CardContent>
       </Card>

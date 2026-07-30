@@ -14,6 +14,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
+import { Textarea } from "@/components/ui/textarea"
 
 /**
  * Roadmap phase 17 requirement 4 — the shared confirm-with-reason
@@ -83,13 +84,12 @@ export function SensitiveActionConfirmDialog({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
-        <textarea
+        <Textarea
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder={reasonPlaceholder}
           rows={3}
           autoFocus
-          className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
         />
         {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
         <AlertDialogFooter>

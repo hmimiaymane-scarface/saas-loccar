@@ -25,6 +25,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
+import { Textarea } from "@/components/ui/textarea"
 
 const ACTION_FOR: Partial<Record<ContractStatus, (contractId: string) => Promise<{ ok: true } | { ok: false; error: string }>>> = {
   prepared: prepareContractAction,
@@ -87,12 +88,11 @@ function ContractLifecycleActions({ contractId, status }: { contractId: string; 
                   <AlertDialogTitle>Cancel this contract?</AlertDialogTitle>
                   <AlertDialogDescription>This can&apos;t be undone from here. A reason is recorded on the contract.</AlertDialogDescription>
                 </AlertDialogHeader>
-                <textarea
+                <Textarea
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
                   placeholder="Reason for cancelling…"
                   rows={3}
-                  className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
                 />
                 <AlertDialogFooter>
                   <AlertDialogCancel>Keep contract</AlertDialogCancel>

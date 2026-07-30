@@ -7,6 +7,7 @@ import { correctInspectionAction } from "@/app/(dashboard)/inspections/actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import type { Inspection } from "@/types/rental"
 
 function InspectionCorrectionForm({ inspection }: { inspection: Inspection }) {
@@ -52,22 +53,15 @@ function InspectionCorrectionForm({ inspection }: { inspection: Inspection }) {
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="correctNotes">Notes</Label>
-        <textarea
-          id="correctNotes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={2}
-          className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-        />
+        <Textarea id="correctNotes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="correctionReason">Reason for correction</Label>
-        <textarea
+        <Textarea
           id="correctionReason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={2}
-          className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
           placeholder="Why is this being changed after completion?"
         />
       </div>

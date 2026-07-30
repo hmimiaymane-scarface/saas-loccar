@@ -39,6 +39,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
+import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { WizardProgress } from "@/components/domain/wizard-progress"
@@ -1081,11 +1082,10 @@ function NewRentalWizard({
                 <CardTitle>Notes</CardTitle>
               </CardHeader>
               <CardContent>
-                <textarea
+                <Textarea
                   value={inspectionNotes}
                   onChange={(e) => setInspectionNotes(e.target.value)}
                   rows={3}
-                  className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
                   placeholder="Anything worth noting about this pickup…"
                 />
               </CardContent>
@@ -1187,11 +1187,10 @@ function NewRentalWizard({
                 {showOverride && (
                   <div className="flex flex-col gap-2 rounded-2xl border border-amber-300 p-3 dark:border-amber-500/40">
                     <p className="text-sm font-medium text-foreground">Override reason required</p>
-                    <textarea
+                    <Textarea
                       value={overrideReason}
                       onChange={(e) => setOverrideReason(e.target.value)}
                       rows={2}
-                      className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
                       placeholder="Why are you activating without a completed pickup inspection?"
                     />
                   </div>

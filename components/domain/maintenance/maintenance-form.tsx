@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 
 const initialState: MaintenanceActionState = {}
@@ -126,13 +127,7 @@ function MaintenanceForm({ vehicles, vehicleId }: { vehicles: Vehicle[]; vehicle
           </div>
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <Label htmlFor="description">Description</Label>
-            <textarea
-              id="description"
-              name="description"
-              rows={3}
-              className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-              placeholder="What needs to be done?"
-            />
+            <Textarea id="description" name="description" rows={3} placeholder="What needs to be done?" />
           </div>
         </CardContent>
       </Card>
@@ -185,12 +180,7 @@ function MaintenanceForm({ vehicles, vehicleId }: { vehicles: Vehicle[]; vehicle
           </div>
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <Label htmlFor="notes">Notes</Label>
-            <textarea
-              id="notes"
-              name="notes"
-              rows={2}
-              className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-            />
+            <Textarea id="notes" name="notes" rows={2} />
           </div>
         </CardContent>
       </Card>

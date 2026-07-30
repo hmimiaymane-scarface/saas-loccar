@@ -8,6 +8,7 @@ import type { CustomerDetail } from "@/types/rental"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { SubmitButton } from "@/components/ui/submit-button"
 import { useSlowPending } from "@/hooks/use-slow-pending"
 
@@ -90,13 +91,7 @@ function CustomerEditForm({ customer }: { customer: CustomerDetail }) {
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="notes">Notes</Label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={2}
-          defaultValue={customer.notes ?? undefined}
-          className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-        />
+        <Textarea id="notes" name="notes" rows={2} defaultValue={customer.notes ?? undefined} />
       </div>
       <label className="flex items-center gap-2 text-sm text-foreground">
         <input

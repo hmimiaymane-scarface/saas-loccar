@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react"
 import { updateNotes } from "@/app/platform/actions"
 import { formatDate } from "@/lib/format"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 
 function NotesEditor({
@@ -46,13 +47,7 @@ function NotesEditor({
         <CardDescription>Never shown to the rental company — first contact source, agreed price, support context…</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <textarea
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          rows={4}
-          className="flex w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-          placeholder="Nothing recorded yet."
-        />
+        <Textarea value={value} onChange={(e) => setValue(e.target.value)} rows={4} placeholder="Nothing recorded yet." />
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
             {notesUpdatedAt ? `Last updated ${formatDate(notesUpdatedAt)}${notesUpdatedByEmail ? ` by ${notesUpdatedByEmail}` : ""}` : "Never updated."}
