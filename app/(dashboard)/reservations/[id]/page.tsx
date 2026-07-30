@@ -75,10 +75,16 @@ export default async function ReservationDetailPage({
 
   const { id } = await params
   const query = await searchParams
-  const reservation = await getReservationDetail(session.company.id, id)
+  // Roadmap phase 41 — `loadContracts` only needs `id`/`companyId`, not
+  // the reservation row itself, so it doesn't need to wait for
+  // `getReservationDetail` to resolve first. Was a real, avoidable
+  // sequential round trip before this phase's performance audit.
+  const [reservation, contracts] = await Promise.all([
+    getReservationDetail(session.company.id, id),
+    loadContracts(session.company.id, id),
+  ])
   if (!reservation) notFound()
 
-  const contracts = await loadContracts(session.company.id, id)
   const contractReadiness = contracts.length === 0 ? await loadContractReadiness(session, id) : null
 
   const showReturnCompletedBanner = query.justCompleted === "1" && reservation.status === "completed"
