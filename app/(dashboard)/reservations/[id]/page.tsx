@@ -525,6 +525,7 @@ export default async function ReservationDetailPage({
                 <DepositPanel
                   reservationId={reservation.id}
                   deposit={reservation.deposit}
+                  defaultDepositMad={session.company.defaultDepositMad}
                   canCollect={["owner", "manager", "agent", "accountant"].includes(session.role)}
                   canResolve={session.role === "owner" || session.role === "manager"}
                 />

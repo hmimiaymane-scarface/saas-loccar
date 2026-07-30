@@ -19,11 +19,13 @@ type Mode = "expected" | "collect" | "return" | "retain" | null
 function DepositPanel({
   reservationId,
   deposit,
+  defaultDepositMad,
   canCollect,
   canResolve,
 }: {
   reservationId: string
   deposit: Deposit | null
+  defaultDepositMad: number | null
   canCollect: boolean
   canResolve: boolean
 }) {
@@ -41,6 +43,14 @@ function DepositPanel({
     setAmount("")
     setNotes("")
     setError(null)
+  }
+
+  function openExpectedMode() {
+    // Prefill with the company's default deposit only when nothing's
+    // been set yet -- a reservation that already has an expected amount
+    // is being edited, not initialized, so the existing value should win.
+    setAmount(!deposit?.expectedMad && defaultDepositMad ? String(defaultDepositMad) : "")
+    setMode("expected")
   }
 
   function submit() {
@@ -136,7 +146,7 @@ function DepositPanel({
       ) : (
         <div className="flex flex-wrap gap-2 pt-1">
           {canCollect && (
-            <Button type="button" variant="outline" size="sm" onClick={() => setMode("expected")}>
+            <Button type="button" variant="outline" size="sm" onClick={openExpectedMode}>
               Set expected
             </Button>
           )}
