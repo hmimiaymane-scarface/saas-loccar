@@ -6,8 +6,10 @@ import {
   mockPlatformCompanies,
   mockPlatformCompanySummary,
   mockPlatformOverview,
+  mockMigrationChecklist,
 } from "@/lib/mock/platform"
 import type {
+  MigrationChecklistItem,
   PlatformAuditEvent,
   PlatformCompanyListFilters,
   PlatformCompanyRow,
@@ -163,5 +165,23 @@ export async function getPlatformCompanyEvents(companyId: string, limit = 20): P
     action: r.action,
     description: r.description,
     createdAt: r.created_at,
+  }))
+}
+
+/** Roadmap phase 49 — the founder-assisted onboarding checklist for
+ * one company, in fixed step order (see
+ * lib/platform/migration-checklist.ts). */
+export async function getMigrationChecklist(companyId: string): Promise<MigrationChecklistItem[]> {
+  if (isMockMode()) return mockMigrationChecklist(companyId)
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("platform_get_migration_checklist", { p_company_id: companyId })
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    stepKey: r.step_key,
+    sortOrder: r.sort_order,
+    isDone: r.is_done,
+    completedAt: r.completed_at,
+    completedByEmail: r.completed_by_email,
   }))
 }

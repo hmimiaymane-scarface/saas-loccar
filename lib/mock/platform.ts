@@ -1,4 +1,5 @@
-import type { PlatformAuditEvent, PlatformCompanyRow, PlatformCompanySummary, PlatformOverview } from "@/types/platform"
+import type { MigrationChecklistItem, PlatformAuditEvent, PlatformCompanyRow, PlatformCompanySummary, PlatformOverview } from "@/types/platform"
+import { MIGRATION_CHECKLIST_STEPS } from "@/lib/platform/migration-checklist"
 
 const now = new Date()
 const daysAgo = (n: number) => new Date(now.getTime() - n * 86400000).toISOString()
@@ -124,4 +125,27 @@ export function mockPlatformCompanySummary(companyId: string): PlatformCompanySu
       notesUpdatedByEmail: row.subscriptionStatus === "suspended" ? "admin@platform.example" : null,
     },
   }
+}
+
+/** Roadmap phase 49 — mock progress varies per company so the demo
+ * shows the full range of states: a long-settled company fully
+ * onboarded, a mid-migration trial, and a brand-new signup where only
+ * the structurally-guaranteed owner_login_created step is done. */
+const MOCK_DONE_STEPS: Record<string, Set<string>> = {
+  pc_atlas: new Set(MIGRATION_CHECKLIST_STEPS.map((s) => s.key)),
+  pc_sahara: new Set(["spreadsheet_received", "spreadsheet_cleaned", "data_imported", "owner_login_created"]),
+  pc_medina: new Set(["owner_login_created"]),
+  pc_ocean: new Set(MIGRATION_CHECKLIST_STEPS.map((s) => s.key)),
+  pc_najma: new Set(MIGRATION_CHECKLIST_STEPS.map((s) => s.key)),
+}
+
+export function mockMigrationChecklist(companyId: string): MigrationChecklistItem[] {
+  const done = MOCK_DONE_STEPS[companyId] ?? new Set(["owner_login_created"])
+  return MIGRATION_CHECKLIST_STEPS.map((step, index) => ({
+    stepKey: step.key,
+    sortOrder: index + 1,
+    isDone: done.has(step.key),
+    completedAt: done.has(step.key) ? daysAgo(Math.max(0, 10 - index)) : null,
+    completedByEmail: done.has(step.key) ? "admin@platform.example" : null,
+  }))
 }

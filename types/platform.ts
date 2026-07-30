@@ -79,3 +79,14 @@ export interface PlatformAuditEvent {
   description: string | null
   createdAt: string
 }
+
+/** Roadmap phase 49 — one row of the founder-assisted white-glove
+ * onboarding checklist (see lib/platform/migration-checklist.ts for
+ * the fixed step list this `stepKey` refers into). */
+export interface MigrationChecklistItem {
+  stepKey: string
+  sortOrder: number
+  isDone: boolean
+  completedAt: string | null
+  completedByEmail: string | null
+}
