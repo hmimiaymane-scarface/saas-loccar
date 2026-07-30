@@ -43,10 +43,12 @@ describe("ACTIVITY_TYPES / ENTITY_TYPES", () => {
   // neither this array nor any constraint version ever included them
   // until a real call against the live project surfaced the failure),
   // and 20260811090000_phase46_communication_log_types.sql (roadmap
-  // phase 46 — the WhatsApp/call communication-log event types).
+  // phase 46 — the WhatsApp/call communication-log event types), and
+  // 20260813090000_phase48_import_batches.sql (roadmap phase 48 — the
+  // two CSV-import batch event types).
   // If either side changes without the other, this is what catches the
   // drift instead of it surfacing as a runtime insert failure.
-  it("matches the type check constraint (event backbone + phase 11's contract lifecycle extension + phase 19's document access logging + phase 7's permission-override fix + phase 46's communication log)", () => {
+  it("matches the type check constraint (event backbone + phase 11's contract lifecycle extension + phase 19's document access logging + phase 7's permission-override fix + phase 46's communication log + phase 48's import batches)", () => {
     expect(ACTIVITY_TYPES).toEqual([
       "reservation_requested",
       "reservation_confirmed",
@@ -105,6 +107,8 @@ describe("ACTIVITY_TYPES / ENTITY_TYPES", () => {
       "whatsapp_payment_reminder_sent",
       "whatsapp_contract_sent",
       "call_logged",
+      "vehicles_imported",
+      "customers_imported",
     ])
   })
 
@@ -121,6 +125,7 @@ describe("ACTIVITY_TYPES / ENTITY_TYPES", () => {
       "invitation",
       "membership",
       "contract",
+      "import_batch",
     ])
   })
 })

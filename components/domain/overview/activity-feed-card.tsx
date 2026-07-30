@@ -36,6 +36,7 @@ import {
   FilePlus,
   MessageCircle,
   Phone,
+  Upload,
   type LucideIcon,
 } from "lucide-react"
 
@@ -106,6 +107,8 @@ const activityIcon: Record<ActivityType, LucideIcon> = {
   whatsapp_payment_reminder_sent: MessageCircle,
   whatsapp_contract_sent: MessageCircle,
   call_logged: Phone,
+  vehicles_imported: Upload,
+  customers_imported: Upload,
 }
 
 function ActivityFeedCard({ items }: { items: ActivityItem[] }) {

@@ -170,6 +170,10 @@ export const ACTIVITY_TYPES = [
   "whatsapp_payment_reminder_sent",
   "whatsapp_contract_sent",
   "call_logged",
+  // Roadmap phase 48 — one batch-level event per CSV import commit
+  // (never one per imported row — see docs/company-data-import.md).
+  "vehicles_imported",
+  "customers_imported",
 ] as const
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number]
@@ -190,6 +194,10 @@ export const ENTITY_TYPES = [
   "invitation",
   "membership",
   "contract",
+  // Roadmap phase 48 — entity for the one batch-level activity_log
+  // event a CSV import commit records; entity_id is the import_batches
+  // row's own id, not a vehicle/customer row.
+  "import_batch",
 ] as const
 
 export type EntityType = (typeof ENTITY_TYPES)[number]
