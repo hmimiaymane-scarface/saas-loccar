@@ -1,3 +1,5 @@
+import Image from "next/image"
+
 import { cn } from "@/lib/utils"
 import { initials } from "@/lib/format"
 import type { RentalCompany } from "@/types/rental"
@@ -22,9 +24,15 @@ function CompanyIdentity({
         collapsed && "justify-center px-0"
       )}
     >
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-primary text-sm font-semibold text-primary-foreground">
-        {initials(company.name)}
-      </div>
+      {company.logoUrl ? (
+        <div className="relative size-9 shrink-0 overflow-hidden rounded-2xl bg-muted">
+          <Image src={company.logoUrl} alt={company.name} fill sizes="36px" className="object-cover" />
+        </div>
+      ) : (
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-primary text-sm font-semibold text-primary-foreground">
+          {initials(company.name)}
+        </div>
+      )}
       {!collapsed && (
         <div className="flex min-w-0 flex-col">
           <p className="truncate text-sm font-semibold text-foreground">
