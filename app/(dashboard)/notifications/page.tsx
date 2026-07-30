@@ -13,6 +13,7 @@ export default async function NotificationsPage() {
   const feed = await getNotificationFeed(session.company.id, session.userId, {
     maintenanceReminderDays: session.company.maintenanceReminderDays,
     documentExpiryWarningDays: session.company.documentExpiryWarningDays,
+    overdueGracePeriodHours: session.company.overdueGracePeriodHours,
     mutedTypes: session.company.mutedNotificationTypes,
   })
 

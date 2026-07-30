@@ -90,11 +90,13 @@ async function pushToRecipients(
 export async function runNotificationRemindersForCompany(
   supabase: SupabaseServerClient,
   companyId: string,
-  timezone: string
+  timezone: string,
+  overdueGracePeriodHours: number
 ): Promise<ReminderRunSummary> {
   const recipients = await getOwnerManagerRecipients(supabase, companyId)
   const now = new Date()
   const windowEnd = new Date(now.getTime() + APPROACHING_WINDOW_HOURS * 3_600_000)
+  const overdueCutoff = new Date(now.getTime() - overdueGracePeriodHours * 3_600_000)
   let pushed = 0
 
   if (recipients.length === 0) {
@@ -109,13 +111,14 @@ export async function runNotificationRemindersForCompany(
     }
   }
 
-  // Late return — same filter as getLiveAlerts's own overdue query.
+  // Late return — same filter as getLiveAlerts's own overdue query
+  // (including its grace-period cutoff).
   const { data: overdueRows, error: overdueError } = await supabase
     .from("reservations")
     .select("id, reference, return_at, customer:customers(full_name, phone)")
     .eq("company_id", companyId)
     .eq("status", "active")
-    .lt("return_at", now.toISOString())
+    .lt("return_at", overdueCutoff.toISOString())
     .limit(50)
   if (overdueError) throw overdueError
 

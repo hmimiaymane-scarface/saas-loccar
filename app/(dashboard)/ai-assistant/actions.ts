@@ -356,6 +356,7 @@ export async function generateSuggestions(): Promise<{ suggestions?: Suggestion[
       getLiveAlerts(session.company.id, {
         maintenanceReminderDays: session.company.maintenanceReminderDays,
         documentExpiryWarningDays: session.company.documentExpiryWarningDays,
+        overdueGracePeriodHours: session.company.overdueGracePeriodHours,
       }),
       getOverviewMetrics(session.company.id),
     ])

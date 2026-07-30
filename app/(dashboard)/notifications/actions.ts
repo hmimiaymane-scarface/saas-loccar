@@ -128,7 +128,12 @@ export async function runNotificationRemindersNowAction(): Promise<{ error?: str
     const session = await requireSession()
     requireRole(session, [...RUN_REMINDERS_NOW_ROLES])
     const supabase = createAdminClient()
-    const summary = await runNotificationRemindersForCompany(supabase, session.company.id, session.company.timezone)
+    const summary = await runNotificationRemindersForCompany(
+      supabase,
+      session.company.id,
+      session.company.timezone,
+      session.company.overdueGracePeriodHours
+    )
     return { summary }
   } catch (err) {
     if (err instanceof ActionError) return { error: err.message }

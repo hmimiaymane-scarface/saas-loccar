@@ -120,7 +120,11 @@ async function loadIntelligenceExtras(session: SessionContext) {
       getExpiringDocuments(supabase, companyId, session.company.documentExpiryWarningDays),
       getTeamMembers(companyId),
       getPendingInvitations(companyId),
-      getLiveAlerts(companyId, { maintenanceReminderDays: session.company.maintenanceReminderDays, documentExpiryWarningDays: session.company.documentExpiryWarningDays }),
+      getLiveAlerts(companyId, {
+        maintenanceReminderDays: session.company.maintenanceReminderDays,
+        documentExpiryWarningDays: session.company.documentExpiryWarningDays,
+        overdueGracePeriodHours: session.company.overdueGracePeriodHours,
+      }),
       searchContracts(supabase, companyId, { status: "awaiting_signature" }, 1, 10),
       getUpcomingReservationsMissingIdentityDocument(supabase, companyId),
       getTrailingMonthlyRevenue(companyId, GAMIFICATION_TRAILING_MONTHS, tz),
@@ -190,6 +194,7 @@ export default async function OverviewPage() {
     getLiveAlerts(companyId, {
       maintenanceReminderDays: session.company.maintenanceReminderDays,
       documentExpiryWarningDays: session.company.documentExpiryWarningDays,
+      overdueGracePeriodHours: session.company.overdueGracePeriodHours,
     }),
     hasFinancialReportsAccess(companyId),
     loadIntelligenceExtras(session),

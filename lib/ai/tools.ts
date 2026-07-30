@@ -190,6 +190,7 @@ export async function buildTools(session: SessionContext, conversationId: string
         const alerts = await getLiveAlerts(companyId, {
           maintenanceReminderDays: session.company.maintenanceReminderDays,
           documentExpiryWarningDays: session.company.documentExpiryWarningDays,
+          overdueGracePeriodHours: session.company.overdueGracePeriodHours,
         })
         return alerts.map((a) => ({ title: a.title, description: a.description, urgency: a.urgency }))
       },

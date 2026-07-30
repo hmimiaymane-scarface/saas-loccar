@@ -16,6 +16,7 @@ describe("getLiveAlerts — every alert has a concrete action", () => {
     const alerts = await getLiveAlerts("mock-company", {
       maintenanceReminderDays: 365,
       documentExpiryWarningDays: 365,
+      overdueGracePeriodHours: 0,
     })
 
     expect(alerts.length).toBeGreaterThan(0)
@@ -28,6 +29,7 @@ describe("getLiveAlerts — every alert has a concrete action", () => {
     const alerts = await getLiveAlerts("mock-company", {
       maintenanceReminderDays: 365,
       documentExpiryWarningDays: 365,
+      overdueGracePeriodHours: 0,
     })
 
     const overdue = alerts.find((a) => a.type === "rental_overdue")

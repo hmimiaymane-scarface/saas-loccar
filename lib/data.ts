@@ -3548,11 +3548,20 @@ export async function getExpenseSummary(companyId: string, dateFrom: string, dat
 export interface LiveAlertOptions {
   maintenanceReminderDays: number
   documentExpiryWarningDays: number
+  /** Roadmap phase 47 — hours past `return_at` before an active rental
+   * is worth an actionable "overdue" alert, distinct from the `isOverdue`
+   * badge shown elsewhere (reservation list, calendar, exports), which
+   * stays a strict "past return time" fact regardless of this setting —
+   * the badge is informational, this is what decides whether to bother
+   * someone about it. Mock fixtures (`lib/mock/bookings.ts`) only bake in
+   * a precomputed boolean with no return-time precision, so mock mode
+   * can't honor a hour-level grace period; this is moot in practice since
+   * the mock company's default is 0 hours anyway (`lib/mock/company.ts`). */
+  overdueGracePeriodHours: number
 }
 
 export async function getLiveAlerts(companyId: string, options: LiveAlertOptions): Promise<LiveAlert[]> {
   const nowMs = Date.now()
-  const now = new Date(nowMs)
   const alerts: LiveAlert[] = []
 
   if (isMockMode()) {
@@ -3645,6 +3654,7 @@ export async function getLiveAlerts(companyId: string, options: LiveAlertOptions
   const warningIso = new Date(nowMs + options.documentExpiryWarningDays * 86_400_000).toISOString().slice(0, 10)
   const maintenanceWindowIso = new Date(nowMs + options.maintenanceReminderDays * 86_400_000).toISOString().slice(0, 10)
   const soonIso = new Date(nowMs + 86_400_000).toISOString()
+  const overdueCutoffIso = new Date(nowMs - options.overdueGracePeriodHours * 3_600_000).toISOString()
 
   const [overdueRes, balanceRes, depositRes, maintenanceRes, vehicleDocsRes, licenceRes, damageRes, unavailableRes] =
     await Promise.all([
@@ -3653,7 +3663,7 @@ export async function getLiveAlerts(companyId: string, options: LiveAlertOptions
         .select("id, reference, return_at, customer:customers(full_name, phone)")
         .eq("company_id", companyId)
         .eq("status", "active")
-        .lt("return_at", now.toISOString())
+        .lt("return_at", overdueCutoffIso)
         .limit(25),
       supabase
         .from("reservations")

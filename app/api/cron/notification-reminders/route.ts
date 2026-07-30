@@ -27,7 +27,10 @@ export async function GET(req: Request) {
   }
 
   const supabase = createAdminClient()
-  const { data: companies, error } = await supabase.from("companies").select("id, timezone").eq("status", "active")
+  const { data: companies, error } = await supabase
+    .from("companies")
+    .select("id, timezone, overdue_grace_period_hours")
+    .eq("status", "active")
   if (error) {
     return Response.json({ error: error.message }, { status: 500 })
   }
@@ -35,7 +38,9 @@ export async function GET(req: Request) {
   const results: (ReminderRunSummary | { companyId: string; error: string })[] = []
   for (const company of companies ?? []) {
     try {
-      results.push(await runNotificationRemindersForCompany(supabase, company.id, company.timezone))
+      results.push(
+        await runNotificationRemindersForCompany(supabase, company.id, company.timezone, company.overdue_grace_period_hours)
+      )
     } catch (err) {
       results.push({ companyId: company.id, error: err instanceof Error ? err.message : "Unknown error" })
     }
