@@ -21,6 +21,8 @@ import { NativeSelect } from "@/components/ui/native-select"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { SummaryRow } from "@/components/domain/summary-row"
+import { SubmitButton } from "@/components/ui/submit-button"
+import { useSlowPending } from "@/hooks/use-slow-pending"
 
 const CATEGORY_OPTIONS: { value: VehicleCategory; label: string }[] = [
   { value: "economy", label: "Economy" },
@@ -151,6 +153,7 @@ function ReservationForm({
   onSuccess,
 }: ReservationFormProps) {
   const [state, formAction, isPending] = useActionState(action, initialState)
+  const isSlowPending = useSlowPending(isPending)
   const isEdit = Boolean(initial)
 
   // Auto-focus the first field on mount — the natural start of the
@@ -863,10 +866,14 @@ function ReservationForm({
       )}
 
       <div className="flex justify-end gap-2">
-        <Button type="submit" disabled={isPending || !canSubmit}>
-          {isPending && <Loader2 className="animate-spin" />}
+        <SubmitButton
+          type="submit"
+          disabled={!canSubmit}
+          status={isPending ? (isSlowPending ? "slow" : "pending") : state.error ? "error" : "idle"}
+          errorLabel={isEdit ? "Save changes" : "Create reservation"}
+        >
           {isEdit ? "Save changes" : "Create reservation"}
-        </Button>
+        </SubmitButton>
       </div>
     </form>
   )

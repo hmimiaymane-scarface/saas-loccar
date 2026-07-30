@@ -1,21 +1,43 @@
 "use client"
 
-import { useActionState, useRef, useState } from "react"
-import { Loader2, Pencil, AlertTriangle } from "lucide-react"
+import { useActionState, useEffect, useRef, useState } from "react"
+import { Pencil, AlertTriangle } from "lucide-react"
 
 import { updateCustomerProfile, type CustomerActionState } from "@/app/(dashboard)/customers/actions"
 import type { CustomerDetail } from "@/types/rental"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { SubmitButton } from "@/components/ui/submit-button"
+import { useSlowPending } from "@/hooks/use-slow-pending"
 
 const initialState: CustomerActionState = {}
+const SAVED_CONFIRMATION_MS = 1_200
 
 function CustomerEditForm({ customer }: { customer: CustomerDetail }) {
   const [open, setOpen] = useState(false)
   const action = updateCustomerProfile.bind(null, customer.id)
   const [state, formAction, isPending] = useActionState(action, initialState)
+  const isSlowPending = useSlowPending(isPending)
   const acknowledgeDuplicatesRef = useRef<HTMLInputElement>(null)
+
+  // This inline edit card previously just sat there after a successful
+  // save with zero confirmation — the user had to infer success from
+  // the absence of an error. Roadmap phase 40: show a real "Saved"
+  // pulse, then close, on the pending->resolved-with-no-error edge.
+  const wasPendingRef = useRef(false)
+  const [justSaved, setJustSaved] = useState(false)
+  useEffect(() => {
+    const finishedSuccessfully = wasPendingRef.current && !isPending && !state.error && !state.duplicateCandidates
+    wasPendingRef.current = isPending
+    if (!finishedSuccessfully) return
+    setJustSaved(true)
+    const timer = setTimeout(() => {
+      setJustSaved(false)
+      setOpen(false)
+    }, SAVED_CONFIRMATION_MS)
+    return () => clearTimeout(timer)
+  }, [isPending, state])
 
   if (!open) {
     return (
@@ -130,10 +152,13 @@ function CustomerEditForm({ customer }: { customer: CustomerDetail }) {
         <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
           Cancel
         </Button>
-        <Button type="submit" size="sm" disabled={isPending}>
-          {isPending && <Loader2 className="animate-spin" />}
+        <SubmitButton
+          type="submit"
+          size="sm"
+          status={isPending ? (isSlowPending ? "slow" : "pending") : justSaved ? "saved" : "idle"}
+        >
           Save
-        </Button>
+        </SubmitButton>
       </div>
     </form>
   )

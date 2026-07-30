@@ -1,17 +1,18 @@
 "use client"
 
-import { useActionState, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { useActionState, useEffect, useRef, useState } from "react"
 
 import { recordPayment, type PaymentActionState } from "@/app/(dashboard)/payments/actions"
 import type { Booking, Customer } from "@/types/rental"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { SubmitButton } from "@/components/ui/submit-button"
+import { useSlowPending } from "@/hooks/use-slow-pending"
 
 const initialState: PaymentActionState = {}
+const SAVED_CONFIRMATION_MS = 1_500
 
 function RecordPaymentForm({
   bookings,
@@ -28,10 +29,30 @@ function RecordPaymentForm({
   defaultReservationId?: string
 }) {
   const [state, formAction, isPending] = useActionState(recordPayment, initialState)
+  const isSlowPending = useSlowPending(isPending)
   const [reservationId, setReservationId] = useState(
     defaultReservationId && bookings.some((b) => b.id === defaultReservationId) ? defaultReservationId : ""
   )
   const selectedBooking = bookings.find((b) => b.id === reservationId)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  // This form previously stayed mounted, unreset, with zero
+  // confirmation after a successful transaction — the real risk being
+  // a user unsure whether the click "took" and recording the same
+  // payment twice. Roadmap phase 40: reset the form and show a real
+  // "Saved" pulse on the pending->resolved-with-no-error edge.
+  const wasPendingRef = useRef(false)
+  const [justSaved, setJustSaved] = useState(false)
+  useEffect(() => {
+    const finishedSuccessfully = wasPendingRef.current && !isPending && !state.error
+    wasPendingRef.current = isPending
+    if (!finishedSuccessfully) return
+    formRef.current?.reset()
+    setReservationId("")
+    setJustSaved(true)
+    const timer = setTimeout(() => setJustSaved(false), SAVED_CONFIRMATION_MS)
+    return () => clearTimeout(timer)
+  }, [isPending, state])
 
   return (
     <Card>
@@ -39,7 +60,7 @@ function RecordPaymentForm({
         <CardTitle>Record a transaction</CardTitle>
       </CardHeader>
       <CardContent>
-        <form action={formAction} className="flex flex-col gap-4">
+        <form ref={formRef} action={formAction} className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5 sm:col-span-2">
               <Label htmlFor="reservationId">Reservation (optional)</Label>
@@ -115,10 +136,13 @@ function RecordPaymentForm({
           {state.error && <p className="text-sm text-destructive">{state.error}</p>}
 
           <div className="flex justify-end">
-            <Button type="submit" disabled={isPending}>
-              {isPending && <Loader2 className="animate-spin" />}
+            <SubmitButton
+              type="submit"
+              status={isPending ? (isSlowPending ? "slow" : "pending") : justSaved ? "saved" : "idle"}
+              savedLabel="Recorded"
+            >
               Record transaction
-            </Button>
+            </SubmitButton>
           </div>
         </form>
       </CardContent>
