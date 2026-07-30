@@ -284,6 +284,14 @@ company: `platform_admins` (see
 - `platform_audit_log` is separate from the tenant-facing `activity_log`
   on purpose, and is likewise SELECT-restricted to platform admins with
   no direct write policy.
+- `migration_checklist_items` (phase 49 — the founder-assisted
+  onboarding checklist) follows the identical shape: SELECT restricted
+  to `is_platform_admin()`, no direct mutation policy, seeded entirely
+  by a trigger on `companies` insert (`seed_migration_checklist()`,
+  running as the table owner), and mutated only through
+  `platform_toggle_migration_checklist_item()`, which re-checks admin
+  status and writes to `platform_audit_log` via `log_platform_action()`
+  like every other platform mutation.
 
 ## AI assistant boundary
 
