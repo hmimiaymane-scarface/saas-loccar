@@ -1,17 +1,17 @@
-import Link from "next/link"
 import { Car, AlertTriangle } from "lucide-react"
 
 import type { MaintenanceRecord } from "@/types/rental"
 import { maintenanceRecordStatusConfig, maintenancePriorityConfig, MAINTENANCE_TYPE_LABELS } from "@/lib/status"
 import { formatDate, formatMad } from "@/lib/format"
 import { StatusBadge } from "@/components/domain/status-badge"
+import { ListItemCard } from "@/components/domain/list-item-card"
 
 function MaintenanceListItem({ record }: { record: MaintenanceRecord }) {
   const dueDate = record.scheduledOn ?? record.completedOn
   return (
-    <Link
+    <ListItemCard
       href={`/maintenance/${record.id}`}
-      className="flex flex-col gap-3 rounded-3xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
+      className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center gap-2">
@@ -43,7 +43,7 @@ function MaintenanceListItem({ record }: { record: MaintenanceRecord }) {
         </div>
         <StatusBadge visual={maintenancePriorityConfig[record.priority]} className="hidden sm:inline-flex" />
       </div>
-    </Link>
+    </ListItemCard>
   )
 }
 

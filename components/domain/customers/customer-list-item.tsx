@@ -5,6 +5,7 @@ import type { Customer, CustomerCardContext } from "@/types/rental"
 import { initials, formatDate, formatMad } from "@/lib/format"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { ListItemCard } from "@/components/domain/list-item-card"
 
 /**
  * Productization wave 2 phase 16 — "customer pages feel like rental
@@ -31,7 +32,7 @@ function CustomerListItem({ customer, context }: { customer: Customer; context?:
   const line = rentalLine(context)
 
   return (
-    <div className="flex flex-col gap-3 rounded-3xl border border-border bg-card p-4 shadow-sm">
+    <ListItemCard className="flex flex-col gap-3">
       <div className="flex items-start gap-3">
         <Avatar size="sm">
           <AvatarFallback>{initials(customer.fullName)}</AvatarFallback>
@@ -88,7 +89,7 @@ function CustomerListItem({ customer, context }: { customer: Customer; context?:
           </Link>
         </Button>
       </div>
-    </div>
+    </ListItemCard>
   )
 }
 

@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Switch } from "@/components/ui/switch"
+import { ListItemCard } from "@/components/domain/list-item-card"
 import { cn } from "@/lib/utils"
 
 // Productization wave 1 phase 2 — only Owner and Staff (the existing
@@ -96,7 +97,7 @@ function MemberRow({
   const showAccessPanel = !isSelf && member.role === "manager"
 
   return (
-    <div className="flex flex-col gap-2 rounded-3xl border border-border bg-card p-4 shadow-sm">
+    <ListItemCard className="flex flex-col gap-2">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Avatar>
@@ -213,7 +214,7 @@ function MemberRow({
           {accessError && <p className="text-xs text-destructive">{accessError}</p>}
         </div>
       )}
-    </div>
+    </ListItemCard>
   )
 }
 

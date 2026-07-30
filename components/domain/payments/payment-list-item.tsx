@@ -3,6 +3,7 @@ import { ArrowDownLeft, ArrowUpRight } from "lucide-react"
 
 import type { PaymentTransaction } from "@/types/rental"
 import { formatDateTime, formatMad } from "@/lib/format"
+import { ListItemCard } from "@/components/domain/list-item-card"
 import { cn } from "@/lib/utils"
 
 const TYPE_LABELS: Record<PaymentTransaction["transactionType"], string> = {
@@ -17,7 +18,7 @@ const TYPE_LABELS: Record<PaymentTransaction["transactionType"], string> = {
 function PaymentListItem({ payment }: { payment: PaymentTransaction }) {
   const isIn = payment.direction === "in"
   return (
-    <div className="flex items-center gap-3 rounded-3xl border border-border bg-card p-4 shadow-sm">
+    <ListItemCard className="flex items-center gap-3">
       <div
         className={cn(
           "flex size-9 shrink-0 items-center justify-center rounded-full",
@@ -51,7 +52,7 @@ function PaymentListItem({ payment }: { payment: PaymentTransaction }) {
         {isIn ? "+" : "-"}
         {formatMad(payment.amountMad)}
       </span>
-    </div>
+    </ListItemCard>
   )
 }
 

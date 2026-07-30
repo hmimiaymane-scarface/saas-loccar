@@ -1,16 +1,16 @@
-import Link from "next/link"
 import { Car } from "lucide-react"
 
 import type { Booking } from "@/types/rental"
 import { bookingStatusConfig, overdueVisual, paymentStatusConfig } from "@/lib/status"
 import { formatDate, formatMad } from "@/lib/format"
 import { StatusBadge } from "@/components/domain/status-badge"
+import { ListItemCard } from "@/components/domain/list-item-card"
 
 function ReservationListItem({ booking }: { booking: Booking }) {
   return (
-    <Link
+    <ListItemCard
       href={`/reservations/${booking.id}`}
-      className="flex flex-col gap-3 rounded-3xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
+      className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center gap-2">
@@ -44,7 +44,7 @@ function ReservationListItem({ booking }: { booking: Booking }) {
         </div>
         <StatusBadge visual={paymentStatusConfig[booking.payment.status]} className="hidden sm:inline-flex" />
       </div>
-    </Link>
+    </ListItemCard>
   )
 }
 

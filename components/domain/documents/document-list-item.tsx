@@ -9,6 +9,7 @@ import { formatDateTime, formatFileSize } from "@/lib/format"
 import { CATEGORY_OPTIONS } from "@/lib/documents"
 import { logDocumentAccess } from "@/app/(dashboard)/documents/actions"
 import { DocumentDeleteButton } from "@/components/domain/documents/document-delete-button"
+import { ListItemCard } from "@/components/domain/list-item-card"
 
 function DocumentListItem({ document: doc, canDelete }: { document: RentalDocument; canDelete: boolean }) {
   const [, startTransition] = useTransition()
@@ -24,7 +25,7 @@ function DocumentListItem({ document: doc, canDelete }: { document: RentalDocume
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-3xl border border-border bg-card p-4 shadow-sm">
+    <ListItemCard className="flex items-center gap-3">
       <a
         href={doc.url ?? "#"}
         target="_blank"
@@ -63,7 +64,7 @@ function DocumentListItem({ document: doc, canDelete }: { document: RentalDocume
         </div>
       </div>
       {canDelete && <DocumentDeleteButton documentId={doc.id} />}
-    </div>
+    </ListItemCard>
   )
 }
 
