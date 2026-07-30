@@ -46,3 +46,75 @@ export async function removePasskey(credentialId: string): Promise<{ error?: str
   revalidatePath("/profile")
   return {}
 }
+
+// ---------------------------------------------------------------------
+// Push notifications (roadmap phase 44) — same "personal setting, no
+// role check beyond signed-in" shape as passkeys above.
+// ---------------------------------------------------------------------
+
+export interface PushSubscriptionInput {
+  endpoint: string
+  p256dhKey: string
+  authKey: string
+  userAgent?: string
+}
+
+export interface PushSubscriptionItem {
+  id: string
+  endpoint: string
+  userAgent: string | null
+  createdAt: string
+}
+
+export async function listPushSubscriptions(): Promise<PushSubscriptionItem[]> {
+  const session = await requireSession()
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("push_subscriptions")
+    .select("id, endpoint, user_agent, created_at")
+    .eq("user_id", session.userId)
+    .order("created_at", { ascending: false })
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    endpoint: row.endpoint,
+    userAgent: row.user_agent,
+    createdAt: row.created_at,
+  }))
+}
+
+/** `endpoint` is globally unique (the Web Push spec guarantees one per
+ * browser/device registration) — upserting on it means re-subscribing
+ * the same device (e.g. after clearing site data) replaces its old
+ * keys rather than erroring or duplicating. */
+export async function subscribeToPush(input: PushSubscriptionInput): Promise<{ error?: string }> {
+  const session = await requireSession()
+  const supabase = await createClient()
+  const { error } = await supabase.from("push_subscriptions").upsert(
+    {
+      company_id: session.company.id,
+      user_id: session.userId,
+      endpoint: input.endpoint,
+      p256dh_key: input.p256dhKey,
+      auth_key: input.authKey,
+      user_agent: input.userAgent ?? null,
+    },
+    { onConflict: "endpoint" }
+  )
+  if (error) return { error: friendlyDbError(error) }
+  revalidatePath("/profile")
+  return {}
+}
+
+export async function unsubscribeFromPush(endpoint: string): Promise<{ error?: string }> {
+  const session = await requireSession()
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from("push_subscriptions")
+    .delete()
+    .eq("endpoint", endpoint)
+    .eq("user_id", session.userId)
+  if (error) return { error: friendlyDbError(error) }
+  revalidatePath("/profile")
+  return {}
+}

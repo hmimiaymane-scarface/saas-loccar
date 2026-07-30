@@ -21,6 +21,12 @@
 //      never cached; offline resilience for those is handled entirely
 //      by the app-level IndexedDB queue (lib/offline/), not by this
 //      service worker.
+//
+// Roadmap phase 44 adds two more listeners below (`push`,
+// `notificationclick`) — an unrelated concern from the fetch-caching
+// strategies above (a push can arrive with no page open at all), kept
+// in this same file since a PWA has exactly one service worker, not
+// one per feature.
 
 const STATIC_CACHE = "rentalos-static-v1"
 const PAGE_CACHE = "rentalos-pages-v1"
@@ -93,4 +99,50 @@ self.addEventListener("fetch", (event) => {
   }
 
   // 3. Everything else — network only, no interception.
+})
+
+// Roadmap phase 44 (Push Notifications) — the payload is whatever
+// lib/notifications/channels/push.ts sent as its message body:
+// { title, body, url, tag }. `tag` collapses repeat pushes for the
+// same underlying thing (e.g. re-running the reminder cron) into one
+// notification instead of stacking duplicates in the OS tray.
+self.addEventListener("push", (event) => {
+  let payload = { title: "RentalOS", body: "", url: "/overview", tag: undefined }
+  try {
+    if (event.data) payload = { ...payload, ...event.data.json() }
+  } catch {
+    // Malformed/non-JSON payload — still show *something* rather than
+    // silently dropping the push.
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      tag: payload.tag,
+      icon: "/icons/192",
+      badge: "/icons/192",
+      data: { url: payload.url },
+    })
+  )
+})
+
+// The actual deep-link: focus an already-open tab on the right page if
+// one exists (avoids opening a confusing second copy of the app),
+// otherwise open a new one. This is what "deep-links to the exact
+// action" (this phase's own acceptance criterion) means in practice.
+self.addEventListener("notificationclick", (event) => {
+  const targetUrl = event.notification.data?.url ?? "/overview"
+  event.notification.close()
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        const clientUrl = new URL(client.url)
+        if (clientUrl.pathname === new URL(targetUrl, self.location.origin).pathname && "focus" in client) {
+          return client.focus()
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl)
+    })
+  )
 })

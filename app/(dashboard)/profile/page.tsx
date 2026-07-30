@@ -6,6 +6,7 @@ import { isSupabaseConfigured } from "@/lib/env"
 import { SectionHeader } from "@/components/domain/section-header"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { PasskeySection } from "@/components/domain/profile/passkey-section"
+import { PushNotificationSection } from "@/components/domain/profile/push-notification-section"
 
 const roleLabel: Record<string, string> = {
   owner: "Owner",
@@ -37,6 +38,7 @@ export default async function ProfilePage() {
         </CardContent>
       </Card>
       <PasskeySection passkeys={passkeys} />
+      <PushNotificationSection />
     </>
   )
 }
