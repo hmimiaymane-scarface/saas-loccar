@@ -4,8 +4,8 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation"
 
 import type { DamageStatus, Vehicle } from "@/types/rental"
 import { damageStatusConfig } from "@/lib/status"
-import { cn } from "@/lib/utils"
 import { NativeSelect } from "@/components/ui/native-select"
+import { FilterChip } from "@/components/domain/filter-chip"
 
 const STATUS_ORDER: DamageStatus[] = [
   "newly_discovered",
@@ -52,32 +52,21 @@ function DamageFilters({ vehicles }: { vehicles: Vehicle[] }) {
         </NativeSelect>
       )}
       <div className="flex flex-wrap gap-1.5">
-        <button
-          type="button"
-          onClick={() => updateParams((params) => params.delete("status"))}
-          className={cn(
-            "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-            !activeStatus ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:bg-muted/70"
-          )}
-        >
+        <FilterChip active={!activeStatus} onClick={() => updateParams((params) => params.delete("status"))}>
           All
-        </button>
+        </FilterChip>
         {STATUS_ORDER.map((status) => {
-          const active = activeStatus === status
           const visual = damageStatusConfig[status]
           return (
-            <button
+            <FilterChip
               key={status}
-              type="button"
+              active={activeStatus === status}
+              activeClassName={visual.badge}
+              dotClassName={visual.dot}
               onClick={() => updateParams((params) => params.set("status", status))}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                active ? visual.badge : "bg-muted text-muted-foreground hover:bg-muted/70"
-              )}
             >
-              <span className={cn("size-1.5 rounded-full", visual.dot)} />
               {visual.label}
-            </button>
+            </FilterChip>
           )
         })}
       </div>

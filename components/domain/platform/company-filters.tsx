@@ -5,9 +5,9 @@ import { Search } from "lucide-react"
 
 import { subscriptionStatusConfig } from "@/lib/platform-status"
 import { SUBSCRIPTION_STATUSES } from "@/types/platform"
-import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
+import { FilterChip } from "@/components/domain/filter-chip"
 
 function CompanyFilters() {
   const router = useRouter()
@@ -50,32 +50,21 @@ function CompanyFilters() {
         </NativeSelect>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        <button
-          type="button"
-          onClick={() => updateParams((params) => params.delete("status"))}
-          className={cn(
-            "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-            !activeStatus ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:bg-muted/70"
-          )}
-        >
+        <FilterChip active={!activeStatus} onClick={() => updateParams((params) => params.delete("status"))}>
           All
-        </button>
+        </FilterChip>
         {SUBSCRIPTION_STATUSES.map((status) => {
-          const active = activeStatus === status
           const visual = subscriptionStatusConfig[status]
           return (
-            <button
+            <FilterChip
               key={status}
-              type="button"
+              active={activeStatus === status}
+              activeClassName={visual.badge}
+              dotClassName={visual.dot}
               onClick={() => updateParams((params) => params.set("status", status))}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                active ? visual.badge : "bg-muted text-muted-foreground hover:bg-muted/70"
-              )}
             >
-              <span className={cn("size-1.5 rounded-full", visual.dot)} />
               {visual.label}
-            </button>
+            </FilterChip>
           )
         })}
       </div>

@@ -6,9 +6,9 @@ import { Search } from "lucide-react"
 
 import type { Branch, BookingStatus } from "@/types/rental"
 import { bookingStatusConfig } from "@/lib/status"
-import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
+import { FilterChip } from "@/components/domain/filter-chip"
 
 const STATUS_ORDER: BookingStatus[] = [
   "request",
@@ -114,21 +114,17 @@ function ReservationFilters({ branches }: { branches: Branch[] }) {
       </div>
       <div className="flex flex-wrap gap-1.5">
         {STATUS_ORDER.map((status) => {
-          const active = activeStatuses.has(status)
           const visual = bookingStatusConfig[status]
           return (
-            <button
+            <FilterChip
               key={status}
-              type="button"
+              active={activeStatuses.has(status)}
+              activeClassName={visual.badge}
+              dotClassName={visual.dot}
               onClick={() => toggleStatus(status)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                active ? visual.badge : "bg-muted text-muted-foreground hover:bg-muted/70"
-              )}
             >
-              <span className={cn("size-1.5 rounded-full", visual.dot)} />
               {visual.label}
-            </button>
+            </FilterChip>
           )
         })}
       </div>

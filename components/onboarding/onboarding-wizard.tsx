@@ -29,9 +29,6 @@ const STEPS = [
   { label: "Team" },
 ]
 
-const selectClassName =
-  "flex h-9 w-full min-w-0 rounded-2xl border border-border bg-background px-3 text-sm shadow-xs transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-
 const initialOnboardingState: OnboardingActionState = {}
 
 /**
@@ -112,19 +109,19 @@ function CompanyStep({ onDone }: { onDone: (companyId: string) => void }) {
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="currency">Currency</Label>
-              <select id="currency" name="currency" defaultValue="MAD" className={selectClassName}>
+              <NativeSelect id="currency" name="currency" defaultValue="MAD">
                 <option value="MAD">MAD — Moroccan dirham</option>
                 <option value="EUR">EUR — Euro</option>
                 <option value="USD">USD — US dollar</option>
-              </select>
+              </NativeSelect>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="language">Language</Label>
-              <select id="language" name="language" defaultValue="fr" className={selectClassName}>
+              <NativeSelect id="language" name="language" defaultValue="fr">
                 <option value="fr">Français</option>
                 <option value="ar">العربية</option>
                 <option value="en">English</option>
-              </select>
+              </NativeSelect>
             </div>
           </div>
 
