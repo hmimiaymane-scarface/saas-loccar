@@ -3,6 +3,7 @@ import Link from "next/link"
 import type { Booking, Vehicle } from "@/types/rental"
 import type { MaintenanceBlock } from "@/lib/data"
 import { dayIndexInWeek, toDateKey } from "@/lib/calendar-dates"
+import { groupBookingsByVehicle, groupMaintenanceByVehicle } from "@/lib/calendar-grouping"
 import { bookingStatusConfig, overdueVisual } from "@/lib/status"
 import { cn } from "@/lib/utils"
 
@@ -21,6 +22,8 @@ function FleetTimeline({ vehicles, bookings, maintenanceBlocks, weekStart }: Fle
     d.setDate(d.getDate() + i)
     return d
   })
+  const bookingsByVehicle = groupBookingsByVehicle(bookings)
+  const maintenanceByVehicle = groupMaintenanceByVehicle(maintenanceBlocks)
 
   return (
     <div className="hidden overflow-x-auto rounded-3xl border border-border bg-card lg:block">
@@ -50,8 +53,8 @@ function FleetTimeline({ vehicles, bookings, maintenanceBlocks, weekStart }: Fle
 
         {vehicles.map((vehicle, rowIndex) => {
           const row = rowIndex + 2
-          const vehicleBookings = bookings.filter((b) => b.vehicle?.id === vehicle.id)
-          const vehicleMaintenance = maintenanceBlocks.filter((m) => m.vehicleId === vehicle.id)
+          const vehicleBookings = bookingsByVehicle.get(vehicle.id) ?? []
+          const vehicleMaintenance = maintenanceByVehicle.get(vehicle.id) ?? []
 
           return (
             <div key={vehicle.id} className="contents">

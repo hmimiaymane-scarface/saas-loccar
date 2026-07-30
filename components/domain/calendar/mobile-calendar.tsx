@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { ArrowUpRight, ArrowDownLeft, Car, Wrench, Plus, CalendarCheck } from "lucide-react"
@@ -8,6 +8,13 @@ import { ArrowUpRight, ArrowDownLeft, Car, Wrench, Plus, CalendarCheck } from "l
 import type { Booking, Vehicle } from "@/types/rental"
 import type { MaintenanceBlock } from "@/lib/data"
 import { toDateKey } from "@/lib/calendar-dates"
+import {
+  groupBookingsByDate,
+  groupBookingsByVehicle,
+  groupMaintenanceByDate,
+  groupMaintenanceByVehicle,
+  type DayBookings,
+} from "@/lib/calendar-grouping"
 import { bookingStatusConfig, overdueVisual } from "@/lib/status"
 import { formatDate } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -79,6 +86,16 @@ function MobileCalendar({ vehicles, bookings, maintenanceBlocks, weekStart }: Mo
 
   const today = toDateKey(new Date())
 
+  // Roadmap phase 41 — grouping is independent of `mode`/`weekStart`,
+  // so it shouldn't redo an O(vehicles × bookings) (or O(days ×
+  // bookings)) scan on every mode switch or swipe. `bookings`/
+  // `maintenanceBlocks` only change reference on a real data refetch
+  // (a fresh page load), so these memoize across all of that.
+  const bookingsByDate = useMemo(() => groupBookingsByDate(bookings), [bookings])
+  const maintenanceByDate = useMemo(() => groupMaintenanceByDate(maintenanceBlocks), [maintenanceBlocks])
+  const bookingsByVehicle = useMemo(() => groupBookingsByVehicle(bookings), [bookings])
+  const maintenanceByVehicle = useMemo(() => groupMaintenanceByVehicle(maintenanceBlocks), [maintenanceBlocks])
+
   return (
     <div className="flex flex-col gap-3 lg:hidden">
       <div className="grid grid-cols-3 gap-2 rounded-2xl bg-muted p-1">
@@ -97,15 +114,22 @@ function MobileCalendar({ vehicles, bookings, maintenanceBlocks, weekStart }: Mo
         ))}
       </div>
 
-      {mode === "today" && <TodayMode bookings={bookings} maintenanceBlocks={maintenanceBlocks} today={today} />}
+      {mode === "today" && (
+        <TodayMode bookingsByDate={bookingsByDate} maintenanceByDate={maintenanceByDate} today={today} />
+      )}
       {mode === "week" && (
         <div {...swipeHandlers}>
-          <WeekMode bookings={bookings} maintenanceBlocks={maintenanceBlocks} weekStart={weekStart} today={today} />
+          <WeekMode bookingsByDate={bookingsByDate} maintenanceByDate={maintenanceByDate} weekStart={weekStart} today={today} />
         </div>
       )}
       {mode === "vehicle" && (
         <div {...swipeHandlers}>
-          <VehicleMode vehicles={vehicles} bookings={bookings} maintenanceBlocks={maintenanceBlocks} weekStart={weekStart} />
+          <VehicleMode
+            vehicles={vehicles}
+            bookingsByVehicle={bookingsByVehicle}
+            maintenanceByVehicle={maintenanceByVehicle}
+            weekStart={weekStart}
+          />
         </div>
       )}
     </div>
@@ -208,15 +232,26 @@ function DayRows({ dayBookings, dayMaintenance, dateKey }: { dayBookings: { book
   )
 }
 
-function dayContent(bookings: Booking[], maintenanceBlocks: MaintenanceBlock[], dateKey: string) {
-  const pickups = bookings.filter((b) => b.startDate === dateKey).map((booking) => ({ booking, label: "Pickup" }))
-  const returns = bookings.filter((b) => b.endDate === dateKey && b.startDate !== dateKey).map((booking) => ({ booking, label: "Return" }))
-  const maintenance = maintenanceBlocks.filter((m) => m.date === dateKey)
-  return { dayBookings: [...pickups, ...returns], dayMaintenance: maintenance }
+function dayContent(bookingsByDate: Map<string, DayBookings>, maintenanceByDate: Map<string, MaintenanceBlock[]>, dateKey: string) {
+  const forDate = bookingsByDate.get(dateKey)
+  const dayBookings = [
+    ...(forDate?.pickups ?? []).map((booking) => ({ booking, label: "Pickup" })),
+    ...(forDate?.returns ?? []).map((booking) => ({ booking, label: "Return" })),
+  ]
+  const dayMaintenance = maintenanceByDate.get(dateKey) ?? []
+  return { dayBookings, dayMaintenance }
 }
 
-function TodayMode({ bookings, maintenanceBlocks, today }: { bookings: Booking[]; maintenanceBlocks: MaintenanceBlock[]; today: string }) {
-  const { dayBookings, dayMaintenance } = dayContent(bookings, maintenanceBlocks, today)
+function TodayMode({
+  bookingsByDate,
+  maintenanceByDate,
+  today,
+}: {
+  bookingsByDate: Map<string, DayBookings>
+  maintenanceByDate: Map<string, MaintenanceBlock[]>
+  today: string
+}) {
+  const { dayBookings, dayMaintenance } = dayContent(bookingsByDate, maintenanceByDate, today)
 
   return (
     <Card>
@@ -231,7 +266,17 @@ function TodayMode({ bookings, maintenanceBlocks, today }: { bookings: Booking[]
   )
 }
 
-function WeekMode({ bookings, maintenanceBlocks, weekStart, today }: { bookings: Booking[]; maintenanceBlocks: MaintenanceBlock[]; weekStart: Date; today: string }) {
+function WeekMode({
+  bookingsByDate,
+  maintenanceByDate,
+  weekStart,
+  today,
+}: {
+  bookingsByDate: Map<string, DayBookings>
+  maintenanceByDate: Map<string, MaintenanceBlock[]>
+  weekStart: Date
+  today: string
+}) {
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart)
     d.setDate(d.getDate() + i)
@@ -243,7 +288,7 @@ function WeekMode({ bookings, maintenanceBlocks, weekStart, today }: { bookings:
       {days.map((day) => {
         const key = toDateKey(day)
         const isToday = key === today
-        const { dayBookings, dayMaintenance } = dayContent(bookings, maintenanceBlocks, key)
+        const { dayBookings, dayMaintenance } = dayContent(bookingsByDate, maintenanceByDate, key)
 
         return (
           <Card key={key}>
@@ -269,13 +314,13 @@ const SEGMENT_TONE = {
 
 function VehicleMode({
   vehicles,
-  bookings,
-  maintenanceBlocks,
+  bookingsByVehicle,
+  maintenanceByVehicle,
   weekStart,
 }: {
   vehicles: Vehicle[]
-  bookings: Booking[]
-  maintenanceBlocks: MaintenanceBlock[]
+  bookingsByVehicle: Map<string, Booking[]>
+  maintenanceByVehicle: Map<string, MaintenanceBlock[]>
   weekStart: Date
 }) {
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -295,8 +340,8 @@ function VehicleMode({
         ))}
       </div>
       {vehicles.map((vehicle) => {
-        const vehicleBookings = bookings.filter((b) => b.vehicle?.id === vehicle.id)
-        const vehicleMaintenance = maintenanceBlocks.filter((m) => m.vehicleId === vehicle.id)
+        const vehicleBookings = bookingsByVehicle.get(vehicle.id) ?? []
+        const vehicleMaintenance = maintenanceByVehicle.get(vehicle.id) ?? []
 
         return (
           <Card key={vehicle.id}>
