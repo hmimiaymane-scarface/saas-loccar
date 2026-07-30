@@ -14,6 +14,15 @@ const ROLES: EmployeeRole[] = ["owner", "manager", "agent", "accountant", "drive
 
 export interface TeamActionState {
   error?: string
+  /** Roadmap phase 47 — the Company Setup Wizard's invite step needs
+   * the resulting `/invite/{token}` link immediately (no email gets
+   * sent anywhere in this app — see `docs/company-setup-wizard.md` and
+   * `invitation-row.tsx`'s own "Copy link" UI — the owner has to share
+   * it themselves), rather than doing a separate follow-up fetch just
+   * to read back what this same RPC call already returned. Every
+   * pre-existing caller of this action ignores the field, so this is
+   * additive, not a behavior change. */
+  token?: string
 }
 
 export async function inviteMember(_prevState: TeamActionState, formData: FormData): Promise<TeamActionState> {
@@ -26,7 +35,7 @@ export async function inviteMember(_prevState: TeamActionState, formData: FormDa
     const role = requiredEnum(formData, "role", ROLES, "Role")
     const branchId = optionalString(formData, "branchId")
 
-    const { error } = await supabase.rpc("invite_member", {
+    const { data, error } = await supabase.rpc("invite_member", {
       p_company_id: session.company.id,
       p_email: email,
       p_role: role,
@@ -36,7 +45,7 @@ export async function inviteMember(_prevState: TeamActionState, formData: FormDa
     if (error) return { error: friendlyDbError(error) }
 
     revalidatePath("/employees")
-    return {}
+    return { token: (data as { token?: string } | null)?.token }
   } catch (err) {
     if (err instanceof ActionError) return { error: err.message }
     throw err

@@ -1,11 +1,19 @@
 "use server"
 
-import { redirect } from "next/navigation"
+import { revalidatePath } from "next/cache"
 
+import { requireSession, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { createClient } from "@/lib/supabase/server"
 
 export interface OnboardingActionState {
   error?: string
+  /** Roadmap phase 47 — the wizard's own step-advance signal, replacing
+   * the unconditional `redirect("/overview")` this action used to end
+   * with. The company now exists after a successful call (this action
+   * still creates it via the same RPC as before), but staying on
+   * `/onboarding` lets the client wizard move to the next step instead
+   * of leaving the flow after just one screen. */
+  companyCreated?: boolean
 }
 
 /**
@@ -43,5 +51,65 @@ export async function createCompany(
     return { error: error.message }
   }
 
-  redirect("/overview")
+  return { companyCreated: true }
+}
+
+// ---------------------------------------------------------------------
+// Later wizard steps (roadmap phase 47) — all operate on the
+// already-created company via the caller's own session, same as any
+// other authenticated action; no RPC needed since a real
+// `company_memberships` row (owner) now exists for ordinary RLS to work
+// against.
+// ---------------------------------------------------------------------
+
+export interface WizardStepState {
+  error?: string
+}
+
+export async function updateCompanyLogo(logoPath: string): Promise<WizardStepState> {
+  try {
+    const session = await requireSession()
+    const supabase = await createClient()
+    const { error } = await supabase.from("companies").update({ logo_path: logoPath }).eq("id", session.company.id)
+    if (error) return { error: friendlyDbError(error) }
+    revalidatePath("/onboarding")
+    revalidatePath("/overview")
+    return {}
+  } catch (err) {
+    if (err instanceof ActionError) return { error: err.message }
+    throw err
+  }
+}
+
+export interface RentalDefaultsInput {
+  defaultDepositMad?: number | null
+  overdueGracePeriodHours: number
+}
+
+export async function updateRentalDefaults(input: RentalDefaultsInput): Promise<WizardStepState> {
+  try {
+    const session = await requireSession()
+    if (input.overdueGracePeriodHours < 0 || input.overdueGracePeriodHours > 168) {
+      throw new ActionError("Grace period must be between 0 and 168 hours.")
+    }
+    if (input.defaultDepositMad != null && input.defaultDepositMad < 0) {
+      throw new ActionError("Default deposit can't be negative.")
+    }
+    const supabase = await createClient()
+    const { error } = await supabase
+      .from("companies")
+      .update({
+        default_deposit_mad: input.defaultDepositMad ?? null,
+        overdue_grace_period_hours: input.overdueGracePeriodHours,
+      })
+      .eq("id", session.company.id)
+    if (error) return { error: friendlyDbError(error) }
+    revalidatePath("/onboarding")
+    revalidatePath("/overview")
+    revalidatePath("/settings")
+    return {}
+  } catch (err) {
+    if (err instanceof ActionError) return { error: err.message }
+    throw err
+  }
 }
