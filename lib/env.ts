@@ -20,6 +20,28 @@ export const env = {
   supabaseAnonKey: supabaseAnonKey ?? "",
 }
 
+// Roadmap phase 44 (Push Notifications). The public key has to reach
+// the browser (for `pushManager.subscribe({ applicationServerKey })`),
+// hence `NEXT_PUBLIC_`; the private key never leaves the server — only
+// `lib/notifications/channels/push.ts` reads it, to sign outgoing
+// push messages. Generate a real pair with `npx web-push generate-vapid-keys`
+// (see .env.example).
+const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY
+const vapidSubject = process.env.VAPID_SUBJECT
+
+/** True once a real VAPID key pair exists — same "honest configured
+ * flag" convention as `isSupabaseConfigured`. The `push` notification
+ * channel (`lib/notifications/channels/index.ts`) stays an inert
+ * placeholder until this is true. */
+export const isPushConfigured = Boolean(vapidPublicKey && vapidPrivateKey && vapidSubject)
+
+export const pushEnv = {
+  vapidPublicKey: vapidPublicKey ?? "",
+  vapidPrivateKey: vapidPrivateKey ?? "",
+  vapidSubject: vapidSubject ?? "",
+}
+
 /**
  * Throws with a clear message instead of letting the Supabase SDK fail with
  * an opaque "Invalid URL" error deep in a request. Call this at the top of

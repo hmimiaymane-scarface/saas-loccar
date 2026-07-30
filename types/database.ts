@@ -980,6 +980,48 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["webauthn_credentials"]["Insert"]>
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          id: string
+          company_id: string
+          user_id: string
+          endpoint: string
+          p256dh_key: string
+          auth_key: string
+          user_agent: string | null
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          user_id: string
+          endpoint: string
+          p256dh_key: string
+          auth_key: string
+          user_agent?: string | null
+          created_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["push_subscriptions"]["Insert"]>
+        Relationships: []
+      }
+      push_notification_log: {
+        Row: {
+          id: string
+          company_id: string
+          user_id: string
+          dedupe_key: string
+          sent_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          user_id: string
+          dedupe_key: string
+          sent_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["push_notification_log"]["Insert"]>
+        Relationships: []
+      }
       contract_amendments: {
         Row: {
           id: string

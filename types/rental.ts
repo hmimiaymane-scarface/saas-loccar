@@ -829,6 +829,10 @@ export type NotificationType =
   | "approval_requested"
   | "approval_approved"
   | "approval_rejected"
+  // Added by roadmap phase 44 (20260810090000_phase44_push_notifications.sql)
+  // — keep in sync with that migration's notifications.type CHECK.
+  | "booking_request_received"
+  | "identity_document_missing"
 
 export type AlertUrgency = "due_soon" | "due_now" | "overdue"
 
