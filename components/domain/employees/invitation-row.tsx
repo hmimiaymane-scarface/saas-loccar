@@ -10,6 +10,7 @@ import type { TeamInvitation } from "@/types/rental"
 import { Button } from "@/components/ui/button"
 
 function InvitationRow({ invitation }: { invitation: TeamInvitation }) {
+  const [confirming, setConfirming] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,9 +46,21 @@ function InvitationRow({ invitation }: { invitation: TeamInvitation }) {
           {copied ? <Check className="size-3.5" /> : <Link2 className="size-3.5" />}
           {copied ? "Copied" : "Copy link"}
         </Button>
-        <Button variant="ghost" size="icon-sm" onClick={revoke} disabled={isPending} title="Revoke invitation">
-          {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5 text-muted-foreground" />}
-        </Button>
+        {confirming ? (
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setConfirming(false)} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button variant="destructive" size="sm" onClick={revoke} disabled={isPending}>
+              {isPending && <Loader2 className="animate-spin" />}
+              Revoke
+            </Button>
+          </>
+        ) : (
+          <Button variant="ghost" size="icon-sm" onClick={() => setConfirming(true)} title="Revoke invitation">
+            <X className="size-3.5 text-muted-foreground" />
+          </Button>
+        )}
       </div>
     </div>
   )

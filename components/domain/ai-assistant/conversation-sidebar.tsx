@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Plus, Trash2, Loader2 } from "lucide-react"
+import { Plus, Trash2, Loader2, Check, X } from "lucide-react"
 
 import { createConversation, deleteConversation, type ConversationSummaryRow } from "@/app/(dashboard)/ai-assistant/actions"
 import { AI_PROVIDER_LABELS, type AiProvider } from "@/lib/ai/models"
@@ -25,6 +25,7 @@ function ConversationSidebar({
   const [provider, setProvider] = useState<AiProvider>(availableProviders[0] ?? "anthropic")
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
   function newChat() {
     setError(null)
@@ -41,6 +42,7 @@ function ConversationSidebar({
   function remove(id: string) {
     startTransition(async () => {
       await deleteConversation(id)
+      setConfirmingId(null)
       if (id === activeId) router.push("/ai-assistant")
       else router.refresh()
     })
@@ -86,16 +88,34 @@ function ConversationSidebar({
                   {AI_PROVIDER_LABELS[c.provider]} · {formatRelativeTime(c.updatedAt)}
                 </span>
               </Link>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0 opacity-0 group-hover:opacity-100"
-                onClick={() => remove(c.id)}
-                aria-label="Delete conversation"
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
+              {confirmingId === c.id ? (
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <Button type="button" variant="ghost" size="icon-sm" onClick={() => setConfirmingId(null)} aria-label="Cancel">
+                    <X className="size-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon-sm"
+                    onClick={() => remove(c.id)}
+                    disabled={isPending}
+                    aria-label="Confirm delete"
+                  >
+                    {isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 opacity-0 group-hover:opacity-100"
+                  onClick={() => setConfirmingId(c.id)}
+                  aria-label="Delete conversation"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              )}
             </div>
           ))
         )}

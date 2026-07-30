@@ -1,8 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, useTransition } from "react"
 import Link from "next/link"
-import { AlertTriangle, Clock, Trash2 } from "lucide-react"
+import { AlertTriangle, Clock, Trash2, Loader2 } from "lucide-react"
 
 import { listMutations, removeMutation, type QueuedMutation, type MutationType } from "@/lib/offline/db"
 import { formatRelativeTime } from "@/lib/format"
@@ -33,8 +33,11 @@ function resolveLink(mutation: QueuedMutation): string | null {
   return null
 }
 
-function MutationRow({ mutation, onDiscard }: { mutation: QueuedMutation; onDiscard: (id: string) => void }) {
+function MutationRow({ mutation, onDiscard }: { mutation: QueuedMutation; onDiscard: (id: string) => Promise<void> }) {
   const href = resolveLink(mutation)
+  const [confirming, setConfirming] = useState(false)
+  const [isPending, startTransition] = useTransition()
+
   return (
     <div className="flex items-start justify-between gap-3 border-b border-border py-3 last:border-b-0">
       <div className="flex min-w-0 flex-col gap-0.5">
@@ -47,12 +50,29 @@ function MutationRow({ mutation, onDiscard }: { mutation: QueuedMutation; onDisc
           </Link>
         )}
       </div>
-      {mutation.status === "needs_review" && (
-        <Button type="button" size="sm" variant="ghost" onClick={() => onDiscard(mutation.id)}>
-          <Trash2 className="size-3.5" />
-          Discard
-        </Button>
-      )}
+      {mutation.status === "needs_review" &&
+        (confirming ? (
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={isPending}
+              onClick={() => startTransition(() => onDiscard(mutation.id))}
+            >
+              {isPending && <Loader2 className="animate-spin" />}
+              Discard
+            </Button>
+          </div>
+        ) : (
+          <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(true)}>
+            <Trash2 className="size-3.5" />
+            Discard
+          </Button>
+        ))}
     </div>
   )
 }

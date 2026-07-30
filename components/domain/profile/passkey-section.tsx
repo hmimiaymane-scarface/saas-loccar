@@ -22,6 +22,7 @@ function PasskeySection({ passkeys }: { passkeys: PasskeyItem[] }) {
   const [registering, setRegistering] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
   useEffect(() => {
@@ -51,6 +52,7 @@ function PasskeySection({ passkeys }: { passkeys: PasskeyItem[] }) {
     startTransition(async () => {
       await removePasskey(id)
       setRemovingId(null)
+      setConfirmingId(null)
       router.refresh()
     })
   }
@@ -79,16 +81,27 @@ function PasskeySection({ passkeys }: { passkeys: PasskeyItem[] }) {
                     </span>
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={removingId === p.id}
-                  onClick={() => handleRemove(p.id)}
-                  aria-label="Remove passkey"
-                >
-                  {removingId === p.id ? <Loader2 className="animate-spin" /> : <Trash2 className="size-4" />}
-                </Button>
+                {confirmingId === p.id ? (
+                  <div className="flex items-center gap-1.5">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmingId(null)} disabled={removingId === p.id}>
+                      Cancel
+                    </Button>
+                    <Button type="button" variant="destructive" size="sm" onClick={() => handleRemove(p.id)} disabled={removingId === p.id}>
+                      {removingId === p.id && <Loader2 className="animate-spin" />}
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setConfirmingId(p.id)}
+                    aria-label="Remove passkey"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                )}
               </div>
             ))}
           </div>

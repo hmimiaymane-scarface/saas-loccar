@@ -45,6 +45,7 @@ function MemberRow({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [confirmingRemove, setConfirmingRemove] = useState(false)
+  const [confirmingSuspend, setConfirmingSuspend] = useState(false)
   const [accessOpen, setAccessOpen] = useState(false)
   const [pendingSwitchId, setPendingSwitchId] = useState<string | null>(null)
   const [accessError, setAccessError] = useState<string | null>(null)
@@ -77,6 +78,7 @@ function MemberRow({
           ? await suspendMemberAction(member.membershipId)
           : await reactivateMemberAction(member.membershipId)
       if (result.error) setError(result.error)
+      else setConfirmingSuspend(false)
     })
   }
 
@@ -142,21 +144,33 @@ function MemberRow({
 
         {!isSelf && (
           <>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={toggleSuspend}
-              disabled={isPending || (member.status === "active" && !suspendCheck.allowed)}
-              title={
-                member.status === "active"
-                  ? suspendCheck.allowed
-                    ? "Suspend"
-                    : suspendCheck.reason
-                  : "Reactivate"
-              }
-            >
-              {isPending ? <Loader2 className="size-3.5 animate-spin" /> : member.status === "active" ? <UserX className="size-3.5" /> : <UserCheck className="size-3.5" />}
-            </Button>
+            {member.status === "active" && confirmingSuspend ? (
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={() => setConfirmingSuspend(false)} disabled={isPending}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" size="sm" onClick={toggleSuspend} disabled={isPending}>
+                  {isPending && <Loader2 className="animate-spin" />}
+                  Suspend
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="icon-sm"
+                onClick={member.status === "active" ? () => setConfirmingSuspend(true) : toggleSuspend}
+                disabled={isPending || (member.status === "active" && !suspendCheck.allowed)}
+                title={
+                  member.status === "active"
+                    ? suspendCheck.allowed
+                      ? "Suspend"
+                      : suspendCheck.reason
+                    : "Reactivate"
+                }
+              >
+                {isPending ? <Loader2 className="size-3.5 animate-spin" /> : member.status === "active" ? <UserX className="size-3.5" /> : <UserCheck className="size-3.5" />}
+              </Button>
+            )}
             {confirmingRemove ? (
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" onClick={() => setConfirmingRemove(false)}>
