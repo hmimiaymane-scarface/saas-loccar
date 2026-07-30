@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 
 import type { MediaFile } from "@/types/rental"
 import { DamagePhotoUpload } from "@/components/domain/damages/damage-photo-upload"
@@ -28,11 +29,16 @@ function DamageMediaSection({
               href={m.url ?? "#"}
               target="_blank"
               rel="noreferrer"
-              className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-muted"
+              className="relative flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-muted"
             >
               {m.url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={m.url} alt={m.caption ?? m.originalFilename} className="size-full object-cover" />
+                <Image
+                  src={m.url}
+                  alt={m.caption ?? m.originalFilename}
+                  fill
+                  sizes="(min-width: 640px) 25vw, 50vw"
+                  className="object-cover"
+                />
               ) : (
                 <span className="text-xs text-muted-foreground">No preview</span>
               )}

@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { Sparkles } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
@@ -55,9 +56,8 @@ function AiRecommendationCard({
           <div className="grid grid-cols-2 gap-2">
             {[comparisonImages.before, comparisonImages.after].map((image) => (
               <a key={image.label} href={image.url} target="_blank" rel="noreferrer" className="flex flex-col gap-1">
-                <span className="aspect-square overflow-hidden rounded-2xl border border-border">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={image.url} alt={image.label} className="size-full object-cover" />
+                <span className="relative block aspect-square overflow-hidden rounded-2xl border border-border">
+                  <Image src={image.url} alt={image.label} fill sizes="50vw" className="object-cover" />
                 </span>
                 <span className="text-center text-[11px] font-medium text-muted-foreground">{image.label}</span>
               </a>

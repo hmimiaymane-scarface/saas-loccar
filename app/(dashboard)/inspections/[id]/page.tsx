@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Image from "next/image"
 import { notFound, redirect } from "next/navigation"
 import { Gauge, Fuel, Sparkles, User } from "lucide-react"
 
@@ -122,11 +123,16 @@ export default async function InspectionDetailPage({
                       href={m.url ?? "#"}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-muted"
+                      className="relative flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-muted"
                     >
                       {m.url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={m.url} alt={m.caption ?? m.originalFilename} className="size-full object-cover" />
+                        <Image
+                          src={m.url}
+                          alt={m.caption ?? m.originalFilename}
+                          fill
+                          sizes="(min-width: 640px) 25vw, 50vw"
+                          className="object-cover"
+                        />
                       ) : (
                         <span className="text-xs text-muted-foreground">No preview</span>
                       )}
