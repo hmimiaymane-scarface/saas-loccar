@@ -6,6 +6,7 @@ import type { RentalCompany, Employee, NotificationItem } from "@/types/rental"
 import { CompanyIdentity } from "@/components/layout/company-identity"
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav"
 import { NotificationBell } from "@/components/layout/notification-bell"
+import { OfflineQueueIndicator } from "@/components/layout/offline-queue-indicator"
 import { UserMenu } from "@/components/layout/user-menu"
 import { InstallPrompt } from "@/components/pwa/install-prompt"
 import { useIdleRedirect } from "@/hooks/use-idle-redirect"
@@ -50,6 +51,7 @@ function MobileShell({
           <Button variant="ghost" size="icon" aria-label="Search" onClick={onOpenSearch}>
             <Search className="size-[18px]" />
           </Button>
+          <OfflineQueueIndicator companyId={company.id} />
           <NotificationBell notifications={notifications} unreadCount={unreadCount} />
           <UserMenu employee={employee} />
         </div>

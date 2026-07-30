@@ -126,7 +126,7 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
   // pickup wizard: inspection field saves, photo capture queueable
   // offline; completeRentalAction (deposit/payment finalization) stays
   // online-only, see docs/mobile.md.
-  const { isOnline, enqueue, pendingCount } = useOfflineQueue(companyId)
+  const { isOnline, enqueue, pendingCount, needsReviewCount } = useOfflineQueue(companyId)
   const queuedMutationIds = useRef<string[]>([])
 
   // Return details -----------------------------------------------------------
@@ -551,7 +551,7 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
         {STEPS[step].label} — step {step + 1} of {STEPS.length}
       </div>
       <WizardProgress steps={STEPS} currentStep={step} />
-      <OfflineStatusBanner isOnline={isOnline} pendingCount={pendingCount} />
+      <OfflineStatusBanner isOnline={isOnline} pendingCount={pendingCount} needsReviewCount={needsReviewCount} />
       <RequirementsSummary items={requirementItems} />
 
       <div ref={stepContainerRef} className="flex flex-col gap-6">

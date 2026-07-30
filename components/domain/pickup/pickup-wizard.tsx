@@ -135,7 +135,7 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
   // activateRentalAction below — that's a reservation-status/payment
   // transition, a heavier action this checkpoint keeps online-only; see
   // docs/mobile.md for the full boundary.
-  const { isOnline, enqueue, pendingCount } = useOfflineQueue(companyId)
+  const { isOnline, enqueue, pendingCount, needsReviewCount } = useOfflineQueue(companyId)
   const queuedMutationIds = useRef<string[]>([])
 
   // Inspection ------------------------------------------------------------
@@ -518,7 +518,7 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
         {STEPS[step].label} — step {step + 1} of {STEPS.length}
       </div>
       <WizardProgress steps={STEPS} currentStep={step} />
-      <OfflineStatusBanner isOnline={isOnline} pendingCount={pendingCount} />
+      <OfflineStatusBanner isOnline={isOnline} pendingCount={pendingCount} needsReviewCount={needsReviewCount} />
       <RequirementsSummary items={requirementItems} />
 
       <div ref={stepContainerRef} className="flex flex-col gap-6">
