@@ -60,6 +60,7 @@ import {
   findDuplicateMatches,
   type CustomerMatchCandidate,
   type DuplicateMatch,
+  type ExistingCustomerRecord,
 } from "@/lib/customer-matching"
 import { searchDocumentIdsByExtractedFields } from "@/lib/documents"
 import { MAINTENANCE_TYPE_LABELS } from "@/lib/status"
@@ -1208,6 +1209,95 @@ export async function findDuplicateCandidates(
     })),
     excludeCustomerId
   )
+}
+
+/** Roadmap phase 48 (Excel/CSV Importer) — every existing vehicle's raw
+ * registration number for the company, for the importer's own plate
+ * dedup (see lib/import/vehicle-import.ts, which normalizes each value
+ * itself via normalizeIdLike). A much higher limit than any other
+ * caller needs here since a real fleet import has to be checked
+ * against the *entire* existing fleet, not a capped preview slice. */
+export async function getVehiclePlatesForImport(companyId: string): Promise<string[]> {
+  if (isMockMode()) return mockVehicles.map((v) => v.plate)
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("vehicles")
+    .select("registration_number")
+    .eq("company_id", companyId)
+    .limit(20000)
+
+  if (error) throw error
+  return (data ?? []).map((row) => row.registration_number as string)
+}
+
+/** Roadmap phase 48 — the same idea as getVehiclePlatesForImport, for
+ * customers: every existing customer's identity fields, for the
+ * importer's own duplicate-detection pass (lib/import/customer-import.ts,
+ * which reuses findDuplicateMatches directly rather than one
+ * findDuplicateCandidates() round-trip per row). A higher limit than
+ * findDuplicateCandidates's own 500 cap — that function is tuned for a
+ * single interactive check, this one has to cover a whole company's
+ * customer base once, up front. */
+export async function getCustomerPoolForImport(companyId: string): Promise<ExistingCustomerRecord[]> {
+  if (isMockMode()) {
+    return mockCustomers.map((c) => ({ id: c.id, fullName: c.fullName, licenseNumber: c.licenseNumber, phone: c.phone, email: c.email }))
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("customers")
+    .select("id, full_name, id_document_number, license_number, phone, email, date_of_birth")
+    .eq("company_id", companyId)
+    .limit(20000)
+
+  if (error) throw error
+
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    fullName: row.full_name as string,
+    idDocumentNumber: row.id_document_number as string | null,
+    licenseNumber: row.license_number as string | null,
+    phone: row.phone as string | null,
+    email: row.email as string | null,
+    dateOfBirth: row.date_of_birth as string | null,
+  }))
+}
+
+export interface ImportBatchSummary {
+  id: string
+  entityType: "vehicle" | "customer"
+  rowCount: number
+  errorCount: number
+  createdAt: string
+}
+
+/** Roadmap phase 48 — recent, not-yet-fully-undone import batches for
+ * the "Recent imports" section of /import. Mock mode returns an empty
+ * list rather than a mock branch modeling fake batches: a fresh mock
+ * install has genuinely imported nothing, so an empty state is the
+ * honest answer, not a gap. */
+export async function getImportBatches(companyId: string): Promise<ImportBatchSummary[]> {
+  if (isMockMode()) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("import_batches")
+    .select("id, entity_type, row_count, error_count, created_at")
+    .eq("company_id", companyId)
+    .is("undone_at", null)
+    .order("created_at", { ascending: false })
+    .limit(10)
+
+  if (error) throw error
+
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    entityType: row.entity_type as "vehicle" | "customer",
+    rowCount: row.row_count as number,
+    errorCount: row.error_count as number,
+    createdAt: row.created_at as string,
+  }))
 }
 
 // ---------------------------------------------------------------------
