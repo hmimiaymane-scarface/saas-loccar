@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
-import { Pencil, UserRound, Car, MapPin, Clock, ClipboardCheck, Undo2, GitCompare } from "lucide-react"
+import { Pencil, UserRound, Car, MapPin, Clock, ClipboardCheck, Undo2, GitCompare, Phone } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
 import { getReservationDetail, getFleetCardContext } from "@/lib/data"
@@ -11,11 +11,18 @@ import { formatMad, formatDateTime } from "@/lib/format"
 import { formatInTimeZone } from "@/lib/timezone"
 import { bookingStatusConfig, overdueVisual, paymentStatusConfig, damageStatusConfig } from "@/lib/status"
 import { isTerminalStatus, isEditableStatus } from "@/lib/reservations/status"
+import {
+  buildConfirmationMessage,
+  buildPickupReminderMessage,
+  buildReturnReminderMessage,
+  buildPaymentReminderMessage,
+} from "@/lib/whatsapp-messages"
 import { StatusBadge } from "@/components/domain/status-badge"
 import { SectionHeader } from "@/components/domain/section-header"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
+import { WhatsAppButton } from "@/components/domain/whatsapp-button"
 import { ReservationStatusActions } from "@/components/domain/reservations/reservation-status-actions"
 import { DocumentListItem } from "@/components/domain/documents/document-list-item"
 import { DepositPanel } from "@/components/domain/reservations/deposit-panel"
@@ -205,6 +212,59 @@ export default async function ReservationDetailPage({
                   </p>
                 </div>
               </div>
+              {canManage && (
+                <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={`tel:${reservation.customer.phone}`}>
+                      <Phone />
+                      Call
+                    </a>
+                  </Button>
+                  {["request", "pending", "confirmed"].includes(reservation.status) && (
+                    <WhatsAppButton
+                      phone={reservation.customer.phone}
+                      label="Send confirmation"
+                      size="sm"
+                      message={buildConfirmationMessage({
+                        customerName: reservation.customer.fullName,
+                        reference: reservation.reference,
+                        vehicleLabel: reservation.vehicle ? `${reservation.vehicle.make} ${reservation.vehicle.model}` : null,
+                        pickupAtIso: reservation.pickupAt,
+                        pickupLocation: reservation.pickupLocation,
+                        timezone: tz,
+                      })}
+                    />
+                  )}
+                  {["pending", "confirmed"].includes(reservation.status) && (
+                    <WhatsAppButton
+                      phone={reservation.customer.phone}
+                      label="Pickup reminder"
+                      size="sm"
+                      message={buildPickupReminderMessage({
+                        customerName: reservation.customer.fullName,
+                        reference: reservation.reference,
+                        pickupAtIso: reservation.pickupAt,
+                        pickupLocation: reservation.pickupLocation,
+                        timezone: tz,
+                      })}
+                    />
+                  )}
+                  {reservation.status === "active" && (
+                    <WhatsAppButton
+                      phone={reservation.customer.phone}
+                      label="Return reminder"
+                      size="sm"
+                      message={buildReturnReminderMessage({
+                        customerName: reservation.customer.fullName,
+                        reference: reservation.reference,
+                        returnAtIso: reservation.returnAt,
+                        returnLocation: reservation.returnLocation,
+                        timezone: tz,
+                      })}
+                    />
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -243,6 +303,20 @@ export default async function ReservationDetailPage({
                 <span className="text-muted-foreground">Payment status</span>
                 <StatusBadge visual={paymentStatusConfig[reservation.payment.status]} />
               </div>
+              {canManage && reservation.payment.remainingMad > 0 && (
+                <div className="pt-1">
+                  <WhatsAppButton
+                    phone={reservation.customer.phone}
+                    label="Payment reminder"
+                    size="sm"
+                    message={buildPaymentReminderMessage({
+                      customerName: reservation.customer.fullName,
+                      reference: reservation.reference,
+                      remainingMad: reservation.payment.remainingMad,
+                    })}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 
