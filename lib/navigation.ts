@@ -19,6 +19,7 @@ import {
   Settings,
   MoreHorizontal,
   Home,
+  Upload,
   type LucideIcon,
 } from "lucide-react"
 
@@ -197,6 +198,13 @@ export const moreLinks: NavItem[] = [
     href: "/employees",
     icon: UserCog,
     description: "Invite a collaborator to help run the business",
+    roles: OWNER_AND_STAFF,
+  },
+  {
+    title: "Import data",
+    href: "/import",
+    icon: Upload,
+    description: "Bring vehicles and customers in from a spreadsheet",
     roles: OWNER_AND_STAFF,
   },
   {
