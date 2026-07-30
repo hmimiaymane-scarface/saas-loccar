@@ -75,6 +75,11 @@ function sessionFor(companyId: string): SessionContext {
       documentExpiryWarningDays: 30,
       agentsCanRecordExpenses: false,
       mutedNotificationTypes: [],
+      logoUrl: null,
+      email: null,
+      address: null,
+      defaultDepositMad: null,
+      overdueGracePeriodHours: 0,
     },
     role: "owner",
   }

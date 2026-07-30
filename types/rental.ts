@@ -213,6 +213,23 @@ export interface RentalCompany {
   documentExpiryWarningDays: number
   agentsCanRecordExpenses: boolean
   mutedNotificationTypes: string[]
+  /** Roadmap phase 47 — `logo_path`/`email`/`address` existed as
+   * dormant columns since this table's original migration; this is
+   * their first real reader. `logoUrl` is a resolved signed URL (or
+   * `null` if no logo is set), not the raw storage path — callers
+   * should never need to sign it themselves. */
+  logoUrl: string | null
+  email: string | null
+  address: string | null
+  /** Prefills a new reservation's expected-deposit amount
+   * (`components/domain/reservations/deposit-panel.tsx`) — `null`
+   * means no default is set, same as before this phase (a fully
+   * manual per-reservation entry). */
+  defaultDepositMad: number | null
+  /** Hours past `return_at` before a rental counts as overdue —
+   * `0` (the default) matches this app's behavior before this phase
+   * (a strict deadline, no grace period). */
+  overdueGracePeriodHours: number
 }
 
 export interface Employee {

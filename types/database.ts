@@ -60,6 +60,8 @@ export type Database = {
           document_expiry_warning_days: number
           agents_can_record_expenses: boolean
           muted_notification_types: string[]
+          default_deposit_mad: number | null
+          overdue_grace_period_hours: number
 
           created_at: Timestamp
           updated_at: Timestamp
@@ -84,6 +86,8 @@ export type Database = {
           document_expiry_warning_days?: number
           agents_can_record_expenses?: boolean
           muted_notification_types?: string[]
+          default_deposit_mad?: number | null
+          overdue_grace_period_hours?: number
         }
         Update: Partial<Database["public"]["Tables"]["companies"]["Insert"]>
         Relationships: []

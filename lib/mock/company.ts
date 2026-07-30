@@ -13,6 +13,11 @@ export const currentCompany: RentalCompany = {
   documentExpiryWarningDays: 30,
   agentsCanRecordExpenses: false,
   mutedNotificationTypes: [],
+  logoUrl: null,
+  email: "contact@atlasrentcar.ma",
+  address: null,
+  defaultDepositMad: 3000,
+  overdueGracePeriodHours: 0,
 }
 
 export const currentEmployee: Employee = {

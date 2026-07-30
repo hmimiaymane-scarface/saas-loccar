@@ -2,6 +2,7 @@ import { cache } from "react"
 
 import { isSupabaseConfigured } from "@/lib/env"
 import { createClient } from "@/lib/supabase/server"
+import { STORAGE_BUCKET } from "@/lib/storage"
 import { currentCompany, currentEmployee } from "@/lib/mock/company"
 import type { RentalCompany, Employee, EmployeeRole } from "@/types/rental"
 
@@ -85,6 +86,17 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
 
   if (!company) return null
 
+  // Roadmap phase 47 — `logo_path` is a storage path, not a directly
+  // renderable URL; resolved here (once per request, cached alongside
+  // everything else this function returns) so no caller has to sign it
+  // itself. Only attempted when a logo is actually set — the common
+  // case (no logo yet) costs nothing extra.
+  let logoUrl: string | null = null
+  if (company.logo_path) {
+    const { data } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(company.logo_path, 3600)
+    logoUrl = data?.signedUrl ?? null
+  }
+
   return {
     userId: user.id,
     email: user.email ?? null,
@@ -107,6 +119,11 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
       documentExpiryWarningDays: company.document_expiry_warning_days,
       agentsCanRecordExpenses: company.agents_can_record_expenses,
       mutedNotificationTypes: company.muted_notification_types ?? [],
+      logoUrl,
+      email: company.email,
+      address: company.address,
+      defaultDepositMad: company.default_deposit_mad,
+      overdueGracePeriodHours: company.overdue_grace_period_hours,
     },
     role: membership.role as EmployeeRole,
   }
