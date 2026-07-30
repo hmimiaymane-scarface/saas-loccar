@@ -157,6 +157,19 @@ export const ACTIVITY_TYPES = [
   // 20260807090200_fix_activity_log_permission_override_types.sql.
   "permission_override_granted",
   "permission_override_revoked",
+  // Roadmap phase 46 — "what have we already done with this customer?"
+  // Logged the moment staff clicks a wa.me/tel: button (the only
+  // observable moment — this app has no visibility into whether a
+  // WhatsApp message was actually pressed Send on inside WhatsApp
+  // itself, or whether a dialed call was answered). "Sent"/"logged"
+  // reflects the staff action taken, not confirmed delivery — see
+  // docs/customer-communication-timeline.md for the honest framing.
+  "whatsapp_confirmation_sent",
+  "whatsapp_pickup_reminder_sent",
+  "whatsapp_return_reminder_sent",
+  "whatsapp_payment_reminder_sent",
+  "whatsapp_contract_sent",
+  "call_logged",
 ] as const
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number]

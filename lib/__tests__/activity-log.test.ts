@@ -37,14 +37,16 @@ describe("ACTIVITY_TYPES / ENTITY_TYPES", () => {
   // originally supabase/migrations/20260723090000_event_backbone.sql,
   // extended by 20260731090000_contract_lifecycle.sql (roadmap phase
   // 11), 20260806090000_phase19_document_access_logging.sql (roadmap
-  // phase 19), and 20260807090200_fix_activity_log_permission_override_types.sql
+  // phase 19), 20260807090200_fix_activity_log_permission_override_types.sql
   // (productization wave 1 phase 7 — phase 17's grant/revoke_permission_override
   // RPCs had inserted these two types since they were written, but
   // neither this array nor any constraint version ever included them
-  // until a real call against the live project surfaced the failure).
+  // until a real call against the live project surfaced the failure),
+  // and 20260811090000_phase46_communication_log_types.sql (roadmap
+  // phase 46 — the WhatsApp/call communication-log event types).
   // If either side changes without the other, this is what catches the
   // drift instead of it surfacing as a runtime insert failure.
-  it("matches the type check constraint (event backbone + phase 11's contract lifecycle extension + phase 19's document access logging + phase 7's permission-override fix)", () => {
+  it("matches the type check constraint (event backbone + phase 11's contract lifecycle extension + phase 19's document access logging + phase 7's permission-override fix + phase 46's communication log)", () => {
     expect(ACTIVITY_TYPES).toEqual([
       "reservation_requested",
       "reservation_confirmed",
@@ -97,6 +99,12 @@ describe("ACTIVITY_TYPES / ENTITY_TYPES", () => {
       "document_downloaded",
       "permission_override_granted",
       "permission_override_revoked",
+      "whatsapp_confirmation_sent",
+      "whatsapp_pickup_reminder_sent",
+      "whatsapp_return_reminder_sent",
+      "whatsapp_payment_reminder_sent",
+      "whatsapp_contract_sent",
+      "call_logged",
     ])
   })
 

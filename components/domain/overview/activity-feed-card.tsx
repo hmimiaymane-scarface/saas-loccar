@@ -34,6 +34,8 @@ import {
   Printer,
   Download,
   FilePlus,
+  MessageCircle,
+  Phone,
   type LucideIcon,
 } from "lucide-react"
 
@@ -97,6 +99,13 @@ const activityIcon: Record<ActivityType, LucideIcon> = {
   document_downloaded: Download,
   permission_override_granted: ShieldCheck,
   permission_override_revoked: ShieldAlert,
+  // Roadmap phase 46 — customer communication log.
+  whatsapp_confirmation_sent: MessageCircle,
+  whatsapp_pickup_reminder_sent: MessageCircle,
+  whatsapp_return_reminder_sent: MessageCircle,
+  whatsapp_payment_reminder_sent: MessageCircle,
+  whatsapp_contract_sent: MessageCircle,
+  call_logged: Phone,
 }
 
 function ActivityFeedCard({ items }: { items: ActivityItem[] }) {
