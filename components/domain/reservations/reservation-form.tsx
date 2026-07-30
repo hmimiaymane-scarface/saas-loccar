@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { Loader2, Search, UserRound, AlertTriangle, CheckCircle2, Sparkles } from "lucide-react"
+import { Loader2, UserRound, AlertTriangle, CheckCircle2, Sparkles } from "lucide-react"
 
 import type { Branch, Customer, ReservationSource, Vehicle, VehicleCategory, BookingStatus } from "@/types/rental"
 import type { VehicleSelectionOption } from "@/lib/data"
@@ -23,6 +23,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { SummaryRow } from "@/components/domain/summary-row"
+import { CustomerSearchCombobox } from "@/components/domain/reservations/customer-search-combobox"
 import { SubmitButton } from "@/components/ui/submit-button"
 import { useSlowPending } from "@/hooks/use-slow-pending"
 
@@ -347,49 +348,14 @@ function ReservationForm({
             </div>
 
             {customerMode === "search" ? (
-              selectedCustomer ? (
-                <div className="flex items-center justify-between rounded-2xl border border-border px-3 py-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex size-8 items-center justify-center rounded-full bg-muted">
-                      <UserRound className="size-4 text-muted-foreground" />
-                    </div>
-                    <div className="flex flex-col">
-                      <p className="text-sm font-medium text-foreground">{selectedCustomer.fullName}</p>
-                      <p className="text-xs text-muted-foreground">{selectedCustomer.phone}</p>
-                    </div>
-                  </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedCustomer(null)}>
-                    Change
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={customerQuery}
-                      onChange={(e) => setCustomerQuery(e.target.value)}
-                      placeholder="Search by name or phone…"
-                      className="pl-9"
-                    />
-                  </div>
-                  {customerResults.length > 0 && (
-                    <div className="flex flex-col overflow-hidden rounded-2xl border border-border">
-                      {customerResults.map((c) => (
-                        <button
-                          type="button"
-                          key={c.id}
-                          onClick={() => setSelectedCustomer(c)}
-                          className="flex flex-col items-start gap-0.5 border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-muted"
-                        >
-                          <span className="text-sm font-medium text-foreground">{c.fullName}</span>
-                          <span className="text-xs text-muted-foreground">{c.phone}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
+              <CustomerSearchCombobox
+                selectedCustomer={selectedCustomer}
+                onSelect={setSelectedCustomer}
+                onClear={() => setSelectedCustomer(null)}
+                query={customerQuery}
+                onQueryChange={setCustomerQuery}
+                results={customerResults}
+              />
             ) : (
               <div className="flex flex-col gap-3">
                 <div className="grid gap-4 sm:grid-cols-2">
