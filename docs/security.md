@@ -183,6 +183,7 @@ this file only covers what's unchanged since before that phase:
 | `contract_templates`, `contract_template_versions`, `contracts`, `contract_signatures`, `contract_amendments` | members | see `docs/contract-lifecycle.md` (phase 10-11 — role gates on template/contract mutation, immutable-by-construction versioning) | owner/manager where applicable |
 | `operations_feed_items` | members | server-side only (the cron-driven observer job, phase 12 — see `lib/supabase/admin.ts`) | — |
 | `webauthn_credentials` | own rows only (no company-wide visibility for a personal biometric credential, phase 16) | own rows only, via the WebAuthn routes | own rows only |
+| `import_batches` | owner/manager (phase 48 — deliberately tighter than either entity's own single-record create role) | owner/manager | — (a batch row itself is never deleted, only updated with `undone_at`; the vehicles/customers it created are deleted directly, per-row, by `undoImportBatch`) |
 
 All ten of the above (phases 03-16) were confirmed to have RLS enabled during this phase 19 hardening pass — none had ever been added to this table before, purely a documentation lag, not an isolation gap.
 
