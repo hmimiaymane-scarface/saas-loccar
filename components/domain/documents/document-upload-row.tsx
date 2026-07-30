@@ -97,15 +97,35 @@ function DocumentUploadRow({
       setBusy(false)
       return
     }
-    const result = await createDocumentRecord({
-      category: slot.category,
-      storagePath: path,
-      originalFilename: file.name,
-      mimeType: file.type,
-      fileSizeBytes: file.size,
-      reservationId,
-      customerId,
-    })
+    let result: { error?: string; documentId?: string }
+    try {
+      result = await createDocumentRecord({
+        category: slot.category,
+        storagePath: path,
+        originalFilename: file.name,
+        mimeType: file.type,
+        fileSizeBytes: file.size,
+        reservationId,
+        customerId,
+      })
+    } catch {
+      // The file already uploaded to Storage successfully — only this
+      // metadata call failed mid-flight (looked online, wasn't really).
+      // Fall back to the same offline-queue path a genuinely offline
+      // device already uses, rather than losing the record silently.
+      setBusy(false)
+      if (onQueueOffline) {
+        const queued = await onQueueOffline(file)
+        if ("error" in queued) {
+          setError(queued.error)
+          return
+        }
+        onUploaded(placeholderDocument(`queued:${queued.mutationId}`, file))
+        return
+      }
+      setError("That upload failed to save — check your connection and try again.")
+      return
+    }
     setBusy(false)
     if (result.error) {
       setError(result.error)

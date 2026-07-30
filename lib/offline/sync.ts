@@ -72,7 +72,29 @@ async function runMutation(companyId: string, mutation: QueuedMutation): Promise
     }
 
     case "attachInspectionMedia": {
-      const { inspectionId, caption } = mutation.payload as { inspectionId: string; caption?: string }
+      const { inspectionId, caption, storagePath, fileName, mimeType, fileSizeBytes } = mutation.payload as {
+        inspectionId: string
+        caption?: string
+        /** Set only by the network-failure fallback in
+         * return-wizard.tsx/pickup-wizard.tsx's PhotoUploadGrid `onUpload` —
+         * that path only runs once the file already uploaded to Storage
+         * successfully (only the metadata call itself failed), so the
+         * bytes are already there and this skips resolveStoragePath's
+         * re-upload rather than duplicating it. Absent for a mutation
+         * queued because the device was offline from the start (that
+         * case has no path yet, only a blob to upload once online). */
+        storagePath?: string
+        fileName?: string
+        mimeType?: string
+        fileSizeBytes?: number
+      }
+
+      if (storagePath) {
+        const result = await attachInspectionMedia(inspectionId, storagePath, fileName ?? "photo.jpg", mimeType ?? "image/jpeg", fileSizeBytes ?? 0, caption, mutation.id)
+        if (result.error) return { ok: false, retry: false, message: result.error }
+        return { ok: true }
+      }
+
       const resolved = await resolveStoragePath(companyId, mutation, ["media", "inspections", inspectionId])
       if (!resolved) return { ok: false, retry: false, message: "The photo for this upload is no longer available on this device." }
       if (resolved.error) return { ok: false, retry: true, message: resolved.error }

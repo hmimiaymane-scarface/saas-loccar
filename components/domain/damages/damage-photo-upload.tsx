@@ -42,7 +42,19 @@ function DamagePhotoUpload({
       setBusy(false)
       return
     }
-    const result = await attachDamageMedia(damageId, path, compressed.name, compressed.type, compressed.size)
+    let result: { error?: string; mediaId?: string }
+    try {
+      result = await attachDamageMedia(damageId, path, compressed.name, compressed.type, compressed.size)
+    } catch {
+      // Damages were never part of phase 16's offline-queue scope, so
+      // there's no mutation type to fall back to here — but the photo
+      // already uploaded to Storage successfully, only this metadata
+      // call failed mid-flight. Surface a clear retryable error instead
+      // of an unhandled rejection silently losing it.
+      setBusy(false)
+      setError("That photo uploaded, but saving it failed — check your connection and try again.")
+      return
+    }
     setBusy(false)
     if (result.error) {
       setError(result.error)

@@ -364,14 +364,27 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       existingDamageReviewed,
     }
 
-    if (!isOnline) {
+    async function queueFields() {
       const mutationId = await enqueue("saveInspectionFields", { inspectionId, fields })
       queuedMutationIds.current.push(mutationId)
       setStep(4)
+    }
+
+    if (!isOnline) {
+      await queueFields()
       return
     }
 
-    const result = await saveInspectionFields(inspectionId, fields)
+    let result: { error?: string }
+    try {
+      result = await saveInspectionFields(inspectionId, fields)
+    } catch {
+      // navigator.onLine said we were online but the request itself
+      // failed mid-flight — same queue path the offline branch already
+      // uses, rather than losing the entered fields silently.
+      await queueFields()
+      return
+    }
     if (result.error) {
       setStepError(result.error)
       return
@@ -403,7 +416,7 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       return
     }
 
-    if (!isOnline) {
+    async function queueCompletion() {
       const mutationId = await enqueue(
         "completeInspection",
         { inspectionId, reservationId: reservation.id },
@@ -413,10 +426,22 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       setStepError(
         "You're offline — the inspection is saved on this device and will finish completing once you're back online. Activating the rental needs a connection."
       )
+    }
+
+    if (!isOnline) {
+      await queueCompletion()
       return
     }
 
-    const completeResult = await completeInspectionAction(inspectionId, reservation.id)
+    let completeResult: { error?: string }
+    try {
+      completeResult = await completeInspectionAction(inspectionId, reservation.id)
+    } catch {
+      // Same "looked online, request failed" case as saveInspectionStep
+      // — queue it instead of silently losing a completed inspection.
+      await queueCompletion()
+      return
+    }
     if (completeResult.error && !reason) {
       // Missing fields — send them back rather than offering an override
       // for something that isn't a policy exception.
@@ -424,7 +449,18 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       return
     }
 
-    const activateResult = await activateRentalAction(reservation.id, reason)
+    let activateResult: { error?: string }
+    try {
+      activateResult = await activateRentalAction(reservation.id, reason)
+    } catch {
+      // activateRentalAction has no offline-queue mutation type — out
+      // of phase 16's field-capture scope (vehicle/rental status, not
+      // inspection data). The inspection above is already safely
+      // completed server-side; surface a clear retryable error instead
+      // of an unhandled rejection.
+      setStepError("The inspection completed, but activating the rental failed — check your connection and try again.")
+      return
+    }
     if (activateResult.error) {
       if (canOverride && !showOverride) {
         setShowOverride(true)
@@ -770,9 +806,28 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
                   pathSegments={["media", "inspections", inspectionId]}
                   uploaded={photos}
                   onUpload={async (slotKey, file, path) => {
-                    const result = await attachInspectionMedia(inspectionId, path, file.name, file.type, file.size, slotKey)
-                    if (!result.error) setPhotos((prev) => [...prev, { key: slotKey }])
-                    return result
+                    try {
+                      const result = await attachInspectionMedia(inspectionId, path, file.name, file.type, file.size, slotKey)
+                      if (!result.error) setPhotos((prev) => [...prev, { key: slotKey }])
+                      return result
+                    } catch {
+                      // The photo already uploaded to Storage successfully
+                      // (PhotoUploadGrid only calls onUpload after that) —
+                      // only this metadata call failed mid-flight. Queue
+                      // recording it against the already-uploaded path
+                      // instead of losing the metadata or re-uploading.
+                      const mutationId = await enqueue("attachInspectionMedia", {
+                        inspectionId,
+                        caption: slotKey,
+                        storagePath: path,
+                        fileName: file.name,
+                        mimeType: file.type,
+                        fileSizeBytes: file.size,
+                      })
+                      queuedMutationIds.current.push(mutationId)
+                      setPhotos((prev) => [...prev, { key: slotKey }])
+                      return {}
+                    }
                   }}
                   onQueueOffline={async (slotKey, file) => {
                     const mutationId = await enqueue(
@@ -800,9 +855,23 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
                   pathSegments={["media", "inspections", inspectionId]}
                   count={additionalPhotoCount}
                   onUpload={async (file, path) => {
-                    const result = await attachInspectionMedia(inspectionId, path, file.name, file.type, file.size, "additional")
-                    if (!result.error) setAdditionalPhotoCount((n) => n + 1)
-                    return result
+                    try {
+                      const result = await attachInspectionMedia(inspectionId, path, file.name, file.type, file.size, "additional")
+                      if (!result.error) setAdditionalPhotoCount((n) => n + 1)
+                      return result
+                    } catch {
+                      const mutationId = await enqueue("attachInspectionMedia", {
+                        inspectionId,
+                        caption: "additional",
+                        storagePath: path,
+                        fileName: file.name,
+                        mimeType: file.type,
+                        fileSizeBytes: file.size,
+                      })
+                      queuedMutationIds.current.push(mutationId)
+                      setAdditionalPhotoCount((n) => n + 1)
+                      return {}
+                    }
                   }}
                   onQueueOffline={async (file) => {
                     const mutationId = await enqueue(
