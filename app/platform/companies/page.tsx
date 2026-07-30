@@ -8,7 +8,7 @@ import type { SubscriptionStatus } from "@/types/platform"
 import { CompanyFilters } from "@/components/domain/platform/company-filters"
 import { PaginationBar } from "@/components/domain/pagination-bar"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/domain/status-badge"
 
 export default async function PlatformCompaniesPage({
   searchParams,
@@ -73,11 +73,7 @@ export default async function PlatformCompaniesPage({
                       {c.subscriptionStatus === "trial" ? "Trial ends" : "Renews"} {formatDate(c.trialOrRenewalDate)}
                     </span>
                   )}
-                  {c.subscriptionStatus && (
-                    <Badge variant="outline" className={subscriptionStatusConfig[c.subscriptionStatus].badge}>
-                      {subscriptionStatusConfig[c.subscriptionStatus].label}
-                    </Badge>
-                  )}
+                  {c.subscriptionStatus && <StatusBadge visual={subscriptionStatusConfig[c.subscriptionStatus]} />}
                 </div>
               </Link>
             ))

@@ -5,20 +5,18 @@ import { Loader2 } from "lucide-react"
 
 import { setCustomerStatus } from "@/app/(dashboard)/customers/actions"
 import { SensitiveActionConfirmDialog } from "@/components/domain/shared/sensitive-action-confirm-dialog"
+import { customerStatusConfig } from "@/lib/status"
 import { cn } from "@/lib/utils"
+import type { CustomerStatus } from "@/types/rental"
 
-const STATUS_OPTIONS: { value: "active" | "flagged" | "blocked"; label: string; tone: string }[] = [
-  { value: "active", label: "Active", tone: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" },
-  { value: "flagged", label: "Flagged", tone: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400" },
-  { value: "blocked", label: "Blocked", tone: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400" },
-]
+const STATUS_VALUES = Object.keys(customerStatusConfig) as CustomerStatus[]
 
-function CustomerStatusControl({ customerId, status }: { customerId: string; status: "active" | "flagged" | "blocked" }) {
+function CustomerStatusControl({ customerId, status }: { customerId: string; status: CustomerStatus }) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [pendingValue, setPendingValue] = useState<string | null>(null)
 
-  function apply(value: "active" | "flagged" | "blocked", reason?: string) {
+  function apply(value: CustomerStatus, reason?: string) {
     setError(null)
     setPendingValue(value)
     startTransition(async () => {
@@ -31,28 +29,29 @@ function CustomerStatusControl({ customerId, status }: { customerId: string; sta
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex flex-wrap gap-1.5">
-        {STATUS_OPTIONS.map((o) => {
+        {STATUS_VALUES.map((value) => {
+          const visual = customerStatusConfig[value]
           const button = (
             <button
-              key={o.value}
+              key={value}
               type="button"
-              disabled={isPending || o.value === status}
-              onClick={o.value === "blocked" ? undefined : () => apply(o.value)}
+              disabled={isPending || value === status}
+              onClick={value === "blocked" ? undefined : () => apply(value)}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-default",
-                o.value === status ? o.tone : "bg-muted text-muted-foreground hover:bg-muted/70"
+                value === status ? visual.badge : "bg-muted text-muted-foreground hover:bg-muted/70"
               )}
             >
-              {isPending && pendingValue === o.value && <Loader2 className="size-3 animate-spin" />}
-              {o.label}
+              {isPending && pendingValue === value && <Loader2 className="size-3 animate-spin" />}
+              {visual.label}
             </button>
           )
 
-          if (o.value !== "blocked") return button
+          if (value !== "blocked") return button
 
           return (
             <SensitiveActionConfirmDialog
-              key={o.value}
+              key={value}
               trigger={button}
               title="Block this customer?"
               description="They'll be flagged as blocked wherever this record is shown. A reason is required and recorded on their history."

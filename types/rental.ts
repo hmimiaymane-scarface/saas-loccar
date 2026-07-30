@@ -704,6 +704,8 @@ export interface PaymentTransaction {
 // Customer detail
 // ---------------------------------------------------------------------
 
+export type CustomerStatus = "active" | "flagged" | "blocked"
+
 export interface CustomerDetail extends Customer {
   /** ISO timestamp — `customers.created_at`. Roadmap phase 09's "how
    * long they've been a customer" tenure figure on the Customer
@@ -713,7 +715,7 @@ export interface CustomerDetail extends Customer {
   idDocumentNumber: string | null
   address: string | null
   notes: string | null
-  status: "active" | "flagged" | "blocked"
+  status: CustomerStatus
   /** ISO date (YYYY-MM-DD) — a duplicate-matching factor (roadmap
    * phase 08) and a marketing-segmentation input (birthday campaigns).
    * Null until some flow captures it; no current form requires it. */

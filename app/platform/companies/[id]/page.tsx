@@ -11,7 +11,7 @@ import { SubscriptionActions } from "@/components/domain/platform/subscription-a
 import { NotesEditor } from "@/components/domain/platform/notes-editor"
 import { MigrationChecklistPanel } from "@/components/domain/platform/migration-checklist"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/domain/status-badge"
 
 export default async function PlatformCompanySummaryPage({
   params,
@@ -45,9 +45,7 @@ export default async function PlatformCompanySummaryPage({
             {summary.city ?? "—"} · Created {formatDate(summary.createdAt)}
           </p>
         </div>
-        <Badge variant="outline" className={statusVisual.badge}>
-          {statusVisual.label}
-        </Badge>
+        <StatusBadge visual={statusVisual} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

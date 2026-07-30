@@ -5,7 +5,7 @@ import { getPlatformOverview, getPlatformCompaniesList } from "@/lib/platform-da
 import { subscriptionStatusConfig } from "@/lib/platform-status"
 import { formatRelativeTime } from "@/lib/format"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/domain/status-badge"
 
 function StatCard({
   icon: Icon,
@@ -99,11 +99,7 @@ export default async function PlatformOverviewPage() {
                     {c.city ?? "—"} · {c.lastActivityAt ? formatRelativeTime(c.lastActivityAt) : "no activity yet"}
                   </span>
                 </div>
-                {c.subscriptionStatus && (
-                  <Badge variant="outline" className={subscriptionStatusConfig[c.subscriptionStatus].badge}>
-                    {subscriptionStatusConfig[c.subscriptionStatus].label}
-                  </Badge>
-                )}
+                {c.subscriptionStatus && <StatusBadge visual={subscriptionStatusConfig[c.subscriptionStatus]} />}
               </Link>
             ))
           )}

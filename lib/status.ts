@@ -23,6 +23,7 @@ import type {
   MaintenanceRecordStatus,
   MaintenancePriority,
   AlertUrgency,
+  CustomerStatus,
 } from "@/types/rental"
 import { contractStatusLabel, type ContractStatus } from "@/lib/contracts/lifecycle"
 
@@ -454,6 +455,33 @@ export const contractStatusConfig: Record<ContractStatus, StatusVisual> = {
   },
   cancelled: {
     label: contractStatusLabel("cancelled"),
+    icon: Ban,
+    dot: "bg-red-500",
+    badge: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+  },
+}
+
+// Roadmap phase 51 (UI Consistency Audit) — moved from a private
+// STATUS_OPTIONS color map in
+// components/domain/customers/customer-status-control.tsx, the one
+// status enum in the app that had never been added here despite this
+// file's own established rule (see contractStatusConfig's own
+// changelog above for the same fix applied to contracts).
+export const customerStatusConfig: Record<CustomerStatus, StatusVisual> = {
+  active: {
+    label: "Active",
+    icon: CheckCircle2,
+    dot: "bg-emerald-500",
+    badge: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+  },
+  flagged: {
+    label: "Flagged",
+    icon: Flag,
+    dot: "bg-amber-500",
+    badge: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  },
+  blocked: {
+    label: "Blocked",
     icon: Ban,
     dot: "bg-red-500",
     badge: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400",
