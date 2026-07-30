@@ -32,7 +32,9 @@ import { buildStoragePath } from "@/lib/storage"
 import { uploadFile } from "@/lib/storage-client"
 import { resolveInitialStep } from "@/lib/workflow/steps"
 import { PHOTO_SLOTS } from "@/lib/inspections/photo-slots"
+import { readDraft, clearDraft } from "@/lib/draft-storage"
 import { useStepFocus } from "@/hooks/use-step-focus"
+import { useSaveDraft } from "@/hooks/use-save-draft"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -51,6 +53,19 @@ import { ChecklistSection } from "@/components/domain/inspections/checklist-sect
 import { PhotoUploadGrid, type UploadedPhoto } from "@/components/domain/photo-upload-grid"
 
 const STEPS = [{ label: "Customer" }, { label: "Vehicle & price" }, { label: "Payment" }, { label: "Inspection" }, { label: "Contract" }]
+
+// Roadmap phase 43 — see the draft-persistence comment at this
+// component's Step 0 state for the reasoning.
+const NEW_CUSTOMER_DRAFT_KEY = "new-rental-wizard:new-customer-draft"
+interface NewCustomerDraft {
+  quickName: string
+  quickPhone: string
+  idDocumentNumber: string
+  dateOfBirth: string
+  nationality: string
+  licenseNumber: string
+  licenseExpiresOn: string
+}
 
 const FUEL_OPTIONS: { value: FuelLevel; label: string }[] = [
   { value: "empty", label: "Empty" },
@@ -219,17 +234,28 @@ function NewRentalWizard({
   const [customerResults, setCustomerResults] = useState<Customer[]>([])
   const [, startCustomerSearch] = useTransition()
 
-  const [quickName, setQuickName] = useState("")
-  const [quickPhone, setQuickPhone] = useState("")
+  // Roadmap phase 43 — "no data loss": this step has no server-side
+  // draft the way pickup/return wizard steps do (nothing exists yet
+  // until "Create customer" actually succeeds), so an accidental
+  // refresh/tab-close mid-typing previously discarded everything
+  // silently. Restored once at mount and seeded into each field's own
+  // `useState` below; File objects (idScanFile/licenceScanFile) and
+  // their OCR results are deliberately NOT part of the draft — a File
+  // can't survive JSON, and re-showing extracted fields without the
+  // underlying photo would misrepresent what was actually scanned.
+  const [restoredCustomerDraft] = useState(() => readDraft<NewCustomerDraft>(NEW_CUSTOMER_DRAFT_KEY))
+
+  const [quickName, setQuickName] = useState(restoredCustomerDraft?.quickName ?? "")
+  const [quickPhone, setQuickPhone] = useState(restoredCustomerDraft?.quickPhone ?? "")
   const [duplicateCustomer, setDuplicateCustomer] = useState<Customer | null>(null)
   const [, startDuplicateCheck] = useTransition()
 
   const [idFields, setIdFields] = useState<ExtractedFields | null>(null)
   const [idScanFile, setIdScanFile] = useState<File | null>(null)
   const [idScanNotice, setIdScanNotice] = useState<string | null>(null)
-  const [idDocumentNumber, setIdDocumentNumber] = useState("")
-  const [dateOfBirth, setDateOfBirth] = useState("")
-  const [nationality, setNationality] = useState("")
+  const [idDocumentNumber, setIdDocumentNumber] = useState(restoredCustomerDraft?.idDocumentNumber ?? "")
+  const [dateOfBirth, setDateOfBirth] = useState(restoredCustomerDraft?.dateOfBirth ?? "")
+  const [nationality, setNationality] = useState(restoredCustomerDraft?.nationality ?? "")
 
   // Phase 22 — "original image remains easy to inspect": derived from
   // the already-captured file via useMemo (React's own "you might not
@@ -241,10 +267,19 @@ function NewRentalWizard({
   const [licenceFields, setLicenceFields] = useState<ExtractedFields | null>(null)
   const [licenceScanFile, setLicenceScanFile] = useState<File | null>(null)
   const [licenceScanNotice, setLicenceScanNotice] = useState<string | null>(null)
-  const [licenseNumber, setLicenseNumber] = useState("")
-  const [licenseExpiresOn, setLicenseExpiresOn] = useState("")
+  const [licenseNumber, setLicenseNumber] = useState(restoredCustomerDraft?.licenseNumber ?? "")
+  const [licenseExpiresOn, setLicenseExpiresOn] = useState(restoredCustomerDraft?.licenseExpiresOn ?? "")
   const licencePreviewUrl = useMemo(() => (licenceScanFile ? URL.createObjectURL(licenceScanFile) : null), [licenceScanFile])
   useEffect(() => () => { if (licencePreviewUrl) URL.revokeObjectURL(licencePreviewUrl) }, [licencePreviewUrl])
+
+  // Only save while there's actually a draft worth keeping — not once
+  // a customer is already selected/created, and not while browsing the
+  // "existing customer" search tab where these fields are irrelevant.
+  useSaveDraft(
+    NEW_CUSTOMER_DRAFT_KEY,
+    { quickName, quickPhone, idDocumentNumber, dateOfBirth, nationality, licenseNumber, licenseExpiresOn } satisfies NewCustomerDraft,
+    customerMode === "new" && !selectedCustomer
+  )
 
   // Phase 22 — "never silently overwrite corrected user data": a field
   // the user has actually typed into is protected from being clobbered
@@ -383,6 +418,7 @@ function NewRentalWizard({
         // createDocumentRecord itself re-derives/validates the real
         // company server-side — a placeholder segment is safe.
         await attachScannedDocuments(result.customerId, "customer-onboarding")
+        clearDraft(NEW_CUSTOMER_DRAFT_KEY)
         setSelectedCustomer({ id: result.customerId, fullName: quickName, phone: quickPhone, licenseNumber: licenseNumber || "", licenseExpiresAt: licenseExpiresOn || "", totalBookings: 0 })
         setStep(1)
       }
@@ -396,6 +432,7 @@ function NewRentalWizard({
   // user click a separate Continue after already having chosen who
   // the rental is for.
   function selectCustomerAndAdvance(customer: Customer) {
+    clearDraft(NEW_CUSTOMER_DRAFT_KEY)
     setSelectedCustomer(customer)
     setStep(1)
   }
