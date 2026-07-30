@@ -2,12 +2,14 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 
-import { getPlatformCompanySummary, getPlatformCompanyEvents } from "@/lib/platform-data"
+import { getPlatformCompanySummary, getPlatformCompanyEvents, getMigrationChecklist } from "@/lib/platform-data"
 import { subscriptionStatusConfig, PLATFORM_ACTION_LABELS } from "@/lib/platform-status"
+import { migrationChecklistProgress } from "@/lib/platform/migration-checklist"
 import { formatDate, formatMad, formatRelativeTime } from "@/lib/format"
 import { SummaryRow } from "@/components/domain/summary-row"
 import { SubscriptionActions } from "@/components/domain/platform/subscription-actions"
 import { NotesEditor } from "@/components/domain/platform/notes-editor"
+import { MigrationChecklistPanel } from "@/components/domain/platform/migration-checklist"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
@@ -21,7 +23,13 @@ export default async function PlatformCompanySummaryPage({
   if (!summary) notFound()
 
   const events = await getPlatformCompanyEvents(id)
+  const checklist = await getMigrationChecklist(id)
   const statusVisual = subscriptionStatusConfig[summary.subscription.status]
+  const migrationProgress = migrationChecklistProgress(checklist)
+  const onboardingLabel =
+    migrationProgress.done === migrationProgress.total
+      ? "Complete"
+      : `${migrationProgress.done} of ${migrationProgress.total} steps`
 
   return (
     <>
@@ -51,7 +59,7 @@ export default async function PlatformCompanySummaryPage({
             <SummaryRow label="Owner" value={summary.ownerFullName ?? "—"} />
             <SummaryRow label="Owner email" value={summary.ownerEmail ?? "—"} />
             <SummaryRow label="Created" value={formatDate(summary.createdAt)} />
-            <SummaryRow label="Onboarding" value="Completed" />
+            <SummaryRow label="Onboarding" value={onboardingLabel} />
             <SummaryRow label="Users" value={String(summary.userCount)} />
             <SummaryRow label="Branches" value={String(summary.branchCount)} />
           </CardContent>
@@ -109,6 +117,8 @@ export default async function PlatformCompanySummaryPage({
           </Card>
 
           <SubscriptionActions companyId={id} subscription={summary.subscription} />
+
+          <MigrationChecklistPanel companyId={id} items={checklist} />
         </div>
 
         <div className="flex flex-col gap-6">
