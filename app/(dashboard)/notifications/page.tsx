@@ -4,6 +4,7 @@ import { getSessionContext } from "@/lib/auth/session"
 import { getNotificationFeed } from "@/lib/data"
 import { SectionHeader } from "@/components/domain/section-header"
 import { NotificationList } from "@/components/domain/notifications/notification-list"
+import { RunRemindersButton } from "@/components/domain/notifications/run-reminders-button"
 
 export default async function NotificationsPage() {
   const session = await getSessionContext()
@@ -15,9 +16,15 @@ export default async function NotificationsPage() {
     mutedTypes: session.company.mutedNotificationTypes,
   })
 
+  const canRunRemindersNow = session.role === "owner" || session.role === "manager"
+
   return (
     <>
-      <SectionHeader title="Notifications" description="Updates that need your attention" />
+      <SectionHeader
+        title="Notifications"
+        description="Updates that need your attention"
+        actions={canRunRemindersNow ? <RunRemindersButton /> : undefined}
+      />
       <NotificationList initialItems={feed.items} />
     </>
   )

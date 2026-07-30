@@ -2,9 +2,13 @@
 
 import { revalidatePath } from "next/cache"
 
-import { requireSession, ActionError, friendlyDbError } from "@/lib/auth/guard"
+import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib/auth/guard"
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
+import { runNotificationRemindersForCompany, type ReminderRunSummary } from "@/lib/notifications/reminders"
 import type { NotificationType } from "@/types/rental"
+
+const RUN_REMINDERS_NOW_ROLES = ["owner", "manager"] as const
 
 export interface DismissLiveAlertInput {
   key: string
@@ -107,5 +111,27 @@ export async function markAllNotificationsRead(liveAlerts: DismissLiveAlertInput
   } catch (err) {
     if (err instanceof ActionError) return { error: err.message }
     throw err
+  }
+}
+
+/**
+ * Dev/manual trigger for the push reminder cron (roadmap phase 44) —
+ * same "test without deploying or waiting for the schedule" reasoning
+ * as `runObserversNowAction` (operations-feed/actions.ts). Uses the
+ * admin client since `push_notification_log` has no policy for
+ * ordinary authenticated users (only the service-role cron path and
+ * this action ever write to it) — access control here is `requireRole`,
+ * not RLS, same convention as the Operations Feed's own dev trigger.
+ */
+export async function runNotificationRemindersNowAction(): Promise<{ error?: string; summary?: ReminderRunSummary }> {
+  try {
+    const session = await requireSession()
+    requireRole(session, [...RUN_REMINDERS_NOW_ROLES])
+    const supabase = createAdminClient()
+    const summary = await runNotificationRemindersForCompany(supabase, session.company.id, session.company.timezone)
+    return { summary }
+  } catch (err) {
+    if (err instanceof ActionError) return { error: err.message }
+    return { error: err instanceof Error ? err.message : "The reminder run failed." }
   }
 }

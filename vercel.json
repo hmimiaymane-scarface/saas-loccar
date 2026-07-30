@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/operations-feed",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/notification-reminders",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
