@@ -30,12 +30,22 @@ import { WhatsAppButton } from "@/components/domain/whatsapp-button"
 interface ContractPdfActionsProps {
   contractId: string
   pdfUrl: string | null
+  customerId: string
   customerName: string
   customerPhone: string | null
+  reservationId: string
   reservationReference: string
 }
 
-function ContractPdfActions({ contractId, pdfUrl, customerName, customerPhone, reservationReference }: ContractPdfActionsProps) {
+function ContractPdfActions({
+  contractId,
+  pdfUrl,
+  customerId,
+  customerName,
+  customerPhone,
+  reservationId,
+  reservationReference,
+}: ContractPdfActionsProps) {
   const [, startTransition] = useTransition()
   const [canShare, setCanShare] = useState(false)
 
@@ -104,6 +114,13 @@ function ContractPdfActions({ contractId, pdfUrl, customerName, customerPhone, r
         phone={customerPhone}
         label="Send"
         message={buildContractMessage({ customerName, reference: reservationReference, pdfUrl })}
+        logEvent={{
+          type: "whatsapp_contract_sent",
+          customerId,
+          reservationId,
+          title: `Contract sent to ${customerName}`,
+          description: `Reservation ${reservationReference}`,
+        }}
       />
     </div>
   )

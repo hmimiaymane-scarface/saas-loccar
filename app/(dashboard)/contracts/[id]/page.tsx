@@ -60,8 +60,10 @@ export default async function ContractViewPage({ params }: { params: Promise<{ i
             <ContractPdfActions
               contractId={contract.id}
               pdfUrl={pdfUrl}
+              customerId={contract.customerId}
               customerName={contract.resolvedContext["customer.fullName"] ?? "there"}
               customerPhone={contract.resolvedContext["customer.phone"] ?? null}
+              reservationId={contract.reservationId}
               reservationReference={contract.resolvedContext["reservation.reference"] ?? ""}
             />
           </div>
