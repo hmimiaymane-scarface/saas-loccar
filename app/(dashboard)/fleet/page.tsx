@@ -47,6 +47,7 @@ export default async function FleetPage({
   ])
 
   const canAddVehicle = session.role === "owner" || session.role === "manager"
+  const hasActiveFilters = Boolean(params.search || params.status || params.category || params.branch)
   // Productization wave 2 phase 15 — scoped to just this page's
   // vehicles, not the whole fleet, so pagination stays cheap.
   const cardContext = await getFleetCardContext(companyId, result.items.map((v) => v.id))
@@ -74,11 +75,20 @@ export default async function FleetPage({
       <FleetFilters branches={branches} />
 
       {result.items.length === 0 ? (
-        <EmptyPlaceholder
-          icon={CarIcon}
-          title="No vehicles match your filters"
-          description="Try clearing filters, or add your first vehicle to get started."
-        />
+        hasActiveFilters ? (
+          <EmptyPlaceholder
+            icon={CarIcon}
+            title="No vehicles match your filters"
+            description="Try clearing filters, or add your first vehicle to get started."
+          />
+        ) : (
+          <EmptyPlaceholder
+            icon={CarIcon}
+            title="Add your first vehicle"
+            description="Your fleet page is where every rental starts — add a vehicle to begin taking reservations."
+            action={canAddVehicle ? { label: "Add vehicle", href: "/fleet/new" } : undefined}
+          />
+        )
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {result.items.map((vehicle) => (

@@ -28,6 +28,11 @@ export interface RevenueIntelligenceResult {
   direction: "up" | "down" | "flat"
   headline: string
   drivers: RevenueDriver[]
+  /** Roadmap phase 53 — `false` only when both periods are exactly
+   * zero (a brand-new company with no revenue history at all). Lets
+   * the card distinguish "genuinely flat" from "nothing to compare
+   * yet" instead of claiming stability it hasn't observed. */
+  hasData: boolean
 }
 
 /** Below this, a revenue move reads as "flat," not a real trend. */
@@ -43,6 +48,16 @@ function pctChange(current: number, prior: number): number {
 }
 
 export function computeRevenueIntelligence(current: RevenuePeriodFigures, prior: RevenuePeriodFigures): RevenueIntelligenceResult {
+  if (current.revenueMad === 0 && prior.revenueMad === 0) {
+    return {
+      changePercent: 0,
+      direction: "flat",
+      headline: "Not enough revenue history yet — this fills in after your first few rentals.",
+      drivers: [],
+      hasData: false,
+    }
+  }
+
   const changePercent = Math.round(pctChange(current.revenueMad, prior.revenueMad))
   const direction: RevenueIntelligenceResult["direction"] = changePercent > REVENUE_FLAT_THRESHOLD_PERCENT ? "up" : changePercent < -REVENUE_FLAT_THRESHOLD_PERCENT ? "down" : "flat"
 
@@ -71,7 +86,7 @@ export function computeRevenueIntelligence(current: RevenuePeriodFigures, prior:
         ? `Revenue ${magnitude}: ${drivers.map((d) => d.label.toLowerCase()).join(", ")}.`
         : `Revenue ${magnitude} — no single obvious driver in occupancy or rental length.`
 
-  return { changePercent, direction, headline, drivers }
+  return { changePercent, direction, headline, drivers, hasData: true }
 }
 
 /** Roadmap phase 33 ("Simplify Business Pulse") — the mobile home

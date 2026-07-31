@@ -50,6 +50,7 @@ export default async function ReservationsPage({
   ])
 
   const canCreate = session.role === "owner" || session.role === "manager" || session.role === "agent"
+  const hasActiveFilters = Boolean(params.search || params.status || params.from || params.to || params.branch)
 
   return (
     <>
@@ -74,11 +75,20 @@ export default async function ReservationsPage({
       <ReservationFilters branches={branches} />
 
       {result.items.length === 0 ? (
-        <EmptyPlaceholder
-          icon={ClipboardList}
-          title="No reservations match your filters"
-          description="Try clearing filters, or create your first reservation."
-        />
+        hasActiveFilters ? (
+          <EmptyPlaceholder
+            icon={ClipboardList}
+            title="No reservations match your filters"
+            description="Try clearing filters, or create your first reservation."
+          />
+        ) : (
+          <EmptyPlaceholder
+            icon={ClipboardList}
+            title="Create your first reservation"
+            description="Reservations are where customers and vehicles come together — start one to get your first rental moving."
+            action={canCreate ? { label: "New reservation", href: "/reservations/new" } : undefined}
+          />
+        )
       ) : (
         <div className="flex flex-col gap-3">
           {result.items.map((booking) => (

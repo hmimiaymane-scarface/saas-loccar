@@ -49,8 +49,15 @@ function percentChange(current: number, baseline: number): number {
 /** Fleet Status — reuses `lib/tone.ts#scoreBand`'s exact thresholds
  * (the same "Healthy / Needs Attention / Critical" vocabulary phase
  * 06's vehicle health score already uses), applied to the fleet-wide
- * average health score rather than inventing a second scale. */
-export function computeFleetPulse(averageHealthScore: number): PulseEntry {
+ * average health score rather than inventing a second scale.
+ *
+ * Roadmap phase 53 — `scoreBand(0)` reads as "Critical", which is
+ * correct for a real vehicle scoring 0 but wrong for a brand-new
+ * company with no vehicles at all (average of an empty set is also
+ * 0). `vehicleCount` disambiguates the two: zero vehicles is "no
+ * data yet," not the worst possible real score. */
+export function computeFleetPulse(averageHealthScore: number, vehicleCount: number): PulseEntry {
+  if (vehicleCount === 0) return { label: "No vehicles yet", tone: "neutral" }
   const { tone, label } = scoreBand(averageHealthScore)
   return { label, tone }
 }
@@ -101,6 +108,7 @@ export function computeTeamPulse(activeCount: number, pendingInvitations: number
 
 export interface BusinessPulseInput {
   averageFleetHealthScore: number
+  fleetVehicleCount: number
   newCustomersThisMonth: number
   newCustomersLastMonth: number
   reservationsThisMonth: number
@@ -116,7 +124,7 @@ export interface BusinessPulseInput {
 
 export function computeBusinessPulse(input: BusinessPulseInput): BusinessPulseSummary {
   return {
-    fleet: computeFleetPulse(input.averageFleetHealthScore),
+    fleet: computeFleetPulse(input.averageFleetHealthScore, input.fleetVehicleCount),
     customers: computeCustomerPulse(input.newCustomersThisMonth, input.newCustomersLastMonth),
     reservations: computeReservationsPulse(input.reservationsThisMonth, input.reservationsTrailingAverage),
     revenue: computeRevenuePulse(input.revenueThisMonthMad, input.revenueLastMonthMad),

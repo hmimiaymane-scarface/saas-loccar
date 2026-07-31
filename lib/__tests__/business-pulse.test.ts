@@ -14,9 +14,12 @@ import {
 
 describe("computeFleetPulse", () => {
   it("is Healthy at 70+, Needs Attention 40-69, Critical below 40 — same bands as lib/tone.ts#scoreBand", () => {
-    expect(computeFleetPulse(85)).toEqual({ label: "Healthy", tone: "positive" })
-    expect(computeFleetPulse(55)).toEqual({ label: "Needs Attention", tone: "warning" })
-    expect(computeFleetPulse(20)).toEqual({ label: "Critical", tone: "critical" })
+    expect(computeFleetPulse(85, 10)).toEqual({ label: "Healthy", tone: "positive" })
+    expect(computeFleetPulse(55, 10)).toEqual({ label: "Needs Attention", tone: "warning" })
+    expect(computeFleetPulse(20, 10)).toEqual({ label: "Critical", tone: "critical" })
+  })
+  it("roadmap phase 53 — a zero vehicle count reads as 'No vehicles yet', not Critical, even though the average score of an empty set is also 0", () => {
+    expect(computeFleetPulse(0, 0)).toEqual({ label: "No vehicles yet", tone: "neutral" })
   })
 })
 
@@ -98,6 +101,7 @@ describe("computeBusinessPulse", () => {
   it("assembles all eight categories from one input bag", () => {
     const result = computeBusinessPulse({
       averageFleetHealthScore: 85,
+      fleetVehicleCount: 10,
       newCustomersThisMonth: 10,
       newCustomersLastMonth: 10,
       reservationsThisMonth: 40,

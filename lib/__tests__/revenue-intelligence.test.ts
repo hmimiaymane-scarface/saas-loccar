@@ -42,6 +42,14 @@ describe("computeRevenueIntelligence", () => {
     const result = computeRevenueIntelligence({ revenueMad: 5_000, occupancyRate: 40, averageDurationDays: 3 }, { revenueMad: 0, occupancyRate: 0, averageDurationDays: 0 })
     expect(result.direction).toBe("up")
     expect(result.changePercent).toBe(100)
+    expect(result.hasData).toBe(true)
+  })
+
+  it("roadmap phase 53 — reports hasData: false and an honest 'not enough history' headline instead of a fabricated 'holding steady' claim when both periods are exactly zero", () => {
+    const result = computeRevenueIntelligence({ revenueMad: 0, occupancyRate: 0, averageDurationDays: 0 }, { revenueMad: 0, occupancyRate: 0, averageDurationDays: 0 })
+    expect(result.hasData).toBe(false)
+    expect(result.headline).not.toContain("holding steady")
+    expect(result.drivers).toEqual([])
   })
 })
 

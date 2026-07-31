@@ -57,11 +57,20 @@ export default async function CustomersPage({
       <CustomerSearch />
 
       {result.items.length === 0 ? (
-        <EmptyPlaceholder
-          icon={Users}
-          title="No customers match your search"
-          description="Customers are added automatically the first time you create a reservation for them."
-        />
+        params.search ? (
+          <EmptyPlaceholder
+            icon={Users}
+            title="No customers match your search"
+            description="Customers are added automatically the first time you create a reservation for them."
+          />
+        ) : (
+          <EmptyPlaceholder
+            icon={Users}
+            title="Start your first rental"
+            description="Customers are added automatically the first time you create a reservation for them — there's no separate signup step."
+            action={{ label: "New reservation", href: "/reservations/new" }}
+          />
+        )
       ) : (
         <div className="flex flex-col gap-3">
           {result.items.map((customer) => (

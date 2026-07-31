@@ -132,6 +132,7 @@ async function loadIntelligenceExtras(session: SessionContext) {
 
     const pulse = computeBusinessPulse({
       averageFleetHealthScore: fleetHealth.averageScore,
+      fleetVehicleCount: fleetHealth.entityCount,
       newCustomersThisMonth: customerOverviewThisMonth.newCustomers,
       newCustomersLastMonth: customerOverviewLastMonth.newCustomers,
       reservationsThisMonth: reservationPerfThisMonth.created,
