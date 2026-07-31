@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { Car } from "lucide-react"
 
 import type { Booking, Vehicle } from "@/types/rental"
 import type { MaintenanceBlock } from "@/lib/data"
@@ -6,6 +7,7 @@ import { dayIndexInWeek, toDateKey } from "@/lib/calendar-dates"
 import { groupBookingsByVehicle, groupMaintenanceByVehicle } from "@/lib/calendar-grouping"
 import { bookingStatusConfig, overdueVisual } from "@/lib/status"
 import { cn } from "@/lib/utils"
+import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
 
 interface FleetTimelineProps {
   vehicles: Vehicle[]
@@ -24,6 +26,19 @@ function FleetTimeline({ vehicles, bookings, maintenanceBlocks, weekStart }: Fle
   })
   const bookingsByVehicle = groupBookingsByVehicle(bookings)
   const maintenanceByVehicle = groupMaintenanceByVehicle(maintenanceBlocks)
+
+  if (vehicles.length === 0) {
+    return (
+      <div className="hidden lg:block">
+        <EmptyPlaceholder
+          icon={Car}
+          title="Add your first vehicle to see it here"
+          description="The weekly timeline shows every vehicle's bookings and maintenance side by side, once your fleet has at least one."
+          action={{ label: "Add vehicle", href: "/fleet/new" }}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="hidden overflow-x-auto rounded-3xl border border-border bg-card lg:block">

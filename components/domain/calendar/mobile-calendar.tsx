@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/domain/status-badge"
+import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 
 type Mode = "today" | "week" | "vehicle"
@@ -328,6 +329,17 @@ function VehicleMode({
     d.setDate(d.getDate() + i)
     return d
   })
+
+  if (vehicles.length === 0) {
+    return (
+      <EmptyPlaceholder
+        icon={Car}
+        title="Add your first vehicle to see it here"
+        description="Availability shows every vehicle's week at a glance, once your fleet has at least one."
+        action={{ label: "Add vehicle", href: "/fleet/new" }}
+      />
+    )
+  }
 
   return (
     <div className="flex flex-col gap-3">
