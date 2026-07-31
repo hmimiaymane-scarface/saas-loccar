@@ -523,7 +523,7 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       <OfflineStatusBanner isOnline={isOnline} pendingCount={pendingCount} needsReviewCount={needsReviewCount} />
       <RequirementsSummary items={requirementItems} />
 
-      <div ref={stepContainerRef} className="flex flex-col gap-6">
+      <div key={step} ref={stepContainerRef} className="flex flex-col gap-6 animate-in fade-in-0 duration-200">
       {step === 0 && (
         <Card>
           <CardHeader>

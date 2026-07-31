@@ -705,7 +705,7 @@ function NewRentalWizard({
 
       <div ref={stepContainerRef} className="flex flex-col gap-4">
         {step === 0 && (
-          <>
+          <div key={step} className="flex flex-col gap-4 animate-in fade-in-0 duration-200">
             <Card>
               <CardHeader>
                 <CardTitle>Customer</CardTitle>
@@ -872,7 +872,7 @@ function NewRentalWizard({
                 )}
               </CardContent>
             </Card>
-          </>
+          </div>
         )}
 
         {/* Phase 19 — mounted once a customer is selected and kept mounted
@@ -902,7 +902,7 @@ function NewRentalWizard({
         )}
 
         {step === 2 && (
-          <div className="flex flex-col gap-4">
+          <div key={step} className="flex flex-col gap-4 animate-in fade-in-0 duration-200">
             <MoneySummaryCard
               rentalPriceMad={totalDueMad}
               extrasMad={extrasMad}
@@ -987,7 +987,7 @@ function NewRentalWizard({
         )}
 
         {step === 3 && (
-          <div className="flex flex-col gap-4">
+          <div key={step} className="flex flex-col gap-4 animate-in fade-in-0 duration-200">
             <Card>
               <CardHeader>
                 <CardTitle>Vehicle condition</CardTitle>
@@ -1072,7 +1072,7 @@ function NewRentalWizard({
         )}
 
         {step === 4 && (
-          <div className="flex flex-col gap-4">
+          <div key={step} className="flex flex-col gap-4 animate-in fade-in-0 duration-200">
             <Card>
               <CardHeader>
                 <CardTitle>Contract</CardTitle>

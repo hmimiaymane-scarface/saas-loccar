@@ -56,18 +56,20 @@ function OnboardingWizard() {
   return (
     <div className="flex w-full max-w-md flex-col gap-6">
       <WizardProgress steps={STEPS} currentStep={step} />
-      {step === 0 && (
-        <CompanyStep
-          onDone={(id) => {
-            setCompanyId(id)
-            setStep(1)
-          }}
-        />
-      )}
-      {step === 1 && <LogoStep companyId={companyId} onNext={() => setStep(2)} />}
-      {step === 2 && <DefaultsStep onNext={() => setStep(3)} />}
-      {step === 3 && <ContractStep companyId={companyId} onNext={() => setStep(4)} />}
-      {step === 4 && <InviteStep onFinish={() => router.push("/overview")} />}
+      <div key={step} className="animate-in fade-in-0 duration-200">
+        {step === 0 && (
+          <CompanyStep
+            onDone={(id) => {
+              setCompanyId(id)
+              setStep(1)
+            }}
+          />
+        )}
+        {step === 1 && <LogoStep companyId={companyId} onNext={() => setStep(2)} />}
+        {step === 2 && <DefaultsStep onNext={() => setStep(3)} />}
+        {step === 3 && <ContractStep companyId={companyId} onNext={() => setStep(4)} />}
+        {step === 4 && <InviteStep onFinish={() => router.push("/overview")} />}
+      </div>
     </div>
   )
 }

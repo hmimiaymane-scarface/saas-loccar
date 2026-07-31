@@ -195,48 +195,50 @@ function ImportWizard() {
     <div className="flex w-full flex-col gap-6">
       <WizardProgress steps={STEPS} currentStep={step} />
 
-      {step === 0 && <ChooseFileStep fileError={fileError} onFile={handleFileChange} />}
+      <div key={step} className="animate-in fade-in-0 duration-200">
+        {step === 0 && <ChooseFileStep fileError={fileError} onFile={handleFileChange} />}
 
-      {step === 1 && entityType && (
-        <MapColumnsStep
-          fields={fields}
-          headers={headers}
-          sampleRow={dataRows[0] ?? []}
-          mapping={mapping}
-          onChange={setMapping}
-          missingRequired={missingRequired}
-          isPending={previewGuard.status === "pending" || previewGuard.status === "slow"}
-          error={previewGuard.error}
-          onBack={() => {
-            setStep(0)
-            setFileName(null)
-          }}
-          onContinue={runPreview}
-        />
-      )}
+        {step === 1 && entityType && (
+          <MapColumnsStep
+            fields={fields}
+            headers={headers}
+            sampleRow={dataRows[0] ?? []}
+            mapping={mapping}
+            onChange={setMapping}
+            missingRequired={missingRequired}
+            isPending={previewGuard.status === "pending" || previewGuard.status === "slow"}
+            error={previewGuard.error}
+            onBack={() => {
+              setStep(0)
+              setFileName(null)
+            }}
+            onContinue={runPreview}
+          />
+        )}
 
-      {step === 2 && entityType && (
-        <PreviewStep
-          entityType={entityType}
-          fileName={fileName}
-          outcomes={outcomes}
-          validCount={validCount}
-          duplicateCount={duplicateCount}
-          errorCount={errorCount}
-          willImportCount={willImportCount}
-          overrideDuplicates={overrideDuplicates}
-          onOverrideChange={setOverrideDuplicates}
-          onDownloadErrors={downloadErrorReport}
-          isPending={commitGuard.status === "pending" || commitGuard.status === "slow"}
-          error={commitGuard.error}
-          onBack={() => setStep(1)}
-          onContinue={runCommit}
-        />
-      )}
+        {step === 2 && entityType && (
+          <PreviewStep
+            entityType={entityType}
+            fileName={fileName}
+            outcomes={outcomes}
+            validCount={validCount}
+            duplicateCount={duplicateCount}
+            errorCount={errorCount}
+            willImportCount={willImportCount}
+            overrideDuplicates={overrideDuplicates}
+            onOverrideChange={setOverrideDuplicates}
+            onDownloadErrors={downloadErrorReport}
+            isPending={commitGuard.status === "pending" || commitGuard.status === "slow"}
+            error={commitGuard.error}
+            onBack={() => setStep(1)}
+            onContinue={runCommit}
+          />
+        )}
 
-      {step === 3 && commitSummary && entityType && (
-        <DoneStep entityType={entityType} summary={commitSummary} onStartAnother={resetAll} />
-      )}
+        {step === 3 && commitSummary && entityType && (
+          <DoneStep entityType={entityType} summary={commitSummary} onStartAnother={resetAll} />
+        )}
+      </div>
     </div>
   )
 }

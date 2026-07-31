@@ -18,7 +18,7 @@ function WizardProgress({ steps, currentStep }: { steps: WizardStep[]; currentSt
             <li key={step.label} className="flex flex-1 items-center gap-2">
               <div
                 className={cn(
-                  "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-medium",
+                  "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-medium transition-colors duration-200",
                   isDone
                     ? "bg-primary text-primary-foreground"
                     : isCurrent
@@ -26,17 +26,19 @@ function WizardProgress({ steps, currentStep }: { steps: WizardStep[]; currentSt
                       : "bg-muted text-muted-foreground"
                 )}
               >
-                {isDone ? <Check className="size-3.5" /> : i + 1}
+                {isDone ? <Check key="done" className="size-3.5 animate-in zoom-in-50 fade-in-0 duration-200" /> : i + 1}
               </div>
               <span
                 className={cn(
-                  "truncate text-sm",
+                  "truncate text-sm transition-colors duration-200",
                   isCurrent ? "font-medium text-foreground" : "text-muted-foreground"
                 )}
               >
                 {step.label}
               </span>
-              {i < steps.length - 1 && <div className="mx-1 h-px flex-1 bg-border" />}
+              {i < steps.length - 1 && (
+                <div className={cn("mx-1 h-px flex-1 transition-colors duration-200", isDone ? "bg-primary" : "bg-border")} />
+              )}
             </li>
           )
         })}
@@ -54,7 +56,10 @@ function WizardProgress({ steps, currentStep }: { steps: WizardStep[]; currentSt
           {steps.map((step, i) => (
             <div
               key={step.label}
-              className={cn("flex-1 rounded-full", i <= currentStep ? "bg-primary" : "bg-muted")}
+              className={cn(
+                "flex-1 rounded-full transition-colors duration-200",
+                i <= currentStep ? "bg-primary" : "bg-muted"
+              )}
             />
           ))}
         </div>

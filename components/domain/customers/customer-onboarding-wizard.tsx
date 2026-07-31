@@ -344,7 +344,7 @@ function CustomerOnboardingWizard({ companyId, returnTo }: { companyId: string; 
     <div className="flex flex-col gap-6">
       <WizardProgress steps={STEPS} currentStep={step} />
 
-      <div ref={stepContainerRef} className="flex flex-col gap-4">
+      <div key={step} ref={stepContainerRef} className="flex flex-col gap-4 animate-in fade-in-0 duration-200">
         {step === 0 && (
           <Card>
             <CardHeader>
