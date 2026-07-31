@@ -170,14 +170,33 @@ uniform spacing, without restructuring either row.
 ## Verification
 
 tsc/eslint/757 tests/build clean at every checkpoint. Live mock-mode
-browser check confirmed: `icon-touch` renders at the correct larger
-size on `MobileShell`'s search button and `PickupWizard`'s call
-button; the photo-grid label size bump doesn't break the tile layout;
-`CommandPalette` and `CustomerSearchCombobox`'s arrow-key navigation
-and Enter-to-select both work correctly; `member-row.tsx`'s long-name
-truncation and destructive-action spacing render as intended; and —
-the one behavioral (not just visual) change this phase made —
-`PickupWizard`'s and `ReturnWizard`'s step-4 "Activate rental"/
-"Complete rental" buttons correctly appear in the sticky footer and
-still fire the same activation/completion logic as before, verified
-by stepping through both wizards to step 4 in the browser.
+browser check confirmed: the destructive-action separator renders
+correctly on both `member-row.tsx` (trash icon) and
+`invitation-row.tsx` (revoke X), each with a visible divider before
+the destructive control. `CommandPalette`'s own arrow-key navigation
+could not be exercised with real results — global search
+(`globalSearchAction`) returns no results in mock mode, another
+instance of this repo's standing "reads that hit a real query need
+Supabase" limitation. Verified the identical keyboard-nav code on
+`CustomerSearchCombobox` instead (`/reservations/new`, which does
+return real mock customer rows): typed "a", pressed ArrowDown twice,
+confirmed the highlight visibly moved from row 1 to row 3 ("Sara
+Bennis"), then pressed Enter and confirmed it selected the
+*highlighted* row — not the first result — correctly advancing the
+wizard to step 2 with Sara Bennis attached.
+
+`PickupWizard`'s step-4 "Activate rental" move to the sticky footer
+could **not** be exercised past step 2 live: this repo's inspection
+steps require a real Supabase connection ("Inspections require a
+connected Supabase project" — the same standing mock-mode limitation
+every phase touching a real mutation has hit before, since every
+mutating server action throws inside `createClient()` before
+returning). Verified instead by reading the edited JSX directly:
+`WizardFooter`'s `onContinue`/`continueLabel`/`continuePending`/
+`continueDisabled` props are wired to the exact same `activate`/
+`complete` calls and `isPending` state the removed inline buttons
+used, so the only change is which DOM element renders the click
+target — not the underlying logic. tsc catching zero type errors on
+both files after the edit is a real, if partial, signal here too:
+`onContinue` is typed as `() => void`, so a props mismatch (wrong
+function shape, wrong step guard) would have failed the build.
