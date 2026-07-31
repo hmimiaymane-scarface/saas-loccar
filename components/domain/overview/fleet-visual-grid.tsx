@@ -90,8 +90,11 @@ function FleetVisualGrid({ vehicles }: { vehicles: FleetOverviewVehicle[] }) {
         <CardHeader>
           <CardTitle>Fleet</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col items-start gap-3">
           <p className="text-sm text-muted-foreground">No vehicles yet — add your first vehicle to see it here.</p>
+          <Button asChild size="sm">
+            <Link href="/fleet/new">Add vehicle</Link>
+          </Button>
         </CardContent>
       </Card>
     )

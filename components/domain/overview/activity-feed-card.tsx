@@ -43,6 +43,7 @@ import {
 import type { ActivityItem, ActivityType } from "@/types/rental"
 import { formatRelativeTime } from "@/lib/format"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { InlineEmpty } from "@/components/domain/empty-placeholder"
 
 const activityIcon: Record<ActivityType, LucideIcon> = {
   reservation_requested: ClipboardList,
@@ -121,6 +122,9 @@ function ActivityFeedCard({ items }: { items: ActivityItem[] }) {
         </Link>
       </CardHeader>
       <CardContent>
+        {items.length === 0 ? (
+          <InlineEmpty>Nothing recorded yet — actions across reservations, payments and the fleet will show up here.</InlineEmpty>
+        ) : (
         <ol className="flex flex-col gap-5">
           {items.map((item) => {
             const Icon = activityIcon[item.type]
@@ -140,6 +144,7 @@ function ActivityFeedCard({ items }: { items: ActivityItem[] }) {
             )
           })}
         </ol>
+        )}
       </CardContent>
     </Card>
   )
