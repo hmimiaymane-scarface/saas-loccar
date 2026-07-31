@@ -46,21 +46,26 @@ function InvitationRow({ invitation }: { invitation: TeamInvitation }) {
           {copied ? <Check className="size-3.5" /> : <Link2 className="size-3.5" />}
           {copied ? "Copied" : "Copy link"}
         </Button>
-        {confirming ? (
-          <>
-            <Button variant="ghost" size="sm" onClick={() => setConfirming(false)} disabled={isPending}>
-              Cancel
+        {/* Roadmap phase 54 — extra separation before the destructive
+            action, so a mis-tap aimed at "Copy link" doesn't land on
+            Revoke instead. */}
+        <div className="ml-1 border-l border-border pl-2">
+          {confirming ? (
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" onClick={() => setConfirming(false)} disabled={isPending}>
+                Cancel
+              </Button>
+              <Button variant="destructive" size="sm" onClick={revoke} disabled={isPending}>
+                {isPending && <Loader2 className="animate-spin" />}
+                Revoke
+              </Button>
+            </div>
+          ) : (
+            <Button variant="ghost" size="icon-sm" onClick={() => setConfirming(true)} title="Revoke invitation">
+              <X className="size-3.5 text-muted-foreground" />
             </Button>
-            <Button variant="destructive" size="sm" onClick={revoke} disabled={isPending}>
-              {isPending && <Loader2 className="animate-spin" />}
-              Revoke
-            </Button>
-          </>
-        ) : (
-          <Button variant="ghost" size="icon-sm" onClick={() => setConfirming(true)} title="Revoke invitation">
-            <X className="size-3.5 text-muted-foreground" />
-          </Button>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )

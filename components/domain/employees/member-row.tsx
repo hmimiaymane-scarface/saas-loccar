@@ -172,26 +172,32 @@ function MemberRow({
                 {isPending ? <Loader2 className="size-3.5 animate-spin" /> : member.status === "active" ? <UserX className="size-3.5" /> : <UserCheck className="size-3.5" />}
               </Button>
             )}
-            {confirmingRemove ? (
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={() => setConfirmingRemove(false)}>
-                  Cancel
+            {/* Roadmap phase 54 — extra separation (border + padding, not
+                just the row's own gap-2) before the one truly destructive
+                action in this row, so a distracted/one-handed mis-tap
+                aimed at Suspend doesn't land on Remove instead. */}
+            <div className="ml-1 border-l border-border pl-2">
+              {confirmingRemove ? (
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setConfirmingRemove(false)}>
+                    Cancel
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={remove} disabled={isPending}>
+                    Confirm
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setConfirmingRemove(true)}
+                  disabled={!removeCheck.allowed}
+                  title={removeCheck.allowed ? "Remove access" : removeCheck.reason}
+                >
+                  <Trash2 className="size-3.5 text-muted-foreground" />
                 </Button>
-                <Button variant="destructive" size="sm" onClick={remove} disabled={isPending}>
-                  Confirm
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setConfirmingRemove(true)}
-                disabled={!removeCheck.allowed}
-                title={removeCheck.allowed ? "Remove access" : removeCheck.reason}
-              >
-                <Trash2 className="size-3.5 text-muted-foreground" />
-              </Button>
-            )}
+              )}
+            </div>
           </>
         )}
 
