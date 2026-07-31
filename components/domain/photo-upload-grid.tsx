@@ -187,9 +187,9 @@ function PhotoUploadGrid({
                 ) : (
                   <Camera className={cn("size-5", thumbnail ? "text-white" : existing ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")} />
                 )}
-                <span className={cn("text-[11px] font-medium", thumbnail ? "text-white" : "text-foreground")}>{slot.label}</span>
+                <span className={cn("text-xs font-medium", thumbnail ? "text-white" : "text-foreground")}>{slot.label}</span>
                 {slot.required && !existing && !thumbnail && (
-                  <span className="text-[10px] text-muted-foreground">Required</span>
+                  <span className="text-[11px] text-muted-foreground">Required</span>
                 )}
               </div>
             </label>
