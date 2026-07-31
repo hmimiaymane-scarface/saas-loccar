@@ -24,7 +24,7 @@ function StatusBadge({ visual, className }: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap",
+        "inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors duration-200",
         visual.badge,
         className
       )}
@@ -38,7 +38,7 @@ function StatusBadge({ visual, className }: StatusBadgeProps) {
 function StatusDot({ visual, className }: StatusBadgeProps) {
   return (
     <span className={cn("inline-flex items-center gap-1.5 text-sm", className)}>
-      <span className={cn("size-2 shrink-0 rounded-full", visual.dot)} />
+      <span className={cn("size-2 shrink-0 rounded-full transition-colors duration-200", visual.dot)} />
       {visual.label}
     </span>
   )
