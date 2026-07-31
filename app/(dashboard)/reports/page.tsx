@@ -18,6 +18,7 @@ import { ReservationPerformanceCard } from "@/components/domain/reports/reservat
 import { CustomerOverviewCard } from "@/components/domain/reports/customer-overview-card"
 import { SimpleBarChart } from "@/components/domain/reports/simple-bar-chart"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { InlineEmpty } from "@/components/domain/empty-placeholder"
 
 const VALID_PERIODS: ReportPeriod[] = ["today", "this_week", "this_month", "last_month", "custom"]
 
@@ -78,26 +79,30 @@ export default async function ReportsPage({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {revenueByVehicle.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Revenue by vehicle</CardTitle>
-            </CardHeader>
-            <CardContent>
+        <Card>
+          <CardHeader>
+            <CardTitle>Revenue by vehicle</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {revenueByVehicle.length > 0 ? (
               <SimpleBarChart data={revenueByVehicle} />
-            </CardContent>
-          </Card>
-        )}
-        {expensesByCategory.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Expenses by category</CardTitle>
-            </CardHeader>
-            <CardContent>
+            ) : (
+              <InlineEmpty>Not enough data yet — this fills in once vehicles start earning recorded revenue this period.</InlineEmpty>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Expenses by category</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {expensesByCategory.length > 0 ? (
               <SimpleBarChart data={expensesByCategory} />
-            </CardContent>
-          </Card>
-        )}
+            ) : (
+              <InlineEmpty>Not enough data yet — this fills in once expenses are recorded this period.</InlineEmpty>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </>
   )
