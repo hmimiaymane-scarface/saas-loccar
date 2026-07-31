@@ -34,7 +34,7 @@ function OfflineQueueIndicator({ companyId }: { companyId: string }) {
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size="icon-touch"
       className="relative"
       aria-label={needsAttention ? `${needsReviewCount} saved item${needsReviewCount === 1 ? "" : "s"} need your attention` : `${pendingCount} saved item${pendingCount === 1 ? "" : "s"} still syncing`}
       asChild

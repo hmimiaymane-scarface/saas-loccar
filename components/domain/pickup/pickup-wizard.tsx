@@ -535,7 +535,7 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
                 <p className="text-base font-medium text-foreground">{reservation.customer.fullName}</p>
                 <p className="text-sm text-muted-foreground">{reservation.customer.phone}</p>
               </div>
-              <Button variant="outline" size="icon" asChild>
+              <Button variant="outline" size="icon-touch" asChild>
                 <a href={`tel:${reservation.customer.phone}`} aria-label="Call customer">
                   <Phone className="size-4" />
                 </a>
