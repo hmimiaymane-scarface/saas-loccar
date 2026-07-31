@@ -46,17 +46,33 @@ const TYPE_LABEL_PLURAL: Record<SearchResultType, string> = {
  * replacing the earlier flat list with only a small inline type badge
  * per row.
  */
+function optionId(r: SearchResult) {
+  return `command-palette-option-${r.type}-${r.id}`
+}
+
 function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter()
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<SearchResult[]>([])
   const [pending, startTransition] = useTransition()
+  const [activeIndex, setActiveIndex] = useState(0)
+
+  const groups = groupSearchResultsByType(results)
+  const flatResults = groups.flatMap((g) => g.results)
+
+  useEffect(() => {
+    const active = flatResults[activeIndex]
+    if (!active) return
+    document.getElementById(optionId(active))?.scrollIntoView({ block: "nearest" })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex])
 
   useEffect(() => {
     if (query.trim().length < 2) return
     const timeout = setTimeout(() => {
       startTransition(async () => {
         setResults(await globalSearchAction(query))
+        setActiveIndex(0)
       })
     }, 200)
     return () => clearTimeout(timeout)
@@ -72,12 +88,28 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
     if (!next) {
       setQuery("")
       setResults([])
+      setActiveIndex(0)
     }
   }
 
   function go(href: string) {
     handleOpenChange(false)
     router.push(href)
+  }
+
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (flatResults.length === 0) return
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      setActiveIndex((i) => Math.min(i + 1, flatResults.length - 1))
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      setActiveIndex((i) => Math.max(i - 1, 0))
+    } else if (e.key === "Enter") {
+      e.preventDefault()
+      const active = flatResults[activeIndex]
+      if (active) go(active.href)
+    }
   }
 
   return (
@@ -95,8 +127,13 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
               autoFocus
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
+              onKeyDown={handleInputKeyDown}
               placeholder="Search vehicles, customers, reservations, contracts, documents, team…"
               className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              role="combobox"
+              aria-expanded={flatResults.length > 0}
+              aria-controls="command-palette-listbox"
+              aria-activedescendant={flatResults[activeIndex] ? optionId(flatResults[activeIndex]) : undefined}
             />
             {pending && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
           </div>
@@ -107,20 +144,26 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
             ) : results.length === 0 && !pending ? (
               <InlineEmpty className="px-3 py-6 text-center">No results for &quot;{query}&quot;.</InlineEmpty>
             ) : (
-              <div className="flex flex-col gap-3">
-                {groupSearchResultsByType(results).map((group) => (
+              <div id="command-palette-listbox" role="listbox" className="flex flex-col gap-3">
+                {groups.map((group) => (
                   <div key={group.type} className="flex flex-col">
                     <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">{TYPE_LABEL_PLURAL[group.type]}</p>
                     <ul className="flex flex-col">
                       {group.results.map((r: SearchResult) => {
                         const Icon = TYPE_ICON[r.type]
+                        const isActive = flatResults[activeIndex]?.id === r.id && flatResults[activeIndex]?.type === r.type
                         return (
                           <li key={`${r.type}-${r.id}`}>
                             <button
                               type="button"
+                              id={optionId(r)}
+                              role="option"
+                              aria-selected={isActive}
                               onClick={() => go(r.href)}
+                              onMouseEnter={() => setActiveIndex(flatResults.indexOf(r))}
                               className={cn(
-                                "flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-muted"
+                                "flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-muted",
+                                isActive && "bg-muted"
                               )}
                             >
                               <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
