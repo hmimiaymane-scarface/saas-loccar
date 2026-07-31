@@ -143,3 +143,26 @@ mock-mode limitation (every mutating server action throws inside
 `createClient()` before returning, so a mutation's success path is
 never reachable in mock mode, only its pre-mutation UI) — reviewed by
 reading the component's render logic instead.
+
+**New environment gotcha found this phase, worth remembering for any
+future live-browser verification pass on this app**: this is a PWA
+with an active service worker (`sw.js`) caching static asset chunks
+(`rentalos-static-v1`) by URL. Turbopack dev mode reuses stable
+(non-content-hashed) chunk filenames for hot reload, so once a service
+worker has cached a CSS chunk under a given URL, it keeps serving that
+*exact stale byte content* for that URL on every later page load —
+even a hard navigation, even `fetch(url, {cache:'no-store'})` from the
+page — because the service worker intercepts the request before the
+browser's own cache/network layer is ever consulted. This silently
+masked EVERY class added in checkpoints 1-4 for a long stretch of this
+phase's live verification (grid-rows-based collapse computed as if the
+utility didn't exist, checkmarks/badges never visibly changed) even
+though tsc/eslint/build all passed and the compiled CSS on disk was
+provably correct the whole time. Root-caused by comparing a `curl` of
+the chunk URL (always fresh, no service worker involved) against the
+same URL fetched from inside the page (stale) — they differed. Fixed
+by `navigator.serviceWorker.getRegistrations()` → `unregister()` on
+each, plus `caches.keys()` → `caches.delete()` on each, then a normal
+reload. Any future session doing live browser verification on this app
+should do this once at the start if UI changes don't seem to be taking
+effect, before suspecting the code itself.
