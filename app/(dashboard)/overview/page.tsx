@@ -245,7 +245,7 @@ export default async function OverviewPage() {
 
       {/* Needs You Now — impossible to miss, always first, every card
           has a real action (productization wave 1 phase 11). */}
-      <NeedsAttentionSection cards={attentionCards} />
+      <NeedsAttentionSection cards={attentionCards} isNewAccount={metrics.fleetTotal === 0} />
 
       {/* Level 2 — Today's Operations. */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

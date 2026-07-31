@@ -22,7 +22,7 @@ import type { AttentionCard } from "@/lib/needs-attention"
  * `OperationsFeedList` (see its own comment): reversible, non-financial,
  * safe to remove from view before the server confirms.
  */
-function NeedsAttentionSection({ cards }: { cards: AttentionCard[] }) {
+function NeedsAttentionSection({ cards, isNewAccount = false }: { cards: AttentionCard[]; isNewAccount?: boolean }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [optimisticCards, dismissOptimistically] = useOptimistic(
@@ -47,7 +47,14 @@ function NeedsAttentionSection({ cards }: { cards: AttentionCard[] }) {
   }
 
   if (optimisticCards.length === 0) {
-    return (
+    return isNewAccount ? (
+      <EmptyPlaceholder
+        icon={PartyPopper}
+        title="You're all set up"
+        description="Nothing needs your attention yet because there's nothing in your fleet yet — add your first vehicle to start taking reservations."
+        action={{ label: "Add vehicle", href: "/fleet/new" }}
+      />
+    ) : (
       <EmptyPlaceholder
         icon={PartyPopper}
         title="Nothing needs you right now"
