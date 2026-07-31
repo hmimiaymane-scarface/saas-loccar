@@ -3,10 +3,8 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import {
-  Loader2,
   Phone,
   AlertTriangle,
-  CheckCircle2,
   Plus,
 } from "lucide-react"
 
@@ -955,15 +953,6 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
               </p>
             )}
 
-            <Button
-              type="button"
-              size="lg"
-              disabled={isPending}
-              onClick={() => startTransition(() => activate(showOverride ? overrideReason : undefined))}
-            >
-              {isPending ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
-              Activate rental
-            </Button>
             <p className="text-center text-xs text-muted-foreground">
               The vehicle will be marked rented and the reservation becomes active.
             </p>
@@ -981,11 +970,16 @@ function PickupWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       <WizardFooter
         onBack={back}
         backDisabled={step === 0}
-        hideContinue={step === 4}
-        onContinue={step < 3 ? next : () => startTransition(saveInspectionStep)}
-        continueLabel={step === 3 ? "Continue to review" : "Continue"}
-        continuePending={step === 3 && isPending}
-        continueDisabled={step === 3 && isPending}
+        onContinue={
+          step < 3
+            ? next
+            : step === 3
+              ? () => startTransition(saveInspectionStep)
+              : () => startTransition(() => activate(showOverride ? overrideReason : undefined))
+        }
+        continueLabel={step === 3 ? "Continue to review" : step === 4 ? "Activate rental" : "Continue"}
+        continuePending={(step === 3 || step === 4) && isPending}
+        continueDisabled={(step === 3 || step === 4) && isPending}
       />
     </div>
   )

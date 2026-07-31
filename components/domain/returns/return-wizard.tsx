@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, AlertTriangle, CheckCircle2, Plus, Gauge } from "lucide-react"
+import { AlertTriangle, Plus, Gauge } from "lucide-react"
 
 import type {
   ChecklistResponseValue,
@@ -975,15 +975,6 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
               </p>
             )}
 
-            <Button
-              type="button"
-              size="lg"
-              disabled={isPending}
-              onClick={() => startTransition(() => complete(showOverride ? overrideReason : undefined))}
-            >
-              {isPending ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
-              Complete rental
-            </Button>
           </CardContent>
         </Card>
       )}
@@ -998,10 +989,16 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       <WizardFooter
         onBack={back}
         backDisabled={step === 0}
-        hideContinue={step === 4}
-        onContinue={step === 1 ? () => startTransition(saveInspectionStep) : next}
-        continuePending={step === 1 && isPending}
-        continueDisabled={step === 1 && (isPending || odometerBelowPickup)}
+        onContinue={
+          step === 1
+            ? () => startTransition(saveInspectionStep)
+            : step === 4
+              ? () => startTransition(() => complete(showOverride ? overrideReason : undefined))
+              : next
+        }
+        continueLabel={step === 4 ? "Complete rental" : "Continue"}
+        continuePending={(step === 1 || step === 4) && isPending}
+        continueDisabled={step === 1 ? isPending || odometerBelowPickup : step === 4 && isPending}
       />
     </div>
   )
