@@ -127,7 +127,7 @@ function MemberRow({
           <span className="text-xs text-muted-foreground">{ROLE_LABELS[member.role]}</span>
         ) : (
           <NativeSelect
-            className={cn("w-36")}
+            className={cn("min-w-36 w-auto")}
             value={member.role}
             disabled={isPending}
             onChange={(e) => changeRole(e.target.value as EmployeeRole)}
