@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { Collapsible } from "@/components/ui/collapsible"
 
 const AMENDMENT_LABELS: Record<AmendmentType, string> = {
   rental_extension: "Rental extension",
@@ -106,51 +107,49 @@ function ContractAmendmentSection({ contractId, amendments }: { contractId: stri
           </div>
         ))}
 
-        {open && (
-          <>
-            {amendments.length > 0 && <Separator />}
-            <div className="flex flex-col gap-3">
+        <Collapsible open={open}>
+          <div className="flex flex-col gap-3">
+            {amendments.length > 0 && <Separator className="mb-1" />}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="amendmentType">Type</Label>
+              <NativeSelect id="amendmentType" value={type} onChange={(e) => setType(e.target.value as AmendmentType)}>
+                {Object.entries(AMENDMENT_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="amendmentDescription">Description</Label>
+              <Input id="amendmentDescription" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Extended by 2 days at the customer's request" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="amendmentType">Type</Label>
-                <NativeSelect id="amendmentType" value={type} onChange={(e) => setType(e.target.value as AmendmentType)}>
-                  {Object.entries(AMENDMENT_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </NativeSelect>
+                <Label htmlFor="amendmentField">Field changed (optional)</Label>
+                <Input id="amendmentField" value={field} onChange={(e) => setField(e.target.value)} placeholder="e.g. Return date" />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="amendmentDescription">Description</Label>
-                <Input id="amendmentDescription" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Extended by 2 days at the customer's request" />
+                <Label htmlFor="amendmentBefore">Before</Label>
+                <Input id="amendmentBefore" value={before} onChange={(e) => setBefore(e.target.value)} disabled={!field.trim()} />
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="amendmentField">Field changed (optional)</Label>
-                  <Input id="amendmentField" value={field} onChange={(e) => setField(e.target.value)} placeholder="e.g. Return date" />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="amendmentBefore">Before</Label>
-                  <Input id="amendmentBefore" value={before} onChange={(e) => setBefore(e.target.value)} disabled={!field.trim()} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="amendmentAfter">After</Label>
-                  <Input id="amendmentAfter" value={after} onChange={(e) => setAfter(e.target.value)} disabled={!field.trim()} />
-                </div>
-              </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <div className="flex justify-end gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
-                  Cancel
-                </Button>
-                <Button size="sm" disabled={pending || !description.trim()} onClick={submit}>
-                  {pending && <Loader2 className="animate-spin" />}
-                  Save amendment
-                </Button>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="amendmentAfter">After</Label>
+                <Input id="amendmentAfter" value={after} onChange={(e) => setAfter(e.target.value)} disabled={!field.trim()} />
               </div>
             </div>
-          </>
-        )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" disabled={pending || !description.trim()} onClick={submit}>
+                {pending && <Loader2 className="animate-spin" />}
+                Save amendment
+              </Button>
+            </div>
+          </div>
+        </Collapsible>
       </CardContent>
     </Card>
   )

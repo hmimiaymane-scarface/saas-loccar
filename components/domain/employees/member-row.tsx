@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Switch } from "@/components/ui/switch"
 import { ListItemCard } from "@/components/domain/list-item-card"
+import { Collapsible } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 
 // Productization wave 1 phase 2 — only Owner and Staff (the existing
@@ -210,23 +211,25 @@ function MemberRow({
 
       {error && <p className="text-xs text-destructive">{error}</p>}
 
-      {showAccessPanel && accessOpen && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/30 p-3">
-          {STAFF_ACCESS_SWITCHES.map((swtch) => {
-            const checked = isSwitchOn(swtch.id, member.overrides)
-            return (
-              <div key={swtch.id} className="flex items-center justify-between gap-3">
-                <span className="text-xs text-foreground">{swtch.label}</span>
-                <Switch
-                  checked={checked}
-                  disabled={pendingSwitchId === swtch.id}
-                  onCheckedChange={(next) => toggleSwitch(swtch.id, next)}
-                />
-              </div>
-            )
-          })}
-          {accessError && <p className="text-xs text-destructive">{accessError}</p>}
-        </div>
+      {showAccessPanel && (
+        <Collapsible open={accessOpen}>
+          <div className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/30 p-3">
+            {STAFF_ACCESS_SWITCHES.map((swtch) => {
+              const checked = isSwitchOn(swtch.id, member.overrides)
+              return (
+                <div key={swtch.id} className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-foreground">{swtch.label}</span>
+                  <Switch
+                    checked={checked}
+                    disabled={pendingSwitchId === swtch.id}
+                    onCheckedChange={(next) => toggleSwitch(swtch.id, next)}
+                  />
+                </div>
+              )
+            })}
+            {accessError && <p className="text-xs text-destructive">{accessError}</p>}
+          </div>
+        </Collapsible>
       )}
     </ListItemCard>
   )

@@ -42,7 +42,7 @@ function EditBranchRow({ branch }: { branch: Branch }) {
 
   if (!open) {
     return (
-      <div className="flex items-center justify-between rounded-2xl border border-border p-3">
+      <div key="view" className="flex animate-in fade-in-0 duration-150 items-center justify-between rounded-2xl border border-border p-3">
         <div className="flex items-center gap-2.5">
           <MapPin className="size-4 text-muted-foreground" />
           <div className="flex flex-col">
@@ -60,7 +60,7 @@ function EditBranchRow({ branch }: { branch: Branch }) {
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-3 rounded-2xl border border-border p-3">
+    <form key="edit" action={formAction} className="flex animate-in fade-in-0 duration-150 flex-col gap-3 rounded-2xl border border-border p-3">
       <BranchFields branch={branch} />
       {state.error && <p className="text-xs text-destructive">{state.error}</p>}
       <div className="flex justify-end gap-2">
@@ -82,7 +82,7 @@ function AddBranchForm() {
 
   if (!open) {
     return (
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button key="trigger" variant="outline" size="sm" className="animate-in fade-in-0 duration-150" onClick={() => setOpen(true)}>
         <Plus className="size-3.5" />
         Add branch
       </Button>
@@ -90,7 +90,7 @@ function AddBranchForm() {
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-3 rounded-2xl border border-dashed border-border p-3">
+    <form key="form" action={formAction} className="flex animate-in fade-in-0 duration-150 flex-col gap-3 rounded-2xl border border-dashed border-border p-3">
       <BranchFields />
       {state.error && <p className="text-xs text-destructive">{state.error}</p>}
       <div className="flex justify-end gap-2">
