@@ -33,15 +33,15 @@ function InvitationRow({ invitation }: { invitation: TeamInvitation }) {
 
   return (
     <div className="flex flex-col gap-2 rounded-3xl border border-dashed border-border p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-col">
-        <span className="text-sm font-medium text-foreground">{invitation.email}</span>
-        <span className="text-xs text-muted-foreground">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm font-medium text-foreground">{invitation.email}</span>
+        <span className="truncate text-xs text-muted-foreground">
           {ROLE_LABELS[invitation.role]}
           {invitation.branchName ? ` · ${invitation.branchName}` : ""} · Expires {formatDate(invitation.expiresAt)}
         </span>
         {error && <span className="text-xs text-destructive">{error}</span>}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <Button variant="outline" size="sm" onClick={copyLink}>
           {copied ? <Check className="size-3.5" /> : <Link2 className="size-3.5" />}
           {copied ? "Copied" : "Copy link"}

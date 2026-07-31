@@ -102,27 +102,27 @@ function MemberRow({
   return (
     <ListItemCard className="flex flex-col gap-2">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <Avatar>
             <AvatarFallback>{initials(member.fullName ?? member.email ?? "?")}</AvatarFallback>
           </Avatar>
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-foreground">{member.fullName ?? member.email ?? "Unknown"}</span>
-              {isSelf && <span className="text-xs text-muted-foreground">(you)</span>}
+          <div className="flex min-w-0 flex-col">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="min-w-0 truncate text-sm font-medium text-foreground">{member.fullName ?? member.email ?? "Unknown"}</span>
+              {isSelf && <span className="shrink-0 text-xs text-muted-foreground">(you)</span>}
               {member.status === "suspended" && (
-                <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-500/10 dark:text-red-400">
+                <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-500/10 dark:text-red-400">
                   Suspended
                 </span>
               )}
             </div>
-            <span className="text-xs text-muted-foreground">
+            <span className="truncate text-xs text-muted-foreground">
               {member.email} {member.branchName ? `· ${member.branchName}` : ""} · Since {formatDate(member.createdAt)}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
         {isSelf ? (
           <span className="text-xs text-muted-foreground">{ROLE_LABELS[member.role]}</span>
         ) : (
