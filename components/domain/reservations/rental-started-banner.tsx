@@ -36,7 +36,7 @@ function RentalStartedBanner({ reservation, timezone, hasContract }: RentalStart
         : `Nothing else needed until the return on ${returnLabel}.`
 
   return (
-    <Card className="border-emerald-300 bg-emerald-50/60 dark:border-emerald-500/40 dark:bg-emerald-500/10">
+    <Card className="animate-in fade-in-0 slide-in-from-top-2 duration-300 border-emerald-300 bg-emerald-50/60 dark:border-emerald-500/40 dark:bg-emerald-500/10">
       <CardContent className="flex flex-col gap-3 pt-6">
         <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
           <CheckCircle2 className="size-5 shrink-0" />

@@ -73,7 +73,7 @@ function SubmitButton({
     >
       {status === "pending" && <Loader2 className="animate-spin" />}
       {status === "slow" && <Loader2 className="animate-spin" />}
-      {status === "saved" && <Check />}
+      {status === "saved" && <Check className="animate-in zoom-in-50 fade-in-0 duration-200" />}
       {status === "error" && <AlertTriangle />}
       {status === "pending" && savingLabel}
       {status === "slow" && slowLabel}
