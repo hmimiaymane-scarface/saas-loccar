@@ -149,3 +149,56 @@ export async function toggleMigrationChecklistItem(
     throw err
   }
 }
+
+/** Roadmap phase 64 — logs one founder-observed piece of real pilot
+ * behavior (lib/platform/product-signals.ts). */
+export async function logProductSignal(
+  companyId: string,
+  signalType: string,
+  note: string,
+  impact: number,
+  frequency: number
+): Promise<{ error?: string }> {
+  try {
+    await requirePlatformAdminAction()
+    const supabase = await createClient()
+    const { error } = await supabase.rpc("platform_log_product_signal", {
+      p_company_id: companyId,
+      p_signal_type: signalType,
+      p_note: note,
+      p_impact: impact,
+      p_frequency: frequency,
+    })
+    if (error) return { error: friendlyDbError(error) }
+    revalidateCompany(companyId)
+    revalidatePath("/platform/product-signals")
+    return {}
+  } catch (err) {
+    if (err instanceof ActionError) return { error: err.message }
+    throw err
+  }
+}
+
+/** Roadmap phase 64 — moves a logged signal along
+ * open -> planned -> shipped (or declined), the disposition that
+ * actually turns a ranked observation into a tracked product change. */
+export async function updateProductSignalStatus(
+  signalId: string,
+  status: string
+): Promise<{ error?: string }> {
+  try {
+    await requirePlatformAdminAction()
+    const supabase = await createClient()
+    const { error } = await supabase.rpc("platform_update_product_signal_status", {
+      p_signal_id: signalId,
+      p_status: status,
+    })
+    if (error) return { error: friendlyDbError(error) }
+    revalidatePath("/platform/product-signals")
+    revalidatePath("/platform/companies")
+    return {}
+  } catch (err) {
+    if (err instanceof ActionError) return { error: err.message }
+    throw err
+  }
+}

@@ -90,6 +90,26 @@ export interface PilotFeedbackItem {
   createdAt: string
 }
 
+/** Roadmap phase 64 — one founder-logged observation of real pilot
+ * behavior (see lib/platform/product-signals.ts for the fixed
+ * `signalType` vocabulary). `priority` is `impact * frequency`,
+ * computed by the read RPC — the whole "ranked, not a random request
+ * list" requirement is just sorting on this field. */
+export interface ProductSignalItem {
+  id: string
+  companyId: string
+  companyName: string
+  signalType: string
+  note: string
+  impact: number
+  frequency: number
+  priority: number
+  status: "open" | "planned" | "shipped" | "declined"
+  loggedByEmail: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 /** Roadmap phase 49 — one row of the founder-assisted white-glove
  * onboarding checklist (see lib/platform/migration-checklist.ts for
  * the fixed step list this `stepKey` refers into). */

@@ -1218,6 +1218,34 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["pilot_feedback"]["Insert"]>
         Relationships: []
       }
+      product_signals: {
+        Row: {
+          id: string
+          company_id: string
+          signal_type: string
+          note: string
+          impact: number
+          frequency: number
+          status: string
+          logged_by: string | null
+          created_at: Timestamp
+          updated_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          signal_type: string
+          note: string
+          impact: number
+          frequency: number
+          status?: string
+          logged_by?: string | null
+          created_at?: Timestamp
+          updated_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["product_signals"]["Insert"]>
+        Relationships: []
+      }
       inspections: {
         Row: {
           id: string
@@ -1780,6 +1808,31 @@ export type Database = {
           page_context: string | null
           submitted_by_email: string | null
           created_at: string
+        }[]
+      }
+      platform_log_product_signal: {
+        Args: { p_company_id: string; p_signal_type: string; p_note: string; p_impact: number; p_frequency: number }
+        Returns: string
+      }
+      platform_update_product_signal_status: {
+        Args: { p_signal_id: string; p_status: string }
+        Returns: undefined
+      }
+      platform_get_product_signals: {
+        Args: { p_company_id?: string | null; p_status?: string | null }
+        Returns: {
+          id: string
+          company_id: string
+          company_name: string
+          signal_type: string
+          note: string
+          impact: number
+          frequency: number
+          priority: number
+          status: string
+          logged_by_email: string | null
+          created_at: string
+          updated_at: string
         }[]
       }
     }

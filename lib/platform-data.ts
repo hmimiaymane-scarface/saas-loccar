@@ -13,6 +13,7 @@ import {
   mockRecentOperationalEvents,
   mockAiCallSummary,
   mockPilotFeedback,
+  mockProductSignals,
 } from "@/lib/mock/platform"
 import type {
   AiCallSummary,
@@ -22,6 +23,7 @@ import type {
   OperationalSummary,
   PilotFeedbackItem,
   PlatformAuditEvent,
+  ProductSignalItem,
   PlatformCompanyListFilters,
   PlatformCompanyRow,
   PlatformCompanySummary,
@@ -198,6 +200,41 @@ export async function getCompanyFeedback(companyId: string, limit = 20): Promise
     pageContext: r.page_context,
     submittedByEmail: r.submitted_by_email,
     createdAt: r.created_at,
+  }))
+}
+
+/** Roadmap phase 64 — ranked founder-logged pilot-behavior
+ * observations. Omit `companyId`/`status` for the global cross-pilot
+ * ranked view (`/platform/product-signals`); pass `companyId` for the
+ * per-company card on `/platform/companies/[id]`. Already sorted by
+ * priority (impact * frequency) descending by the RPC itself — see
+ * that migration's own comment for why. */
+export async function getProductSignals(companyId?: string, status?: string): Promise<ProductSignalItem[]> {
+  if (isMockMode()) {
+    return mockProductSignals.filter(
+      (s) => (!companyId || s.companyId === companyId) && (!status || s.status === status)
+    )
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("platform_get_product_signals", {
+    p_company_id: companyId ?? null,
+    p_status: status ?? null,
+  })
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    companyId: r.company_id,
+    companyName: r.company_name,
+    signalType: r.signal_type,
+    note: r.note,
+    impact: r.impact,
+    frequency: r.frequency,
+    priority: r.priority,
+    status: r.status as ProductSignalItem["status"],
+    loggedByEmail: r.logged_by_email,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
   }))
 }
 

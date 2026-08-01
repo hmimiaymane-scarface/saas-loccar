@@ -6,6 +6,7 @@ import type {
   OperationalSummary,
   PilotFeedbackItem,
   PlatformAuditEvent,
+  ProductSignalItem,
   PlatformCompanyRow,
   PlatformCompanySummary,
   PlatformOverview,
@@ -120,6 +121,69 @@ export const mockPilotFeedback: PilotFeedbackItem[] = [
     pageContext: "/reservations/bk_2/pickup",
     submittedByEmail: "owner@atlasrentcar.ma",
     createdAt: daysAgo(6),
+  },
+]
+
+// Roadmap phase 64 — founder-logged observations of real pilot
+// behavior, ranked by impact * frequency (the mock's own `priority`
+// values are pre-sorted descending, matching what the real RPC
+// returns — see lib/platform/product-signals.ts#productSignalPriority).
+export const mockProductSignals: ProductSignalItem[] = [
+  {
+    id: "sig_1",
+    companyId: "pc_atlas",
+    companyName: "Atlas Rent Car",
+    signalType: "asked_us_to_do",
+    note: "Owner asks us to change a reservation's dates every time a customer calls to extend — there's no self-serve way for them to do it (matches the known extension/exchange gap).",
+    impact: 3,
+    frequency: 3,
+    priority: 9,
+    status: "open",
+    loggedByEmail: "admin@platform.example",
+    createdAt: daysAgo(3),
+    updatedAt: daysAgo(3),
+  },
+  {
+    id: "sig_2",
+    companyId: "pc_atlas",
+    companyName: "Atlas Rent Car",
+    signalType: "hesitates",
+    note: "Pauses every time on the deposit step during pickup — unsure whether to collect cash before or after the inspection photos.",
+    impact: 2,
+    frequency: 2,
+    priority: 4,
+    status: "planned",
+    loggedByEmail: "admin@platform.example",
+    createdAt: daysAgo(9),
+    updatedAt: daysAgo(2),
+  },
+  {
+    id: "sig_3",
+    companyId: "pc_atlas",
+    companyName: "Atlas Rent Car",
+    signalType: "whatsapp_workaround",
+    note: "Still confirms every pickup time with the customer over their own WhatsApp instead of the in-app WhatsApp action — didn't realize the app one exists.",
+    impact: 1,
+    frequency: 3,
+    priority: 3,
+    status: "open",
+    loggedByEmail: "admin@platform.example",
+    createdAt: daysAgo(12),
+    updatedAt: daysAgo(12),
+  },
+  {
+    id: "sig_4",
+    companyId: "pc_atlas",
+    companyName: "Atlas Rent Car",
+    signalType: "enjoys",
+    note: "Checks the Overview page unprompted first thing every morning, even before opening WhatsApp.",
+    impact: 1,
+    frequency: 1,
+    priority: 1,
+    status: "shipped",
+    loggedByEmail: "admin@platform.example",
+    createdAt: daysAgo(20),
+    updatedAt: daysAgo(20),
   },
 ]
 

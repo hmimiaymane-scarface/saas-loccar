@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 
-import { getPlatformCompanySummary, getPlatformCompanyEvents, getMigrationChecklist, getCompanyFeedback } from "@/lib/platform-data"
+import { getPlatformCompanySummary, getPlatformCompanyEvents, getMigrationChecklist, getCompanyFeedback, getProductSignals } from "@/lib/platform-data"
 import { subscriptionStatusConfig, PLATFORM_ACTION_LABELS } from "@/lib/platform-status"
 import { migrationChecklistProgress } from "@/lib/platform/migration-checklist"
 import { formatDate, formatMad, formatRelativeTime } from "@/lib/format"
@@ -10,6 +10,7 @@ import { SummaryRow } from "@/components/domain/summary-row"
 import { SubscriptionActions } from "@/components/domain/platform/subscription-actions"
 import { NotesEditor } from "@/components/domain/platform/notes-editor"
 import { MigrationChecklistPanel } from "@/components/domain/platform/migration-checklist"
+import { ProductSignalLog } from "@/components/domain/platform/product-signal-log"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/domain/status-badge"
 
@@ -25,6 +26,7 @@ export default async function PlatformCompanySummaryPage({
   const events = await getPlatformCompanyEvents(id)
   const checklist = await getMigrationChecklist(id)
   const feedback = await getCompanyFeedback(id)
+  const productSignals = await getProductSignals(id)
   const statusVisual = subscriptionStatusConfig[summary.subscription.status]
   const migrationProgress = migrationChecklistProgress(checklist)
   const onboardingLabel =
@@ -118,6 +120,8 @@ export default async function PlatformCompanySummaryPage({
           <SubscriptionActions companyId={id} subscription={summary.subscription} />
 
           <MigrationChecklistPanel companyId={id} items={checklist} />
+
+          <ProductSignalLog companyId={id} signals={productSignals} />
         </div>
 
         <div className="flex flex-col gap-6">

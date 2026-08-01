@@ -48,4 +48,6 @@ export const PLATFORM_ACTION_LABELS: Record<string, string> = {
   internal_note_updated: "Internal note updated",
   migration_checklist_item_completed: "Migration checklist item completed",
   migration_checklist_item_reopened: "Migration checklist item reopened",
+  product_signal_logged: "Product signal logged",
+  product_signal_status_changed: "Product signal status changed",
 }
