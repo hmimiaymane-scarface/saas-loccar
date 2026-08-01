@@ -43,7 +43,7 @@ function OfflineQueueIndicator({ companyId }: { companyId: string }) {
         {needsAttention ? <CloudOff className="size-[18px]" /> : <RefreshCw className="size-[18px] animate-spin" />}
         <span
           className={cn(
-            "absolute top-1.5 right-1.5 flex size-4 items-center justify-center rounded-full text-[9px] font-medium text-white",
+            "absolute top-1.5 end-1.5 flex size-4 items-center justify-center rounded-full text-[9px] font-medium text-white",
             needsAttention ? "bg-amber-500" : "bg-muted-foreground"
           )}
         >

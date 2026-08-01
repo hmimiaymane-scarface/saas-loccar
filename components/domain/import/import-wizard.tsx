@@ -449,7 +449,7 @@ function PreviewStep({
 
         <div className="overflow-x-auto rounded-2xl border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-muted-foreground">
+            <thead className="bg-muted/50 text-start text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 font-medium">Row</th>
                 <th className="px-3 py-2 font-medium">{entityType === "vehicle" ? "Vehicle" : "Customer"}</th>

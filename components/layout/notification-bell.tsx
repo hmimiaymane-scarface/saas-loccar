@@ -31,7 +31,7 @@ function NotificationBell({ notifications, unreadCount }: { notifications: Notif
         <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
           <Bell className="size-[18px]" />
           {unreadCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-medium text-white">
+            <span className="absolute top-1.5 end-1.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-medium text-white">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}

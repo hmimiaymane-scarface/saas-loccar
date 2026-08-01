@@ -37,31 +37,31 @@ function FleetPerformanceTable({ report }: { report: FleetPerformanceReport }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th className="py-2 pr-3 font-medium">Vehicle</th>
-                <th className="py-2 pr-3 font-medium">Status</th>
-                <th className="py-2 pr-3 text-right font-medium">Rental days</th>
-                <th className="py-2 pr-3 text-right font-medium">Revenue</th>
-                <th className="py-2 pr-3 text-right font-medium">Expenses</th>
-                <th className="py-2 text-right font-medium">Downtime</th>
+              <tr className="border-b border-border text-start text-xs text-muted-foreground">
+                <th className="py-2 pe-3 font-medium">Vehicle</th>
+                <th className="py-2 pe-3 font-medium">Status</th>
+                <th className="py-2 pe-3 text-end font-medium">Rental days</th>
+                <th className="py-2 pe-3 text-end font-medium">Revenue</th>
+                <th className="py-2 pe-3 text-end font-medium">Expenses</th>
+                <th className="py-2 text-end font-medium">Downtime</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {rows.map((r) => (
                 <tr key={r.vehicleId}>
-                  <td className="py-2 pr-3">
+                  <td className="py-2 pe-3">
                     <Link href={`/fleet/${r.vehicleId}`} className="text-foreground hover:underline">
                       {r.vehicleLabel}
                     </Link>
-                    <span className="ml-1.5 text-xs text-muted-foreground">{r.plate}</span>
+                    <span className="ms-1.5 text-xs text-muted-foreground">{r.plate}</span>
                   </td>
-                  <td className="py-2 pr-3">
+                  <td className="py-2 pe-3">
                     <StatusBadge visual={vehicleStatusConfig[r.status]} />
                   </td>
-                  <td className="py-2 pr-3 text-right text-foreground">{r.rentalDays}</td>
-                  <td className="py-2 pr-3 text-right text-foreground">{formatMad(r.recordedRevenueMad)}</td>
-                  <td className="py-2 pr-3 text-right text-muted-foreground">{formatMad(r.recordedExpensesMad)}</td>
-                  <td className="py-2 text-right text-muted-foreground">{r.downtimeDays}d</td>
+                  <td className="py-2 pe-3 text-end text-foreground">{r.rentalDays}</td>
+                  <td className="py-2 pe-3 text-end text-foreground">{formatMad(r.recordedRevenueMad)}</td>
+                  <td className="py-2 pe-3 text-end text-muted-foreground">{formatMad(r.recordedExpensesMad)}</td>
+                  <td className="py-2 text-end text-muted-foreground">{r.downtimeDays}d</td>
                 </tr>
               ))}
             </tbody>
