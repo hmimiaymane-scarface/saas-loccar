@@ -7,6 +7,7 @@ import { AlertTriangle } from "lucide-react"
 
 import { getErrorReference } from "@/lib/error-reference"
 import { trackUsageEvent } from "@/lib/analytics/track"
+import { logOperationalEvent } from "@/lib/observability/log"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
@@ -49,8 +50,19 @@ export default function DashboardError({
     // it would swamp genuine "error rate" signal with noise unique to
     // running without a connected Supabase project.
     if (!isMockModeLimitation) {
+      // Two different tables, two different audiences, both worth
+      // writing: trackUsageEvent's error_occurred is product-usage
+      // signal (part of a specific flow's error rate); phase 59's
+      // logOperationalEvent is system-health evidence (did the app
+      // break, independent of which product flow it happened in).
       void trackUsageEvent("error_occurred", {
         metadata: { context: "crash_boundary", message: error.message, digest: error.digest ?? null },
+      })
+      void logOperationalEvent({
+        source: "frontend",
+        context: "dashboard_error_boundary",
+        message: error.message,
+        metadata: { digest: error.digest ?? null },
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

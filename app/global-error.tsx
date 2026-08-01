@@ -1,7 +1,10 @@
 "use client"
 
+import { useEffect } from "react"
+
 import "./globals.css"
 import { getErrorReference } from "@/lib/error-reference"
+import { logOperationalEvent } from "@/lib/observability/log"
 
 /**
  * Productization wave 1 phase 8 — the last-resort boundary, catching
@@ -18,6 +21,16 @@ import { getErrorReference } from "@/lib/error-reference"
  * even client-side routing itself might be what's broken) instead of a
  * "Go back" button, and `getErrorReference` (a pure, dependency-free
  * helper — no React/Supabase imports) for the support reference.
+ *
+ * Roadmap phase 59 — this boundary previously emitted no telemetry at
+ * all, an asymmetry against app/(dashboard)/error.tsx (which has
+ * logged since phase 58). A crash reaching all the way here — escaping
+ * even the root layout — is the single worst-case failure this app can
+ * have, and is exactly the kind of thing phase 59's "production
+ * problems leave evidence" brief means. logOperationalEvent is a
+ * fire-and-forget server action call, not a real dependency on the
+ * rest of the component tree — it stays safe to call from this
+ * deliberately minimal boundary.
  */
 export default function GlobalError({
   error,
@@ -26,6 +39,18 @@ export default function GlobalError({
   error: Error & { digest?: string }
   unstable_retry: () => void
 }) {
+  useEffect(() => {
+    console.error(error)
+    if (!error.message.includes("Supabase is not configured")) {
+      void logOperationalEvent({
+        source: "frontend",
+        context: "global_error_boundary",
+        message: error.message,
+        metadata: { digest: error.digest ?? null },
+      })
+    }
+  }, [error])
+
   const reference = getErrorReference(error)
 
   return (
