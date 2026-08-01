@@ -35,20 +35,20 @@ function readCookie(request: Request, name: string): string | null {
 export async function POST(request: Request) {
   const expectedChallenge = readCookie(request, WEBAUTHN_CHALLENGE_COOKIE)
   if (!expectedChallenge) {
-    return Response.json({ error: "This sign-in attempt expired — try again." }, { status: 400 })
+    return Response.json({ error: "That took too long — try again." }, { status: 400 })
   }
 
   const body = (await request.json()) as { response: AuthenticationResponseJSON }
   const userHandle = body.response.response.userHandle
   if (!userHandle) {
-    return Response.json({ error: "That passkey isn't recognized." }, { status: 400 })
+    return Response.json({ error: "That didn't work — try signing in with your password instead." }, { status: 400 })
   }
 
   let userId: string
   try {
     userId = new TextDecoder().decode(Buffer.from(userHandle, "base64url"))
   } catch {
-    return Response.json({ error: "That passkey isn't recognized." }, { status: 400 })
+    return Response.json({ error: "That didn't work — try signing in with your password instead." }, { status: 400 })
   }
 
   const admin = createAdminClient()
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     .maybeSingle()
 
   if (!credentialRow) {
-    return Response.json({ error: "That passkey isn't recognized." }, { status: 400 })
+    return Response.json({ error: "That didn't work — try signing in with your password instead." }, { status: 400 })
   }
   // Rebound to a definitely-non-null const — a nested function closing
   // over `credentialRow` directly wouldn't retain the null check above's
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
   // this; see lib/webauthn/lockout.ts's own doc comment.
   if (isLocked({ failedAttempts: credRow.failed_attempts, lockedUntil: credRow.locked_until })) {
     return Response.json(
-      { error: "Too many failed attempts with this passkey. Try again later." },
+      { error: "Too many attempts — try again later or use your password." },
       { status: 429 }
     )
   }
@@ -105,12 +105,12 @@ export async function POST(request: Request) {
     })
   } catch {
     await recordFailure()
-    return Response.json({ error: "Could not verify that passkey. Try again." }, { status: 400 })
+    return Response.json({ error: "That didn't work — try again." }, { status: 400 })
   }
 
   if (!verification.verified) {
     await recordFailure()
-    return Response.json({ error: "Could not verify that passkey. Try again." }, { status: 400 })
+    return Response.json({ error: "That didn't work — try again." }, { status: 400 })
   }
 
   const reset = resetLockout()
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
 
   const { data: userResult, error: userError } = await admin.auth.admin.getUserById(userId)
   if (userError || !userResult.user?.email) {
-    return Response.json({ error: "Could not sign in with that passkey." }, { status: 500 })
+    return Response.json({ error: "Could not sign you in. Try again or use your password." }, { status: 500 })
   }
 
   const { data: linkResult, error: linkError } = await admin.auth.admin.generateLink({
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
     email: userResult.user.email,
   })
   if (linkError || !linkResult) {
-    return Response.json({ error: "Could not sign in with that passkey." }, { status: 500 })
+    return Response.json({ error: "Could not sign you in. Try again or use your password." }, { status: 500 })
   }
 
   const supabase = await createClient()
@@ -146,7 +146,7 @@ export async function POST(request: Request) {
   const clearCookie = `${WEBAUTHN_CHALLENGE_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`
 
   if (verifyOtpError) {
-    const response = Response.json({ error: "Could not sign in with that passkey." }, { status: 500 })
+    const response = Response.json({ error: "Could not sign you in. Try again or use your password." }, { status: 500 })
     response.headers.append("Set-Cookie", clearCookie)
     return response
   }

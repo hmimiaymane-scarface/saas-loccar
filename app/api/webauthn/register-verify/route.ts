@@ -16,7 +16,7 @@ export async function POST(request: Request) {
 
   const expectedChallenge = readCookie(request, WEBAUTHN_CHALLENGE_COOKIE)
   if (!expectedChallenge) {
-    return Response.json({ error: "This registration attempt expired — try again." }, { status: 400 })
+    return Response.json({ error: "That took too long — try again." }, { status: 400 })
   }
 
   const body = (await request.json()) as { response: RegistrationResponseJSON; deviceLabel?: string }
@@ -31,11 +31,11 @@ export async function POST(request: Request) {
       expectedRPID: rpID,
     })
   } catch {
-    return Response.json({ error: "Could not verify that passkey. Try again." }, { status: 400 })
+    return Response.json({ error: "That didn't work — try again." }, { status: 400 })
   }
 
   if (!verification.verified || !verification.registrationInfo) {
-    return Response.json({ error: "Could not verify that passkey. Try again." }, { status: 400 })
+    return Response.json({ error: "That didn't work — try again." }, { status: 400 })
   }
 
   const { credential } = verification.registrationInfo
@@ -51,7 +51,12 @@ export async function POST(request: Request) {
 
   const clearCookie = `${WEBAUTHN_CHALLENGE_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`
   if (error) {
-    const response = Response.json({ error: error.message }, { status: 500 })
+    // Roadmap phase 57 — this used to pass the raw Postgres error.message
+    // straight to the client (a technical-sounding string that could also
+    // leak schema detail); a friendly fallback goes out instead, the real
+    // error is still on the server for whoever checks logs.
+    console.error("webauthn register-verify insert failed:", error.message)
+    const response = Response.json({ error: "Could not save that. Try again." }, { status: 500 })
     response.headers.append("Set-Cookie", clearCookie)
     return response
   }
