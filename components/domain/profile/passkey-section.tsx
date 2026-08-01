@@ -60,7 +60,7 @@ function PasskeySection({ passkeys }: { passkeys: PasskeyItem[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Passkey sign-in</CardTitle>
+        <CardTitle>Quick sign-in</CardTitle>
         <CardDescription>
           Use Face ID, a fingerprint, or your device&apos;s screen lock instead of typing your password — useful in
           the field on a phone.
@@ -97,7 +97,7 @@ function PasskeySection({ passkeys }: { passkeys: PasskeyItem[] }) {
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => setConfirmingId(p.id)}
-                    aria-label="Remove passkey"
+                    aria-label="Remove this sign-in method"
                   >
                     <Trash2 className="size-4" />
                   </Button>
@@ -113,7 +113,7 @@ function PasskeySection({ passkeys }: { passkeys: PasskeyItem[] }) {
             Enable Face ID / fingerprint sign-in
           </Button>
         ) : (
-          <p className="text-xs text-muted-foreground">Passkeys aren&apos;t supported on this browser.</p>
+          <p className="text-xs text-muted-foreground">Face ID / fingerprint sign-in isn&apos;t available on this browser.</p>
         )}
         {error && <p className="text-xs text-destructive">{error}</p>}
       </CardContent>
