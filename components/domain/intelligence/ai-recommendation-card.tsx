@@ -50,7 +50,7 @@ function AiRecommendationCard({
       <CardContent className="flex flex-col gap-3">
         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Sparkles aria-hidden="true" className="size-3.5" />
-          AI recommendation
+          Suggestion
         </div>
         {comparisonImages && (
           <div className="grid grid-cols-2 gap-2">

@@ -33,7 +33,7 @@ function BusinessPulseGrid({ pulse }: { pulse: BusinessPulseSummary }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Business Pulse</CardTitle>
+        <CardTitle>At a glance</CardTitle>
       </CardHeader>
       <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {ROWS.map((row) => (

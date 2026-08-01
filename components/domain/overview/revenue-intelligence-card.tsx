@@ -17,7 +17,7 @@ function RevenueIntelligenceCard({ result, revenueThisMonthMad }: { result: Reve
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Revenue Intelligence</CardTitle>
+        <CardTitle>Revenue this month</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex items-center gap-2">

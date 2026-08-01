@@ -29,7 +29,7 @@ function VehicleInsightsSection({ intelligence }: { intelligence: VehicleIntelli
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
         <Sparkles className="size-4 text-muted-foreground" />
-        AI Insights
+        Insights
       </div>
       {recommendations.map((rec, index) => (
         <AiRecommendationCard
