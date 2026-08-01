@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Download, X, Share } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { trackUsageEvent } from "@/lib/analytics/track"
 
 const DISMISS_KEY = "rentalos:install-prompt-dismissed"
 
@@ -44,8 +45,18 @@ function InstallPrompt() {
       event.preventDefault()
       setDeferredPrompt(event as BeforeInstallPromptEvent)
     }
+    // Roadmap phase 58 — the one reliable "actually installed" signal on
+    // Chromium: userChoice's "accepted" fires even if the OS install is
+    // later cancelled, appinstalled only fires once it genuinely completes.
+    function onAppInstalled() {
+      void trackUsageEvent("pwa_installed")
+    }
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt)
-    return () => window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt)
+    window.addEventListener("appinstalled", onAppInstalled)
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt)
+      window.removeEventListener("appinstalled", onAppInstalled)
+    }
   }, [])
 
   function dismiss() {
@@ -57,6 +68,7 @@ function InstallPrompt() {
     if (!deferredPrompt) return
     await deferredPrompt.prompt()
     const { outcome } = await deferredPrompt.userChoice
+    void trackUsageEvent("pwa_install_outcome", { metadata: { outcome } })
     if (outcome === "accepted") setDeferredPrompt(null)
   }
 

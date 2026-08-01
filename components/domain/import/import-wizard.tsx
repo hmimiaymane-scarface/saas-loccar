@@ -10,6 +10,7 @@ import { validateVehicleImportRows, type VehicleImportRawRow, type VehicleImport
 import { validateCustomerImportRows, type CustomerImportRawRow, type CustomerImportRowResult } from "@/lib/import/customer-import"
 import { normalizeIdLike } from "@/lib/customer-matching"
 import { useSubmitGuard } from "@/hooks/use-submit-guard"
+import { trackUsageEvent } from "@/lib/analytics/track"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
@@ -162,8 +163,14 @@ function ImportWizard() {
           .filter((r) => r.data && (!r.isDuplicate || overrideDuplicates))
           .map((r) => ({ rowNumber: r.rowNumber, data: r.data! }))
         const result = await commitVehicleImport(rows)
-        if (result.error) return { error: result.error }
+        if (result.error) {
+          void trackUsageEvent("error_occurred", { metadata: { context: "import_commit", kind: "vehicle", message: result.error } })
+          return { error: result.error }
+        }
         setCommitSummary({ insertedCount: result.insertedCount ?? 0, rowErrors: result.rowErrors ?? [] })
+        void trackUsageEvent("import_completed", {
+          metadata: { kind: "vehicle", insertedCount: result.insertedCount ?? 0, errorCount: result.rowErrors?.length ?? 0 },
+        })
         setStep(3)
         return
       }
@@ -172,8 +179,14 @@ function ImportWizard() {
           .filter((r) => r.data && (!r.isDuplicate || overrideDuplicates))
           .map((r) => ({ rowNumber: r.rowNumber, data: r.data! }))
         const result = await commitCustomerImport(rows)
-        if (result.error) return { error: result.error }
+        if (result.error) {
+          void trackUsageEvent("error_occurred", { metadata: { context: "import_commit", kind: "customer", message: result.error } })
+          return { error: result.error }
+        }
         setCommitSummary({ insertedCount: result.insertedCount ?? 0, rowErrors: result.rowErrors ?? [] })
+        void trackUsageEvent("import_completed", {
+          metadata: { kind: "customer", insertedCount: result.insertedCount ?? 0, errorCount: result.rowErrors?.length ?? 0 },
+        })
         setStep(3)
       }
     })

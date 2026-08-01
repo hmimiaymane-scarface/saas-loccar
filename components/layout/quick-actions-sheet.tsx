@@ -7,6 +7,7 @@ import { CarFront, Undo2, Wallet, Receipt, UserPlus, Car, type LucideIcon } from
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { vibrate } from "@/lib/haptics"
 import { loadRecentActionOrder, recordQuickActionUsage, orderByRecency } from "@/lib/quick-actions-recency"
+import { trackUsageEvent } from "@/lib/analytics/track"
 
 interface QuickAction {
   label: string
@@ -53,6 +54,7 @@ function QuickActionsSheet({ children }: { children: React.ReactNode }) {
 
   function handleActionClick(label: string) {
     recordQuickActionUsage(label)
+    void trackUsageEvent("quick_action_used", { metadata: { action: label } })
     setOpen(false)
   }
 

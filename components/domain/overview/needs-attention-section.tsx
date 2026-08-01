@@ -7,6 +7,7 @@ import { PartyPopper } from "lucide-react"
 import { dismissFeedItemAction } from "@/app/(dashboard)/operations-feed/actions"
 import { InsightFeedItem } from "@/components/domain/intelligence/insight-feed-item"
 import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
+import { trackUsageEvent } from "@/lib/analytics/track"
 import type { AttentionCard } from "@/lib/needs-attention"
 
 /**
@@ -30,18 +31,25 @@ function NeedsAttentionSection({ cards, isNewAccount = false }: { cards: Attenti
     (state, dismissedId: string) => state.filter((card) => card.id !== dismissedId)
   )
 
-  function handleAction(href: string) {
-    if (href.startsWith("tel:") || href.startsWith("http")) {
-      window.open(href, "_self")
+  // card.id is a composite string (e.g. "booking-request:<uuid>"), not
+  // itself a uuid — it goes in metadata, not the entityId column, which
+  // rejects non-uuid values and would otherwise drop the whole event.
+  function handleAction(card: AttentionCard) {
+    void trackUsageEvent("alert_action_used", {
+      metadata: { cardId: card.id, priority: card.priority, actionLabel: card.actionLabel },
+    })
+    if (card.actionHref.startsWith("tel:") || card.actionHref.startsWith("http")) {
+      window.open(card.actionHref, "_self")
     } else {
-      router.push(href)
+      router.push(card.actionHref)
     }
   }
 
-  function handleDismiss(id: string) {
+  function handleDismiss(card: AttentionCard) {
+    void trackUsageEvent("alert_dismissed", { metadata: { cardId: card.id, priority: card.priority } })
     startTransition(async () => {
-      dismissOptimistically(id)
-      await dismissFeedItemAction(id)
+      dismissOptimistically(card.id)
+      await dismissFeedItemAction(card.id)
       router.refresh()
     })
   }
@@ -72,8 +80,8 @@ function NeedsAttentionSection({ cards, isNewAccount = false }: { cards: Attenti
           title={card.title}
           description={card.description}
           actionLabel={card.actionLabel}
-          onAction={() => handleAction(card.actionHref)}
-          onDismiss={card.dismissible ? () => handleDismiss(card.id) : undefined}
+          onAction={() => handleAction(card)}
+          onDismiss={card.dismissible ? () => handleDismiss(card) : undefined}
         />
       ))}
     </div>

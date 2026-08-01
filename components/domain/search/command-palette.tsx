@@ -8,6 +8,7 @@ import { Search, Car, User, ClipboardList, FileSignature, FileText, UserCog, Loa
 import { globalSearchAction } from "@/app/(dashboard)/search/actions"
 import { groupSearchResultsByType, type SearchResult, type SearchResultType } from "@/lib/search"
 import { InlineEmpty } from "@/components/domain/empty-placeholder"
+import { trackUsageEvent } from "@/lib/analytics/track"
 import { cn } from "@/lib/utils"
 
 const TYPE_ICON: Record<SearchResultType, typeof Car> = {
@@ -68,11 +69,16 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
   }, [activeIndex])
 
   useEffect(() => {
+    if (open) void trackUsageEvent("search_opened")
+  }, [open])
+
+  useEffect(() => {
     if (query.trim().length < 2) return
     const timeout = setTimeout(() => {
       startTransition(async () => {
         setResults(await globalSearchAction(query))
         setActiveIndex(0)
+        void trackUsageEvent("search_query_run", { metadata: { queryLength: query.trim().length } })
       })
     }, 200)
     return () => clearTimeout(timeout)
@@ -92,7 +98,8 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
     }
   }
 
-  function go(href: string) {
+  function go(href: string, type: SearchResultType) {
+    void trackUsageEvent("search_result_selected", { metadata: { resultType: type } })
     handleOpenChange(false)
     router.push(href)
   }
@@ -108,7 +115,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
     } else if (e.key === "Enter") {
       e.preventDefault()
       const active = flatResults[activeIndex]
-      if (active) go(active.href)
+      if (active) go(active.href, active.type)
     }
   }
 
@@ -159,7 +166,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
                               id={optionId(r)}
                               role="option"
                               aria-selected={isActive}
-                              onClick={() => go(r.href)}
+                              onClick={() => go(r.href, r.type)}
                               onMouseEnter={() => setActiveIndex(flatResults.indexOf(r))}
                               className={cn(
                                 "flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-muted",
