@@ -1198,6 +1198,26 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["operational_events"]["Insert"]>
         Relationships: []
       }
+      pilot_feedback: {
+        Row: {
+          id: string
+          company_id: string
+          submitted_by: string
+          message: string
+          page_context: string | null
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          submitted_by: string
+          message: string
+          page_context?: string | null
+          created_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["pilot_feedback"]["Insert"]>
+        Relationships: []
+      }
       inspections: {
         Row: {
           id: string
@@ -1750,6 +1770,16 @@ export type Database = {
         Returns: {
           total_calls: number
           failed_calls: number
+        }[]
+      }
+      platform_get_company_feedback: {
+        Args: { p_company_id: string; p_limit?: number }
+        Returns: {
+          id: string
+          message: string
+          page_context: string | null
+          submitted_by_email: string | null
+          created_at: string
         }[]
       }
     }

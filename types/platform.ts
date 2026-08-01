@@ -80,6 +80,16 @@ export interface PlatformAuditEvent {
   createdAt: string
 }
 
+/** Roadmap phase 63 — one piece of in-app feedback a pilot submitted
+ * from /support, read back on that company's platform detail page. */
+export interface PilotFeedbackItem {
+  id: string
+  message: string
+  pageContext: string | null
+  submittedByEmail: string | null
+  createdAt: string
+}
+
 /** Roadmap phase 49 — one row of the founder-assisted white-glove
  * onboarding checklist (see lib/platform/migration-checklist.ts for
  * the fixed step list this `stepKey` refers into). */

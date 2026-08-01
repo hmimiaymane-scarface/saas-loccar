@@ -12,6 +12,7 @@ import {
   mockOperationalSummary,
   mockRecentOperationalEvents,
   mockAiCallSummary,
+  mockPilotFeedback,
 } from "@/lib/mock/platform"
 import type {
   AiCallSummary,
@@ -19,6 +20,7 @@ import type {
   MigrationChecklistItem,
   OperationalEventRow,
   OperationalSummary,
+  PilotFeedbackItem,
   PlatformAuditEvent,
   PlatformCompanyListFilters,
   PlatformCompanyRow,
@@ -175,6 +177,26 @@ export async function getPlatformCompanyEvents(companyId: string, limit = 20): P
     adminEmail: r.admin_email,
     action: r.action,
     description: r.description,
+    createdAt: r.created_at,
+  }))
+}
+
+/** Roadmap phase 63 — in-app feedback one company's team submitted
+ * from /support, newest first. */
+export async function getCompanyFeedback(companyId: string, limit = 20): Promise<PilotFeedbackItem[]> {
+  if (isMockMode()) return mockPilotFeedback
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("platform_get_company_feedback", {
+    p_company_id: companyId,
+    p_limit: limit,
+  })
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    message: r.message,
+    pageContext: r.page_context,
+    submittedByEmail: r.submitted_by_email,
     createdAt: r.created_at,
   }))
 }

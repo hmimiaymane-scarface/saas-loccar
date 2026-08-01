@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 
-import { getPlatformCompanySummary, getPlatformCompanyEvents, getMigrationChecklist } from "@/lib/platform-data"
+import { getPlatformCompanySummary, getPlatformCompanyEvents, getMigrationChecklist, getCompanyFeedback } from "@/lib/platform-data"
 import { subscriptionStatusConfig, PLATFORM_ACTION_LABELS } from "@/lib/platform-status"
 import { migrationChecklistProgress } from "@/lib/platform/migration-checklist"
 import { formatDate, formatMad, formatRelativeTime } from "@/lib/format"
@@ -24,6 +24,7 @@ export default async function PlatformCompanySummaryPage({
 
   const events = await getPlatformCompanyEvents(id)
   const checklist = await getMigrationChecklist(id)
+  const feedback = await getCompanyFeedback(id)
   const statusVisual = subscriptionStatusConfig[summary.subscription.status]
   const migrationProgress = migrationChecklistProgress(checklist)
   const onboardingLabel =
@@ -142,6 +143,28 @@ export default async function PlatformCompanySummaryPage({
                     <span className="text-xs text-muted-foreground">
                       {formatRelativeTime(e.createdAt)}
                       {e.adminEmail ? ` · ${e.adminEmail}` : ""}
+                    </span>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Pilot feedback</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col divide-y divide-border p-0">
+              {feedback.length === 0 ? (
+                <p className="px-6 py-4 text-sm text-muted-foreground">No feedback submitted yet.</p>
+              ) : (
+                feedback.map((f) => (
+                  <div key={f.id} className="flex flex-col gap-0.5 px-6 py-3">
+                    <span className="text-sm text-foreground">{f.message}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatRelativeTime(f.createdAt)}
+                      {f.submittedByEmail ? ` · ${f.submittedByEmail}` : ""}
+                      {f.pageContext ? ` · from ${f.pageContext}` : ""}
                     </span>
                   </div>
                 ))

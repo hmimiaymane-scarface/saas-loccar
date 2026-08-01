@@ -20,6 +20,7 @@ import {
   MoreHorizontal,
   Home,
   Upload,
+  LifeBuoy,
   type LucideIcon,
 } from "lucide-react"
 
@@ -234,6 +235,13 @@ export const moreLinks: NavItem[] = [
     icon: Settings,
     description: "Company, billing and preferences",
     roles: OWNER_AND_STAFF,
+  },
+  {
+    title: "Help & Support",
+    href: "/support",
+    icon: LifeBuoy,
+    description: "Reach us directly, or send feedback",
+    roles: ALL_ROLES,
   },
 ]
 

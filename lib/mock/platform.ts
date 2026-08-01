@@ -4,6 +4,7 @@ import type {
   MigrationChecklistItem,
   OperationalEventRow,
   OperationalSummary,
+  PilotFeedbackItem,
   PlatformAuditEvent,
   PlatformCompanyRow,
   PlatformCompanySummary,
@@ -102,6 +103,24 @@ export const mockPlatformAuditEvents: PlatformAuditEvent[] = [
   { id: "pae_1", adminEmail: "admin@platform.example", action: "company_suspended", description: "Overdue invoice, contacted by phone first", createdAt: daysAgo(21) },
   { id: "pae_2", adminEmail: "admin@platform.example", action: "trial_extended", description: "Trial set to end in 3 days", createdAt: daysAgo(8) },
   { id: "pae_3", adminEmail: "admin@platform.example", action: "subscription_activated", description: null, createdAt: daysAgo(45) },
+]
+
+// Roadmap phase 63 — in-app feedback a pilot submitted from /support.
+export const mockPilotFeedback: PilotFeedbackItem[] = [
+  {
+    id: "pf_1",
+    message: "Love the new Quick Actions button — saves us a ton of taps during a busy morning.",
+    pageContext: "/overview",
+    submittedByEmail: "owner@atlasrentcar.ma",
+    createdAt: daysAgo(2),
+  },
+  {
+    id: "pf_2",
+    message: "Wish the deposit amount showed up on the pickup screen itself instead of having to go back to the reservation.",
+    pageContext: "/reservations/bk_2/pickup",
+    submittedByEmail: "owner@atlasrentcar.ma",
+    createdAt: daysAgo(6),
+  },
 ]
 
 export function mockPlatformCompanySummary(companyId: string): PlatformCompanySummary | null {

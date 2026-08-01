@@ -42,6 +42,21 @@ export const pushEnv = {
   vapidSubject: vapidSubject ?? "",
 }
 
+// Roadmap phase 63 (Pilot Onboarding Package) — the backup contact
+// method a pilot sees on /support when something breaks. Both public
+// by nature (a phone number/email meant to be shown, not a secret), so
+// NEXT_PUBLIC_ like every other browser-visible constant here. Neither
+// is required — /support renders whichever of the two is actually set
+// and an honest "not configured yet" state if both are empty, same
+// "don't fake availability" convention as isPushConfigured.
+const supportWhatsapp = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP
+const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL
+
+export const supportEnv = {
+  whatsapp: supportWhatsapp ?? "",
+  email: supportEmail ?? "",
+}
+
 /**
  * Throws with a clear message instead of letting the Supabase SDK fail with
  * an opaque "Invalid URL" error deep in a request. Call this at the top of
