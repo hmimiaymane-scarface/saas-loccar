@@ -14,7 +14,7 @@ export async function registerPasskey(deviceLabel?: string): Promise<{ ok: true 
   const optionsResponse = await fetch("/api/webauthn/register-options", { method: "POST" })
   if (!optionsResponse.ok) {
     const body = await optionsResponse.json().catch(() => ({}))
-    return { ok: false, error: body.error ?? "Could not start passkey registration." }
+    return { ok: false, error: body.error ?? "Could not start setup. Try again." }
   }
   const options = await optionsResponse.json()
 
@@ -22,7 +22,7 @@ export async function registerPasskey(deviceLabel?: string): Promise<{ ok: true 
   try {
     attestation = await startRegistration({ optionsJSON: options })
   } catch {
-    return { ok: false, error: "Passkey registration was cancelled or isn't supported on this device." }
+    return { ok: false, error: "That was cancelled, or isn't supported on this device." }
   }
 
   const verifyResponse = await fetch("/api/webauthn/register-verify", {
@@ -31,7 +31,7 @@ export async function registerPasskey(deviceLabel?: string): Promise<{ ok: true 
     body: JSON.stringify({ response: attestation, deviceLabel }),
   })
   const result = await verifyResponse.json().catch(() => ({}))
-  if (!verifyResponse.ok) return { ok: false, error: result.error ?? "Could not save that passkey." }
+  if (!verifyResponse.ok) return { ok: false, error: result.error ?? "Could not save that. Try again." }
   return { ok: true }
 }
 
@@ -39,7 +39,7 @@ export async function signInWithPasskey(): Promise<{ ok: true } | { ok: false; e
   const optionsResponse = await fetch("/api/webauthn/authenticate-options", { method: "POST" })
   if (!optionsResponse.ok) {
     const body = await optionsResponse.json().catch(() => ({}))
-    return { ok: false, error: body.error ?? "Could not start passkey sign-in." }
+    return { ok: false, error: body.error ?? "Could not start sign-in. Try again." }
   }
   const options = await optionsResponse.json()
 
@@ -47,7 +47,7 @@ export async function signInWithPasskey(): Promise<{ ok: true } | { ok: false; e
   try {
     assertion = await startAuthentication({ optionsJSON: options })
   } catch {
-    return { ok: false, error: "Passkey sign-in was cancelled or isn't supported on this device." }
+    return { ok: false, error: "That was cancelled, or isn't supported on this device." }
   }
 
   const verifyResponse = await fetch("/api/webauthn/authenticate-verify", {
@@ -56,6 +56,6 @@ export async function signInWithPasskey(): Promise<{ ok: true } | { ok: false; e
     body: JSON.stringify({ response: assertion }),
   })
   const result = await verifyResponse.json().catch(() => ({}))
-  if (!verifyResponse.ok) return { ok: false, error: result.error ?? "Could not sign in with that passkey." }
+  if (!verifyResponse.ok) return { ok: false, error: result.error ?? "Could not sign you in. Try again or use your password." }
   return { ok: true }
 }
