@@ -52,6 +52,7 @@ import { SegmentedSelector } from "@/components/domain/inspections/segmented-sel
 import { ChecklistSection } from "@/components/domain/inspections/checklist-section"
 import { PhotoUploadGrid, type UploadedPhoto } from "@/components/domain/photo-upload-grid"
 import { AiRecommendationCard } from "@/components/domain/intelligence/ai-recommendation-card"
+import { trackUsageEvent } from "@/lib/analytics/track"
 
 const STEPS = [
   { label: "Return details" },
@@ -120,6 +121,17 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
   const stepContainerRef = useStepFocus<HTMLDivElement>(step)
   const [isPending, startTransition] = useTransition()
   const [stepError, setStepError] = useState<string | null>(null)
+
+  // Roadmap phase 58 — see the identical comment in new-rental-wizard.tsx.
+  const [analyticsSessionId] = useState(() => crypto.randomUUID())
+  useEffect(() => {
+    void trackUsageEvent("return_step_viewed", {
+      sessionId: analyticsSessionId,
+      entityId: reservation.id,
+      metadata: { step, step_label: STEPS[step]?.label ?? null },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step])
 
   const pickup = reservation.pickupInspection
 
@@ -247,10 +259,18 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
 
   useEffect(() => {
     if (inspectionId) return
+    void trackUsageEvent("return_started", { sessionId: analyticsSessionId, entityId: reservation.id })
     startTransition(async () => {
       const result = await startInspection(reservation.id, "return")
       if (result.inspectionId) setInspectionId(result.inspectionId)
-      else if (result.error) setStepError(result.error)
+      else if (result.error) {
+        setStepError(result.error)
+        void trackUsageEvent("error_occurred", {
+          sessionId: analyticsSessionId,
+          entityId: reservation.id,
+          metadata: { context: "return_start_inspection", message: result.error },
+        })
+      }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -484,6 +504,11 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
     }
     if (completeResult.error && !reason) {
       setStepError(completeResult.error)
+      void trackUsageEvent("error_occurred", {
+        sessionId: analyticsSessionId,
+        entityId: reservation.id,
+        metadata: { context: "return_complete_inspection", message: completeResult.error },
+      })
       return
     }
 
@@ -500,6 +525,11 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       return
     }
     if (result.error) {
+      void trackUsageEvent("error_occurred", {
+        sessionId: analyticsSessionId,
+        entityId: reservation.id,
+        metadata: { context: "return_complete_rental", message: result.error },
+      })
       if (canOverride && !showOverride) {
         setShowOverride(true)
         setStepError(result.error)
@@ -509,6 +539,7 @@ function ReturnWizard({ reservation, companyId, checklistTemplate, vehicleDamage
       return
     }
 
+    void trackUsageEvent("return_completed", { sessionId: analyticsSessionId, entityId: reservation.id })
     router.push(`/reservations/${reservation.id}?justCompleted=1`)
   }
 

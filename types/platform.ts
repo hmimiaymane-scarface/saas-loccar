@@ -90,3 +90,35 @@ export interface MigrationChecklistItem {
   completedAt: string | null
   completedByEmail: string | null
 }
+
+/** Roadmap phase 58 — cross-company product-usage aggregate, over a
+ * trailing window (see lib/analytics for the event stream this is
+ * computed from). Median seconds are null, not 0, when no session in
+ * the window completed the funnel — there's no meaningful median of
+ * zero observations. */
+export interface UsageAnalyticsSummary {
+  windowDays: number
+  newRentalStarted: number
+  newRentalCompleted: number
+  newRentalMedianSeconds: number | null
+  returnStarted: number
+  returnCompleted: number
+  returnMedianSeconds: number | null
+  searchOpened: number
+  searchQueryRun: number
+  quickActionUsed: number
+  alertActionUsed: number
+  errorOccurred: number
+  importCompleted: number
+  pwaInstallAccepted: number
+  pwaInstallDismissed: number
+  pwaInstalled: number
+}
+
+export type UsageFlow = "new_rental" | "return"
+
+export interface DropoffStep {
+  step: number
+  stepLabel: string | null
+  sessionsReached: number
+}

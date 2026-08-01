@@ -1148,6 +1148,30 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["ai_usage_log"]["Insert"]>
         Relationships: []
       }
+      usage_events: {
+        Row: {
+          id: string
+          company_id: string
+          user_id: string | null
+          event_type: string
+          session_id: string | null
+          entity_id: string | null
+          metadata: Record<string, unknown>
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          user_id?: string | null
+          event_type: string
+          session_id?: string | null
+          entity_id?: string | null
+          metadata?: Record<string, unknown>
+          created_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["usage_events"]["Insert"]>
+        Relationships: []
+      }
       inspections: {
         Row: {
           id: string
@@ -1642,6 +1666,34 @@ export type Database = {
       platform_toggle_migration_checklist_item: {
         Args: { p_company_id: string; p_step_key: string; p_is_done: boolean }
         Returns: undefined
+      }
+      platform_get_usage_summary: {
+        Args: { p_days?: number }
+        Returns: {
+          new_rental_started: number
+          new_rental_completed: number
+          new_rental_median_seconds: number | null
+          return_started: number
+          return_completed: number
+          return_median_seconds: number | null
+          search_opened: number
+          search_query_run: number
+          quick_action_used: number
+          alert_action_used: number
+          error_occurred: number
+          import_completed: number
+          pwa_install_accepted: number
+          pwa_install_dismissed: number
+          pwa_installed: number
+        }[]
+      }
+      platform_get_dropoff_summary: {
+        Args: { p_flow: string; p_days?: number }
+        Returns: {
+          step: number
+          step_label: string | null
+          sessions_reached: number
+        }[]
       }
     }
     Enums: Record<string, never>

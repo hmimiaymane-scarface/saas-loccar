@@ -34,6 +34,7 @@ import { uploadFile } from "@/lib/storage-client"
 import { resolveInitialStep } from "@/lib/workflow/steps"
 import { PHOTO_SLOTS } from "@/lib/inspections/photo-slots"
 import { readDraft, clearDraft } from "@/lib/draft-storage"
+import { trackUsageEvent } from "@/lib/analytics/track"
 import { useStepFocus } from "@/hooks/use-step-focus"
 import { useSaveDraft } from "@/hooks/use-save-draft"
 import { Button } from "@/components/ui/button"
@@ -229,6 +230,12 @@ function NewRentalWizard({
   const [step, setStep] = useState(() => resolveInitialStep([Boolean(preselectedCustomer), false, false, false, false]))
   const stepContainerRef = useStepFocus<HTMLDivElement>(step)
 
+  // Roadmap phase 58 — a fresh id per wizard mount, correlating this
+  // attempt's step-viewed/started/completed events for funnel analysis
+  // (platform_get_usage_summary/platform_get_dropoff_summary). Re-opening
+  // this wizard in the same tab is a new attempt, not a resumed one.
+  const [analyticsSessionId] = useState(() => crypto.randomUUID())
+
   // Step 0 — Customer ----------------------------------------------------
   const [customerMode, setCustomerMode] = useState<"search" | "new">("search")
   const [newCustomerMode, setNewCustomerMode] = useState<"quick" | "scan">("quick")
@@ -423,6 +430,7 @@ function NewRentalWizard({
         await attachScannedDocuments(result.customerId, "customer-onboarding")
         clearDraft(NEW_CUSTOMER_DRAFT_KEY)
         setSelectedCustomer({ id: result.customerId, fullName: quickName, phone: quickPhone, licenseNumber: licenseNumber || "", licenseExpiresAt: licenseExpiresOn || "", totalBookings: 0 })
+        void trackUsageEvent("new_rental_started", { sessionId: analyticsSessionId })
         setStep(1)
       }
     })
@@ -437,11 +445,27 @@ function NewRentalWizard({
   function selectCustomerAndAdvance(customer: Customer) {
     clearDraft(NEW_CUSTOMER_DRAFT_KEY)
     setSelectedCustomer(customer)
+    void trackUsageEvent("new_rental_started", { sessionId: analyticsSessionId })
     setStep(1)
   }
 
   // Step 1 — Vehicle & price ------------------------------------------------
   const [reservationId, setReservationId] = useState<string | null>(null)
+
+  // Roadmap phase 58 — every step view, including step 0, feeds the
+  // drop-off summary (abandoning at customer selection is real signal);
+  // "started" (below, at the two step 0->1 transitions) is a narrower,
+  // deliberately later signal for funnel completion-rate/time, since
+  // counting every page mount as "started" would count idle page loads
+  // that never attempted a rental at all.
+  useEffect(() => {
+    void trackUsageEvent("new_rental_step_viewed", {
+      sessionId: analyticsSessionId,
+      entityId: reservationId,
+      metadata: { step, step_label: STEPS[step]?.label ?? null },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step])
 
   function handleReservationCreated(id: string, totalMad: number) {
     setReservationId(id)
@@ -674,11 +698,21 @@ function NewRentalWizard({
       const completeResult = await completeInspectionAction(inspectionId, reservationId)
       if (completeResult.error && !reason) {
         setContractError(completeResult.error)
+        void trackUsageEvent("error_occurred", {
+          sessionId: analyticsSessionId,
+          entityId: reservationId,
+          metadata: { context: "new_rental_complete_inspection", message: completeResult.error },
+        })
         return
       }
 
       const activateResult = await activateRentalAction(reservationId, reason)
       if (activateResult.error) {
+        void trackUsageEvent("error_occurred", {
+          sessionId: analyticsSessionId,
+          entityId: reservationId,
+          metadata: { context: "new_rental_activate", message: activateResult.error },
+        })
         if (canOverride && !showOverride) {
           setShowOverride(true)
           setContractError(activateResult.error)
@@ -688,6 +722,7 @@ function NewRentalWizard({
         return
       }
 
+      void trackUsageEvent("new_rental_completed", { sessionId: analyticsSessionId, entityId: reservationId })
       setActivateDone(true)
     })
   }
