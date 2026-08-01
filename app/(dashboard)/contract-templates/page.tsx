@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Plus, FileSignature } from "lucide-react"
+import { Plus, FileSignature, ArrowLeft } from "lucide-react"
 
 import { getSessionContext } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
@@ -34,6 +34,11 @@ export default async function ContractTemplatesPage() {
 
   return (
     <>
+      <Link href="/contracts" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="size-4 rtl:-scale-x-100" />
+        Contracts
+      </Link>
+
       <SectionHeader
         title="Contract Templates"
         description="Upload your own rental agreement once — every generated contract fills it in from real reservation data."

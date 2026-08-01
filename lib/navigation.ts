@@ -9,7 +9,6 @@ import {
   Receipt,
   Wrench,
   FileText,
-  FileSignature,
   ScrollText,
   UserCog,
   BarChart3,
@@ -184,14 +183,7 @@ export const moreLinks: NavItem[] = [
     title: "Contracts",
     href: "/contracts",
     icon: ScrollText,
-    description: "Generated rental agreements — search, sign, amend, archive",
-    roles: OWNER_AND_STAFF,
-  },
-  {
-    title: "Contract Templates",
-    href: "/contract-templates",
-    icon: FileSignature,
-    description: "Reusable rental agreement templates and variable mappings",
+    description: "Generated rental agreements — search, sign, amend, archive. Manage templates from here too.",
     roles: OWNER_AND_STAFF,
   },
   {

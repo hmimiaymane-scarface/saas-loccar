@@ -9,10 +9,11 @@ import { formatDateTime } from "@/lib/format"
 import { CONTRACT_STATUS_TRANSITIONS, type ContractStatus } from "@/lib/contracts/lifecycle"
 import { SectionHeader } from "@/components/domain/section-header"
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { EmptyPlaceholder } from "@/components/domain/empty-placeholder"
 import { ContractStatusBadge } from "@/components/domain/contracts/contract-status-badge"
 import { ContractSearchForm } from "@/components/domain/contracts/contract-search-form"
-import { FileSignature } from "lucide-react"
+import { FileSignature, FileEdit } from "lucide-react"
 
 const ALL_STATUSES = Object.keys(CONTRACT_STATUS_TRANSITIONS) as ContractStatus[]
 
@@ -56,7 +57,18 @@ export default async function ContractsPage({
 
   return (
     <>
-      <SectionHeader title="Contracts" description="Every generated contract, searchable by customer, vehicle, number, status, or date." />
+      <SectionHeader
+        title="Contracts"
+        description="Every generated contract, searchable by customer, vehicle, number, status, or date."
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/contract-templates">
+              <FileEdit />
+              Manage templates
+            </Link>
+          </Button>
+        }
+      />
 
       <ContractSearchForm initial={params} statuses={ALL_STATUSES} />
 

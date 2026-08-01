@@ -54,6 +54,7 @@ import { HealthOverviewCard } from "@/components/domain/overview/health-overview
 import { RevenueIntelligenceCard } from "@/components/domain/overview/revenue-intelligence-card"
 import { PerformanceHighlightsCard } from "@/components/domain/overview/performance-highlights-card"
 import { OperationsFeedList } from "@/components/domain/operations-feed/operations-feed-list"
+import { InsightsToggle } from "@/components/domain/overview/insights-toggle"
 
 /**
  * Roadmap phase 13 — bible Chapter 10, "the most important screen in
@@ -279,18 +280,9 @@ export default async function OverviewPage() {
       <TodayTimeline entries={timeline} />
       <FleetVisualGrid vehicles={fleet} />
 
-      {/* Level 3 — Business Health. */}
-      {extras.pulse && <BusinessPulseGrid pulse={extras.pulse} />}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {extras.revenueIntel && <RevenueIntelligenceCard result={extras.revenueIntel} revenueThisMonthMad={extras.revenueThisMonthMad} />}
-        <div className="flex flex-col gap-4">
-          <HealthOverviewCard title="Fleet Health Overview" rollup={extras.fleetHealth} />
-          <HealthOverviewCard title="Customer Health" rollup={extras.customerHealth} />
-        </div>
-      </div>
-      <PerformanceHighlightsCard highlights={extras.performanceHighlights} />
-
-      {/* Level 4 — Opportunities. */}
+      {/* Level 4 — Opportunities. Kept always-visible (not folded into
+          the insights toggle below) since it's already conditional on
+          having something real to show. */}
       {opportunityFeedItems.length > 0 && (
         <Card>
           <CardHeader>
@@ -302,17 +294,32 @@ export default async function OverviewPage() {
         </Card>
       )}
 
-      {/* Level 5 — Historical Analysis. */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="flex flex-col gap-4 lg:col-span-2">
-          <FinancialSummaryCard
-            expensesThisMonthMad={metrics.expensesThisMonthMad}
-            knownOperatingResultMad={metrics.knownOperatingResultMad}
-            depositsHeldMad={metrics.depositsHeldMad}
-          />
+      {/* Levels 3 + 5 — Business Health and Historical Analysis.
+          Roadmap phase 65: neither is daily-operations content the way
+          Levels 1-2 above are, so both collapse behind one toggle,
+          closed by default — every card here is unchanged and fully
+          reachable, just not competing for space on every page load. */}
+      <InsightsToggle>
+        {extras.pulse && <BusinessPulseGrid pulse={extras.pulse} />}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {extras.revenueIntel && <RevenueIntelligenceCard result={extras.revenueIntel} revenueThisMonthMad={extras.revenueThisMonthMad} />}
+          <div className="flex flex-col gap-4">
+            <HealthOverviewCard title="Fleet Health Overview" rollup={extras.fleetHealth} />
+            <HealthOverviewCard title="Customer Health" rollup={extras.customerHealth} />
+          </div>
         </div>
-        <ActivityFeedCard items={activity} />
-      </div>
+        <PerformanceHighlightsCard highlights={extras.performanceHighlights} />
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="flex flex-col gap-4 lg:col-span-2">
+            <FinancialSummaryCard
+              expensesThisMonthMad={metrics.expensesThisMonthMad}
+              knownOperatingResultMad={metrics.knownOperatingResultMad}
+              depositsHeldMad={metrics.depositsHeldMad}
+            />
+          </div>
+          <ActivityFeedCard items={activity} />
+        </div>
+      </InsightsToggle>
     </>
   )
 }
