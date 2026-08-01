@@ -38,14 +38,14 @@ function Header({
         {title}
       </h2>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ms-auto flex items-center gap-2">
         <Button
           variant="outline"
           className="hidden w-64 justify-start gap-2 text-muted-foreground sm:flex"
           onClick={onOpenSearch}
         >
           <Search className="size-4" />
-          <span className="flex-1 text-left">Search…</span>
+          <span className="flex-1 text-start">Search…</span>
           <kbd className="rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
             ⌘K
           </kbd>

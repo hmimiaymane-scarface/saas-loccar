@@ -47,7 +47,7 @@ function MobileShell({
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <CompanyIdentity company={company} />
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ms-auto flex items-center gap-1">
           <Button variant="ghost" size="icon-touch" aria-label="Search" onClick={onOpenSearch}>
             <Search className="size-[18px]" />
           </Button>

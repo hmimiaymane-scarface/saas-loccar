@@ -19,7 +19,7 @@ function Sidebar({ company, role, collapsed, onToggleCollapse }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "sticky top-0 hidden h-svh shrink-0 flex-col gap-6 border-r border-border bg-background py-5 transition-[width] duration-200 lg:flex",
+        "sticky top-0 hidden h-svh shrink-0 flex-col gap-6 border-e border-border bg-background py-5 transition-[width] duration-200 lg:flex",
         collapsed ? "w-[76px] px-3" : "w-64 px-4"
       )}
     >

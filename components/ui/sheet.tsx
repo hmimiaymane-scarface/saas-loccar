@@ -81,7 +81,7 @@ function SheetContent({
         {side === "bottom" && <div aria-hidden="true" className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-muted" />}
         {children}
         {showClose && (
-          <SheetPrimitive.Close className="absolute top-4 right-4 flex size-8 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/30">
+          <SheetPrimitive.Close className="absolute top-4 end-4 flex size-8 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/30">
             <XIcon className="size-4" />
             <span className="sr-only">Close</span>
           </SheetPrimitive.Close>
