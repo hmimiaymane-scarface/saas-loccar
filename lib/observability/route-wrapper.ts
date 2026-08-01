@@ -20,11 +20,11 @@ const SLOW_ROUTE_THRESHOLD_MS = 3000
  * lib/observability/log-admin.ts's logOperationalEventAsAdmin directly
  * instead of through this (session-derived) path.
  */
-export function withRouteObservability(
+export function withRouteObservability<T extends Request>(
   routeName: string,
-  handler: (request: Request) => Promise<Response>
-): (request: Request) => Promise<Response> {
-  return async (request: Request) => {
+  handler: (request: T) => Promise<Response>
+): (request: T) => Promise<Response> {
+  return async (request: T) => {
     const start = Date.now()
     try {
       const response = await handler(request)
