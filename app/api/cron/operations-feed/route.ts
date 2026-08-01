@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { runOperationsFeedForCompany, type OperationsFeedRunSummary } from "@/lib/operations-feed/run"
+import { logOperationalEventAsAdmin } from "@/lib/observability/log-admin"
 
 export const maxDuration = 60
 
@@ -31,6 +32,12 @@ export async function GET(req: Request) {
   const supabase = createAdminClient()
   const { data: companies, error } = await supabase.from("companies").select("id").eq("status", "active")
   if (error) {
+    void logOperationalEventAsAdmin({
+      companyId: null,
+      source: "cron_job",
+      context: "operations-feed",
+      message: error.message,
+    })
     return Response.json({ error: error.message }, { status: 500 })
   }
 
@@ -42,7 +49,14 @@ export async function GET(req: Request) {
       // One tenant's failure must never stop the rest of the run —
       // same "best-effort, isolated per unit of work" convention as
       // every other batch operation in this codebase.
-      results.push({ companyId: company.id, error: err instanceof Error ? err.message : "Unknown error" })
+      const message = err instanceof Error ? err.message : "Unknown error"
+      results.push({ companyId: company.id, error: message })
+      void logOperationalEventAsAdmin({
+        companyId: company.id,
+        source: "cron_job",
+        context: "operations-feed",
+        message,
+      })
     }
   }
 

@@ -14,6 +14,7 @@
 
 import { createClient } from "@/lib/supabase/client"
 import { STORAGE_BUCKET } from "@/lib/storage"
+import { logOperationalEvent } from "@/lib/observability/log"
 
 export async function uploadFile(
   path: string,
@@ -24,7 +25,21 @@ export async function uploadFile(
     contentType: file.type,
     upsert: false,
   })
-  if (error) return { path, error: error.message }
+  if (error) {
+    // Roadmap phase 59 — uploads go straight from the browser to
+    // Storage (see this file's own top comment), so a failure here
+    // previously left zero server-side trace anywhere, just a client
+    // toast. One shared chokepoint (every upload call site funnels
+    // through this function) instead of touching each of the ~15
+    // callers individually.
+    void logOperationalEvent({
+      source: "upload",
+      context: "storage_upload",
+      message: error.message,
+      metadata: { path, fileType: file.type, fileSizeBytes: file.size },
+    })
+    return { path, error: error.message }
+  }
   return { path }
 }
 

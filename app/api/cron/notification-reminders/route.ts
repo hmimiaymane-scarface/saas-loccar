@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { runNotificationRemindersForCompany, type ReminderRunSummary } from "@/lib/notifications/reminders"
+import { logOperationalEventAsAdmin } from "@/lib/observability/log-admin"
 
 export const maxDuration = 60
 
@@ -32,6 +33,12 @@ export async function GET(req: Request) {
     .select("id, timezone, overdue_grace_period_hours")
     .eq("status", "active")
   if (error) {
+    void logOperationalEventAsAdmin({
+      companyId: null,
+      source: "cron_job",
+      context: "notification-reminders",
+      message: error.message,
+    })
     return Response.json({ error: error.message }, { status: 500 })
   }
 
@@ -42,7 +49,14 @@ export async function GET(req: Request) {
         await runNotificationRemindersForCompany(supabase, company.id, company.timezone, company.overdue_grace_period_hours)
       )
     } catch (err) {
-      results.push({ companyId: company.id, error: err instanceof Error ? err.message : "Unknown error" })
+      const message = err instanceof Error ? err.message : "Unknown error"
+      results.push({ companyId: company.id, error: message })
+      void logOperationalEventAsAdmin({
+        companyId: company.id,
+        source: "cron_job",
+        context: "notification-reminders",
+        message,
+      })
     }
   }
 
