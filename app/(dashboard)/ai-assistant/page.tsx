@@ -33,7 +33,7 @@ export default async function AiAssistantPage({
   if (!isSupabaseConfigured) {
     return (
       <>
-        <SectionHeader title="AI Assistant" description="Ask about your data, or have it prepare bookings and payments for you to confirm." />
+        <SectionHeader title="AI Assistant" description="Ask a question, or have it draft bookings and payments for you to approve." />
         <EmptyPlaceholder
           icon={Sparkles}
           title="AI Assistant needs a connected Supabase project"

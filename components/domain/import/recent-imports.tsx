@@ -22,7 +22,7 @@ function RecentImports({ batches }: { batches: ImportBatchSummary[] }) {
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">Recent imports</CardTitle>
-        <CardDescription>Undo removes every row this batch created — it&apos;s blocked row-by-row if one is already in use elsewhere (e.g. a vehicle with a reservation), and can be retried later.</CardDescription>
+        <CardDescription>Undo removes what this import added. Rows already in use (like a vehicle with a reservation) are skipped and can be retried later.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         {batches.map((batch) => (
