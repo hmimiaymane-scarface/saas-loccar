@@ -37,8 +37,8 @@ export default async function OperationsFeedPage() {
   return (
     <>
       <SectionHeader
-        title="Operations Feed"
-        description="Observed conditions worth your attention — critical first, quietest by default."
+        title="Alerts"
+        description="Things worth a look — most important first."
         actions={canRunNow ? <RunObserversButton /> : undefined}
       />
       <Card>
