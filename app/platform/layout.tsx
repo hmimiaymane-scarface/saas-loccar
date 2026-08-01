@@ -32,6 +32,9 @@ export default async function PlatformLayout({ children }: { children: React.Rea
               <Link href="/platform/analytics" className="hover:text-neutral-100">
                 Analytics
               </Link>
+              <Link href="/platform/operations" className="hover:text-neutral-100">
+                Operations
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3">

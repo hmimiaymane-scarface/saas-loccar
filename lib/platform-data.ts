@@ -9,10 +9,16 @@ import {
   mockMigrationChecklist,
   mockUsageAnalyticsSummary,
   mockDropoffSummary,
+  mockOperationalSummary,
+  mockRecentOperationalEvents,
+  mockAiCallSummary,
 } from "@/lib/mock/platform"
 import type {
+  AiCallSummary,
   DropoffStep,
   MigrationChecklistItem,
+  OperationalEventRow,
+  OperationalSummary,
   PlatformAuditEvent,
   PlatformCompanyListFilters,
   PlatformCompanyRow,
@@ -254,4 +260,74 @@ export async function getDropoffSummary(flow: UsageFlow, windowDays = 30): Promi
     stepLabel: r.step_label,
     sessionsReached: r.sessions_reached,
   }))
+}
+
+/** Roadmap phase 59 — system-health counts over a trailing window,
+ * backing /platform/operations. See lib/observability for what feeds
+ * operational_events. */
+export async function getOperationalSummary(windowDays = 7): Promise<OperationalSummary> {
+  if (isMockMode()) return { ...mockOperationalSummary, windowDays }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("platform_get_operational_summary", { p_days: windowDays })
+  if (error) throw error
+  const row = data?.[0]
+  if (!row) {
+    return {
+      windowDays,
+      frontendErrors: 0,
+      apiRouteErrors: 0,
+      cronJobFailures: 0,
+      notificationFailures: 0,
+      uploadFailures: 0,
+      slowRoutes: 0,
+    }
+  }
+  return {
+    windowDays,
+    frontendErrors: row.frontend_errors,
+    apiRouteErrors: row.api_route_errors,
+    cronJobFailures: row.cron_job_failures,
+    notificationFailures: row.notification_failures,
+    uploadFailures: row.upload_failures,
+    slowRoutes: row.slow_routes,
+  }
+}
+
+/** Roadmap phase 59 — the last p_limit operational events across every
+ * company, newest first, so a human can read what actually happened
+ * (not just aggregate counts). */
+export async function getRecentOperationalEvents(limit = 50): Promise<OperationalEventRow[]> {
+  if (isMockMode()) return mockRecentOperationalEvents.slice(0, limit)
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("platform_get_recent_operational_events", { p_limit: limit })
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    companyName: r.company_name,
+    source: r.source as OperationalEventRow["source"],
+    severity: r.severity as OperationalEventRow["severity"],
+    context: r.context,
+    message: r.message,
+    durationMs: r.duration_ms,
+    createdAt: r.created_at,
+  }))
+}
+
+/** Roadmap phase 59 — surfaces phase 05's existing ai_usage_log, which
+ * already records success/failure on every askAI() call; no new
+ * writes needed, just a read. */
+export async function getAiCallSummary(windowDays = 7): Promise<AiCallSummary> {
+  if (isMockMode()) return { ...mockAiCallSummary, windowDays }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("platform_get_ai_call_summary", { p_days: windowDays })
+  if (error) throw error
+  const row = data?.[0]
+  return {
+    windowDays,
+    totalCalls: row?.total_calls ?? 0,
+    failedCalls: row?.failed_calls ?? 0,
+  }
 }

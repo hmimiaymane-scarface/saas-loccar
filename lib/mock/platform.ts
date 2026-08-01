@@ -1,6 +1,9 @@
 import type {
+  AiCallSummary,
   DropoffStep,
   MigrationChecklistItem,
+  OperationalEventRow,
+  OperationalSummary,
   PlatformAuditEvent,
   PlatformCompanyRow,
   PlatformCompanySummary,
@@ -194,4 +197,32 @@ export function mockMigrationChecklist(companyId: string): MigrationChecklistIte
     completedAt: done.has(step.key) ? daysAgo(Math.max(0, 10 - index)) : null,
     completedByEmail: done.has(step.key) ? "admin@platform.example" : null,
   }))
+}
+
+/** Roadmap phase 59 — plausible demo numbers for /platform/operations,
+ * same spirit as mockUsageAnalyticsSummary: round, mostly-quiet (a
+ * healthy app should have few of these), internally consistent with
+ * mockRecentOperationalEvents below. */
+export const mockOperationalSummary: OperationalSummary = {
+  windowDays: 7,
+  frontendErrors: 3,
+  apiRouteErrors: 1,
+  cronJobFailures: 0,
+  notificationFailures: 2,
+  uploadFailures: 1,
+  slowRoutes: 4,
+}
+
+export const mockRecentOperationalEvents: OperationalEventRow[] = [
+  { id: "oe_1", companyName: "Sahara Wheels", source: "upload", severity: "error", context: "storage_upload", message: "The object exceeded the maximum allowed size", durationMs: null, createdAt: daysAgo(0) },
+  { id: "oe_2", companyName: "Atlas Rent Car", source: "notification", severity: "error", context: "push", message: "Push service returned 500", durationMs: null, createdAt: daysAgo(1) },
+  { id: "oe_3", companyName: null, source: "slow_route", severity: "warning", context: "ai-assistant/chat", message: "ai-assistant/chat took 4210ms", durationMs: 4210, createdAt: daysAgo(1) },
+  { id: "oe_4", companyName: "Atlas Rent Car", source: "frontend", severity: "error", context: "unhandled_rejection", message: "Failed to fetch", durationMs: null, createdAt: daysAgo(2) },
+  { id: "oe_5", companyName: "Medina Auto Location", source: "api_route", severity: "error", context: "exports/reservations", message: "Request timed out", durationMs: 8021, createdAt: daysAgo(3) },
+]
+
+export const mockAiCallSummary: AiCallSummary = {
+  windowDays: 7,
+  totalCalls: 142,
+  failedCalls: 6,
 }
