@@ -1,4 +1,13 @@
-import type { MigrationChecklistItem, PlatformAuditEvent, PlatformCompanyRow, PlatformCompanySummary, PlatformOverview } from "@/types/platform"
+import type {
+  DropoffStep,
+  MigrationChecklistItem,
+  PlatformAuditEvent,
+  PlatformCompanyRow,
+  PlatformCompanySummary,
+  PlatformOverview,
+  UsageAnalyticsSummary,
+  UsageFlow,
+} from "@/types/platform"
 import { MIGRATION_CHECKLIST_STEPS } from "@/lib/platform/migration-checklist"
 
 const now = new Date()
@@ -137,6 +146,43 @@ const MOCK_DONE_STEPS: Record<string, Set<string>> = {
   pc_medina: new Set(["owner_login_created"]),
   pc_ocean: new Set(MIGRATION_CHECKLIST_STEPS.map((s) => s.key)),
   pc_najma: new Set(MIGRATION_CHECKLIST_STEPS.map((s) => s.key)),
+}
+
+/** Roadmap phase 58 — plausible demo numbers for /platform/analytics, in
+ * the same spirit as mockPlatformOverview: round, internally consistent
+ * (completed <= started, median only present where completions exist). */
+export const mockUsageAnalyticsSummary: UsageAnalyticsSummary = {
+  windowDays: 30,
+  newRentalStarted: 64,
+  newRentalCompleted: 47,
+  newRentalMedianSeconds: 312,
+  returnStarted: 41,
+  returnCompleted: 38,
+  returnMedianSeconds: 198,
+  searchOpened: 156,
+  searchQueryRun: 289,
+  quickActionUsed: 203,
+  alertActionUsed: 71,
+  errorOccurred: 9,
+  importCompleted: 5,
+  pwaInstallAccepted: 6,
+  pwaInstallDismissed: 14,
+  pwaInstalled: 5,
+}
+
+const NEW_RENTAL_STEP_LABELS = ["Customer", "Vehicle & price", "Payment", "Inspection", "Contract"]
+const RETURN_STEP_LABELS = ["Return details", "Inspection", "Damage", "Charges & deposit", "Complete"]
+
+export function mockDropoffSummary(flow: UsageFlow): DropoffStep[] {
+  const labels = flow === "new_rental" ? NEW_RENTAL_STEP_LABELS : RETURN_STEP_LABELS
+  const started = flow === "new_rental" ? mockUsageAnalyticsSummary.newRentalStarted : mockUsageAnalyticsSummary.returnStarted
+  const completed = flow === "new_rental" ? mockUsageAnalyticsSummary.newRentalCompleted : mockUsageAnalyticsSummary.returnCompleted
+  const dropPerStep = Math.max(1, Math.round((started - completed) / labels.length))
+  return labels.map((label, index) => ({
+    step: index,
+    stepLabel: label,
+    sessionsReached: Math.max(completed, started - dropPerStep * index),
+  }))
 }
 
 export function mockMigrationChecklist(companyId: string): MigrationChecklistItem[] {

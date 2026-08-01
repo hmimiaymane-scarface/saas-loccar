@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { AlertTriangle } from "lucide-react"
 
 import { getErrorReference } from "@/lib/error-reference"
+import { trackUsageEvent } from "@/lib/analytics/track"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
@@ -39,11 +40,22 @@ export default function DashboardError({
 }) {
   const router = useRouter()
 
+  const isMockModeLimitation = error.message.includes("Supabase is not configured")
+
   useEffect(() => {
     console.error(error)
+    // Roadmap phase 58 — a mock-mode limitation crash is an artifact of
+    // this demo environment, not a real owner-facing failure; counting
+    // it would swamp genuine "error rate" signal with noise unique to
+    // running without a connected Supabase project.
+    if (!isMockModeLimitation) {
+      void trackUsageEvent("error_occurred", {
+        metadata: { context: "crash_boundary", message: error.message, digest: error.digest ?? null },
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [error])
 
-  const isMockModeLimitation = error.message.includes("Supabase is not configured")
   const reference = getErrorReference(error)
 
   return (

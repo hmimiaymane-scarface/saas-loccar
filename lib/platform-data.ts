@@ -7,8 +7,11 @@ import {
   mockPlatformCompanySummary,
   mockPlatformOverview,
   mockMigrationChecklist,
+  mockUsageAnalyticsSummary,
+  mockDropoffSummary,
 } from "@/lib/mock/platform"
 import type {
+  DropoffStep,
   MigrationChecklistItem,
   PlatformAuditEvent,
   PlatformCompanyListFilters,
@@ -16,6 +19,8 @@ import type {
   PlatformCompanySummary,
   PlatformOverview,
   SubscriptionStatus,
+  UsageAnalyticsSummary,
+  UsageFlow,
 } from "@/types/platform"
 
 function isMockMode() {
@@ -183,5 +188,70 @@ export async function getMigrationChecklist(companyId: string): Promise<Migratio
     isDone: r.is_done,
     completedAt: r.completed_at,
     completedByEmail: r.completed_by_email,
+  }))
+}
+
+/** Roadmap phase 58 — cross-company product-usage aggregate over the
+ * trailing `windowDays`, backing /platform/analytics. See
+ * lib/analytics/track.ts for what feeds usage_events. */
+export async function getUsageAnalyticsSummary(windowDays = 30): Promise<UsageAnalyticsSummary> {
+  if (isMockMode()) return { ...mockUsageAnalyticsSummary, windowDays }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("platform_get_usage_summary", { p_days: windowDays })
+  if (error) throw error
+  const row = data?.[0]
+  if (!row) {
+    return {
+      windowDays,
+      newRentalStarted: 0,
+      newRentalCompleted: 0,
+      newRentalMedianSeconds: null,
+      returnStarted: 0,
+      returnCompleted: 0,
+      returnMedianSeconds: null,
+      searchOpened: 0,
+      searchQueryRun: 0,
+      quickActionUsed: 0,
+      alertActionUsed: 0,
+      errorOccurred: 0,
+      importCompleted: 0,
+      pwaInstallAccepted: 0,
+      pwaInstallDismissed: 0,
+      pwaInstalled: 0,
+    }
+  }
+  return {
+    windowDays,
+    newRentalStarted: row.new_rental_started,
+    newRentalCompleted: row.new_rental_completed,
+    newRentalMedianSeconds: row.new_rental_median_seconds,
+    returnStarted: row.return_started,
+    returnCompleted: row.return_completed,
+    returnMedianSeconds: row.return_median_seconds,
+    searchOpened: row.search_opened,
+    searchQueryRun: row.search_query_run,
+    quickActionUsed: row.quick_action_used,
+    alertActionUsed: row.alert_action_used,
+    errorOccurred: row.error_occurred,
+    importCompleted: row.import_completed,
+    pwaInstallAccepted: row.pwa_install_accepted,
+    pwaInstallDismissed: row.pwa_install_dismissed,
+    pwaInstalled: row.pwa_installed,
+  }
+}
+
+/** Roadmap phase 58 — how many attempts (sessions) reached each step of
+ * one funnel, furthest-step-per-session (not raw view counts). */
+export async function getDropoffSummary(flow: UsageFlow, windowDays = 30): Promise<DropoffStep[]> {
+  if (isMockMode()) return mockDropoffSummary(flow)
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("platform_get_dropoff_summary", { p_flow: flow, p_days: windowDays })
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    step: r.step,
+    stepLabel: r.step_label,
+    sessionsReached: r.sessions_reached,
   }))
 }
