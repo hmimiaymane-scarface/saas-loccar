@@ -25,15 +25,15 @@ function CalendarNav({ weekKey, label }: { weekKey: string; label: string }) {
   return (
     <div className="flex items-center gap-2">
       <Button variant="outline" size="icon-sm" onClick={() => shift(-7)} aria-label="Previous week">
-        <ChevronLeft className="size-4" />
+        <ChevronLeft className="size-4 rtl:-scale-x-100" />
       </Button>
       <Button variant="outline" size="sm" onClick={() => goTo(new Date().toISOString().slice(0, 10))}>
         Today
       </Button>
       <Button variant="outline" size="icon-sm" onClick={() => shift(7)} aria-label="Next week">
-        <ChevronRight className="size-4" />
+        <ChevronRight className="size-4 rtl:-scale-x-100" />
       </Button>
-      <span className="ml-1 text-sm font-medium text-foreground">{label}</span>
+      <span className="ms-1 text-sm font-medium text-foreground">{label}</span>
     </div>
   )
 }

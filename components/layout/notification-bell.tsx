@@ -66,7 +66,7 @@ function NotificationBell({ notifications, unreadCount }: { notifications: Notif
           className="flex items-center justify-center gap-1.5 border-t border-border px-3 py-2.5 text-xs font-medium text-primary hover:underline"
         >
           View all
-          <ArrowRight className="size-3.5" />
+          <ArrowRight className="size-3.5 rtl:-scale-x-100" />
         </Link>
       </DropdownMenuContent>
     </DropdownMenu>

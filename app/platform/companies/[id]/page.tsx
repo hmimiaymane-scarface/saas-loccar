@@ -34,7 +34,7 @@ export default async function PlatformCompanySummaryPage({
   return (
     <>
       <Link href="/platform/companies" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" />
+        <ArrowLeft className="size-4 rtl:-scale-x-100" />
         Companies
       </Link>
 

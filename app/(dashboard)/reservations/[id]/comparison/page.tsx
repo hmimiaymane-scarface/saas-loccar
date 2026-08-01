@@ -60,7 +60,7 @@ export default async function ReservationComparisonPage({
               <span className="text-muted-foreground">Odometer</span>
               <span className="flex items-center gap-1.5 font-medium text-foreground">
                 {pickup.odometerKm?.toLocaleString() ?? "—"}
-                <ArrowRight className="size-3.5 text-muted-foreground" />
+                <ArrowRight className="size-3.5 text-muted-foreground rtl:-scale-x-100" />
                 {ret?.odometerKm?.toLocaleString() ?? "—"}
               </span>
             </div>
@@ -74,7 +74,7 @@ export default async function ReservationComparisonPage({
               <span className="text-muted-foreground">Fuel</span>
               <span className="flex items-center gap-1.5 font-medium text-foreground capitalize">
                 {pickup.fuelLevel?.replace("_", " ") ?? "—"}
-                <ArrowRight className="size-3.5 text-muted-foreground" />
+                <ArrowRight className="size-3.5 text-muted-foreground rtl:-scale-x-100" />
                 {ret?.fuelLevel?.replace("_", " ") ?? "—"}
               </span>
             </div>
@@ -127,7 +127,7 @@ export default async function ReservationComparisonPage({
                     <span className="text-foreground">{p?.itemLabel ?? r?.itemLabel}</span>
                     <span className="flex items-center gap-1.5">
                       <span className={RESPONSE_TONE[p?.response ?? "good"]}>{p?.response ?? "—"}</span>
-                      <ArrowRight className="size-3.5 text-muted-foreground" />
+                      <ArrowRight className="size-3.5 text-muted-foreground rtl:-scale-x-100" />
                       <span className={cn(RESPONSE_TONE[r?.response ?? "good"], changed && "font-semibold")}>
                         {r?.response ?? "—"}
                       </span>

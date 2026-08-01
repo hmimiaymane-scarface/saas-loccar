@@ -32,7 +32,7 @@ function NavLinkList({ items }: { items: NavItem[] }) {
               <span className="font-medium text-foreground">{item.title}</span>
               <span className="truncate text-xs text-muted-foreground">{item.description}</span>
             </span>
-            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />
           </Link>
         )
       })}

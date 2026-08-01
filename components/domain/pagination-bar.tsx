@@ -34,12 +34,12 @@ function PaginationBar({
       </p>
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => goTo(page - 1)}>
-          <ChevronLeft />
+          <ChevronLeft className="rtl:-scale-x-100" />
           Previous
         </Button>
         <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => goTo(page + 1)}>
           Next
-          <ChevronRight />
+          <ChevronRight className="rtl:-scale-x-100" />
         </Button>
       </div>
     </div>
