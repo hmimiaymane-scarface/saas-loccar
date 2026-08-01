@@ -32,11 +32,21 @@ export async function uploadFile(
     // toast. One shared chokepoint (every upload call site funnels
     // through this function) instead of touching each of the ~15
     // callers individually.
+    //
+    // Roadmap phase 60 — `path` is built by `buildStoragePath()` as
+    // `{companyId}/{...segments}/{uuid}-{sanitized original filename}`.
+    // The final segment can carry a customer-chosen filename (e.g. a
+    // scanned ID named after the person it belongs to), and this event
+    // is readable by platform admins at /platform/operations. Logging
+    // the path's directory only (company + category, never the
+    // filename segment) keeps the same debugging signal without
+    // carrying that into a platform-operator-visible table.
+    const pathPrefix = path.split("/").slice(0, -1).join("/")
     void logOperationalEvent({
       source: "upload",
       context: "storage_upload",
       message: error.message,
-      metadata: { path, fileType: file.type, fileSizeBytes: file.size },
+      metadata: { pathPrefix, fileType: file.type, fileSizeBytes: file.size },
     })
     return { path, error: error.message }
   }
