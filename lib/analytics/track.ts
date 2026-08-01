@@ -32,7 +32,7 @@ export async function trackUsageEvent(type: UsageEventType, input: TrackUsageEve
     if (!session) return
 
     const supabase = await createClient()
-    await supabase.from("usage_events").insert({
+    const { error } = await supabase.from("usage_events").insert({
       company_id: session.company.id,
       user_id: session.userId,
       event_type: type,
@@ -40,6 +40,7 @@ export async function trackUsageEvent(type: UsageEventType, input: TrackUsageEve
       entity_id: input.entityId ?? null,
       metadata: input.metadata ?? {},
     })
+    if (error) console.error("trackUsageEvent insert failed:", error.message)
   } catch (err) {
     console.error("trackUsageEvent failed:", err)
   }
