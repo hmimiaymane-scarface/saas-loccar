@@ -83,7 +83,7 @@ function OperationsFeedList({ items }: { items: OperationsFeedListItem[] }) {
       <EmptyPlaceholder
         icon={CheckCircle2}
         title="Nothing needs your attention"
-        description="The operations feed is quiet — no output is a good output."
+        description="All quiet right now — that's a good thing."
       />
     )
   }
