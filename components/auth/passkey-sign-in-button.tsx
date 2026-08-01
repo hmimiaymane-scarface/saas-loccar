@@ -41,7 +41,7 @@ function PasskeySignInButton({ next }: { next?: string }) {
     <div className="flex flex-col gap-1.5">
       <Button type="button" variant="outline" className="w-full" onClick={handleClick} disabled={pending}>
         {pending ? <Loader2 className="animate-spin" /> : <Fingerprint />}
-        Sign in with a passkey
+        Use Face ID / fingerprint
       </Button>
       {error && <p className="text-center text-xs text-destructive">{error}</p>}
     </div>
