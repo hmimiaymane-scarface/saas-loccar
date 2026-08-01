@@ -51,7 +51,7 @@ export default async function ContractTemplatesPage() {
         <EmptyPlaceholder
           icon={FileSignature}
           title="No templates yet"
-          description="Upload an existing contract PDF to get started — the AI service proposes a variable mapping for you to review."
+          description="Upload your contract PDF and we'll fill in the matching fields for you to check."
         />
       ) : (
         <div className="flex flex-col gap-3">

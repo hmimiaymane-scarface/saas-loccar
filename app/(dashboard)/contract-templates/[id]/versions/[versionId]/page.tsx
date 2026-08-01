@@ -37,7 +37,7 @@ export default async function TemplateVersionReviewPage({
         title={`Version ${version.versionNumber}`}
         description={
           version.status === "pending_review"
-            ? "Review the AI-proposed mapping before it goes live."
+            ? "Check the matched fields before this version goes live."
             : version.status === "active"
               ? "This version is currently active."
               : "This version was superseded — still viewable, still referenced by any contract generated from it."
