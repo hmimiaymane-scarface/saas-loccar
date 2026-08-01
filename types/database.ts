@@ -1172,6 +1172,32 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["usage_events"]["Insert"]>
         Relationships: []
       }
+      operational_events: {
+        Row: {
+          id: string
+          company_id: string | null
+          source: string
+          severity: string
+          context: string | null
+          message: string
+          metadata: Record<string, unknown>
+          duration_ms: number | null
+          created_at: Timestamp
+        }
+        Insert: {
+          id?: string
+          company_id?: string | null
+          source: string
+          severity?: string
+          context?: string | null
+          message: string
+          metadata?: Record<string, unknown>
+          duration_ms?: number | null
+          created_at?: Timestamp
+        }
+        Update: Partial<Database["public"]["Tables"]["operational_events"]["Insert"]>
+        Relationships: []
+      }
       inspections: {
         Row: {
           id: string
@@ -1693,6 +1719,37 @@ export type Database = {
           step: number
           step_label: string | null
           sessions_reached: number
+        }[]
+      }
+      platform_get_operational_summary: {
+        Args: { p_days?: number }
+        Returns: {
+          frontend_errors: number
+          api_route_errors: number
+          cron_job_failures: number
+          notification_failures: number
+          upload_failures: number
+          slow_routes: number
+        }[]
+      }
+      platform_get_recent_operational_events: {
+        Args: { p_limit?: number }
+        Returns: {
+          id: string
+          company_name: string | null
+          source: string
+          severity: string
+          context: string | null
+          message: string
+          duration_ms: number | null
+          created_at: string
+        }[]
+      }
+      platform_get_ai_call_summary: {
+        Args: { p_days?: number }
+        Returns: {
+          total_calls: number
+          failed_calls: number
         }[]
       }
     }

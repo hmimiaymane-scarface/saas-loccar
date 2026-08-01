@@ -122,3 +122,37 @@ export interface DropoffStep {
   stepLabel: string | null
   sessionsReached: number
 }
+
+/** Roadmap phase 59 — system-health counts over a trailing window,
+ * backing /platform/operations. Distinct from UsageAnalyticsSummary
+ * (product behavior): this is "did the product break," not "how do
+ * people use it." */
+export interface OperationalSummary {
+  windowDays: number
+  frontendErrors: number
+  apiRouteErrors: number
+  cronJobFailures: number
+  notificationFailures: number
+  uploadFailures: number
+  slowRoutes: number
+}
+
+export interface OperationalEventRow {
+  id: string
+  companyName: string | null
+  source: "frontend" | "api_route" | "cron_job" | "notification" | "upload" | "slow_route"
+  severity: "warning" | "error"
+  context: string | null
+  message: string
+  durationMs: number | null
+  createdAt: string
+}
+
+/** Roadmap phase 59 — surfaces phase 05's existing ai_usage_log, which
+ * already records success/failure on every askAI() call; no new
+ * writes needed, just a read. */
+export interface AiCallSummary {
+  windowDays: number
+  totalCalls: number
+  failedCalls: number
+}
