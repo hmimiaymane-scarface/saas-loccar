@@ -6,8 +6,9 @@ import { toCsv } from "@/lib/csv"
 import { formatDate } from "@/lib/format"
 import { MAINTENANCE_TYPE_LABELS } from "@/lib/status"
 import type { MaintenanceRecordStatus, MaintenancePriority } from "@/types/rental"
+import { withRouteObservability } from "@/lib/observability/route-wrapper"
 
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const access = await requireExportAccess(["owner", "manager"])
   if ("response" in access) return access.response
   const { session } = access
@@ -43,3 +44,5 @@ export async function GET(request: NextRequest) {
 
   return csvResponse(csv, "maintenance.csv")
 }
+
+export const GET = withRouteObservability("exports/maintenance", handleGet)

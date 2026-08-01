@@ -4,8 +4,9 @@ import { requireExportAccess, csvResponse } from "@/lib/exports"
 import { getCustomers } from "@/lib/data"
 import { toCsv } from "@/lib/csv"
 import { formatDate } from "@/lib/format"
+import { withRouteObservability } from "@/lib/observability/route-wrapper"
 
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const access = await requireExportAccess(["owner", "manager", "agent"])
   if ("response" in access) return access.response
   const { session } = access
@@ -27,3 +28,5 @@ export async function GET(request: NextRequest) {
 
   return csvResponse(csv, "customers.csv")
 }
+
+export const GET = withRouteObservability("exports/customers", handleGet)

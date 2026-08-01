@@ -5,8 +5,9 @@ import { getPaymentsLedger } from "@/lib/data"
 import { toCsv } from "@/lib/csv"
 import { formatDateTime } from "@/lib/format"
 import type { PaymentTransactionType, PaymentMethod } from "@/types/rental"
+import { withRouteObservability } from "@/lib/observability/route-wrapper"
 
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const access = await requireExportAccess(["owner", "manager", "accountant"])
   if ("response" in access) return access.response
   const { session } = access
@@ -40,3 +41,5 @@ export async function GET(request: NextRequest) {
 
   return csvResponse(csv, "payments.csv")
 }
+
+export const GET = withRouteObservability("exports/payments", handleGet)

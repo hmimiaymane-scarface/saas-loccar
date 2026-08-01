@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { resolveWebAuthnParty, WEBAUTHN_CHALLENGE_COOKIE } from "@/lib/webauthn/config"
 import { isLocked, recordFailedAttempt, resetLockout } from "@/lib/webauthn/lockout"
+import { withRouteObservability } from "@/lib/observability/route-wrapper"
 
 function readCookie(request: Request, name: string): string | null {
   const header = request.headers.get("cookie") ?? ""
@@ -32,7 +33,7 @@ function readCookie(request: Request, name: string): string | null {
  * The user never sees the magic-link email; it's generated and
  * consumed entirely server-side in one request.
  */
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   const expectedChallenge = readCookie(request, WEBAUTHN_CHALLENGE_COOKIE)
   if (!expectedChallenge) {
     return Response.json({ error: "That took too long — try again." }, { status: 400 })
@@ -155,3 +156,5 @@ export async function POST(request: Request) {
   response.headers.append("Set-Cookie", clearCookie)
   return response
 }
+
+export const POST = withRouteObservability("webauthn/authenticate-verify", handlePost)

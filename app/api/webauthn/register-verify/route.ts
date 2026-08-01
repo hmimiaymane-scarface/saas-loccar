@@ -3,6 +3,7 @@ import { verifyRegistrationResponse, type RegistrationResponseJSON } from "@simp
 import { getSessionContext } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { resolveWebAuthnParty, WEBAUTHN_CHALLENGE_COOKIE } from "@/lib/webauthn/config"
+import { withRouteObservability } from "@/lib/observability/route-wrapper"
 
 function readCookie(request: Request, name: string): string | null {
   const header = request.headers.get("cookie") ?? ""
@@ -10,7 +11,7 @@ function readCookie(request: Request, name: string): string | null {
   return match ? match.slice(name.length + 1) : null
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   const session = await getSessionContext()
   if (!session) return Response.json({ error: "Sign in first." }, { status: 401 })
 
@@ -65,3 +66,5 @@ export async function POST(request: Request) {
   response.headers.append("Set-Cookie", clearCookie)
   return response
 }
+
+export const POST = withRouteObservability("webauthn/register-verify", handlePost)

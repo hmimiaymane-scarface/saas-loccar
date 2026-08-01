@@ -3,6 +3,7 @@ import { generateRegistrationOptions } from "@simplewebauthn/server"
 import { getSessionContext } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { resolveWebAuthnParty, WEBAUTHN_CHALLENGE_COOKIE } from "@/lib/webauthn/config"
+import { withRouteObservability } from "@/lib/observability/route-wrapper"
 
 /**
  * Roadmap phase 16 requirement 8 — step 1 of registering a passkey for
@@ -11,7 +12,7 @@ import { resolveWebAuthnParty, WEBAUTHN_CHALLENGE_COOKIE } from "@/lib/webauthn/
  * a live session — only *authenticating* with an already-registered
  * passkey happens before one exists (see authenticate-options/verify).
  */
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   const session = await getSessionContext()
   if (!session) return Response.json({ error: "Sign in first." }, { status: 401 })
 
@@ -44,3 +45,5 @@ export async function POST(request: Request) {
   )
   return response
 }
+
+export const POST = withRouteObservability("webauthn/register-options", handlePost)

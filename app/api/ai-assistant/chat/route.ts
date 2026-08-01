@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server"
 import { resolveModel, isConfigured, type AiProvider } from "@/lib/ai/models"
 import { buildSystemPrompt } from "@/lib/ai/system-prompt"
 import { buildTools } from "@/lib/ai/tools"
+import { withRouteObservability } from "@/lib/observability/route-wrapper"
 
 export const maxDuration = 60
 
@@ -14,7 +15,7 @@ interface ChatRequestBody {
   provider: AiProvider
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const session = await getSessionContext()
   if (!session) return new Response("Unauthorized", { status: 401 })
 
@@ -70,3 +71,10 @@ export async function POST(req: Request) {
 
   return result.toUIMessageStreamResponse()
 }
+
+// Note: for a streaming response, the timing this wrapper measures is
+// setup time (rate-limit check, tool building, model call kickoff) up
+// to the point streamText() returns — not the full stream's duration,
+// since the wrapped handler resolves once headers are ready, same as a
+// reverse proxy's own time-to-first-byte measurement would.
+export const POST = withRouteObservability("ai-assistant/chat", handlePost)

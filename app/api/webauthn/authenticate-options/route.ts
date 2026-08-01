@@ -1,6 +1,7 @@
 import { generateAuthenticationOptions } from "@simplewebauthn/server"
 
 import { resolveWebAuthnParty, WEBAUTHN_CHALLENGE_COOKIE } from "@/lib/webauthn/config"
+import { withRouteObservability } from "@/lib/observability/route-wrapper"
 
 /**
  * Roadmap phase 16 requirement 8 — step 1 of signing in with a passkey.
@@ -12,7 +13,7 @@ import { resolveWebAuthnParty, WEBAUTHN_CHALLENGE_COOKIE } from "@/lib/webauthn/
  * from the assertion's own `userHandle`. No session exists yet by
  * definition — this route is intentionally unauthenticated.
  */
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   const { rpID } = resolveWebAuthnParty(request)
 
   const options = await generateAuthenticationOptions({
@@ -27,3 +28,5 @@ export async function POST(request: Request) {
   )
   return response
 }
+
+export const POST = withRouteObservability("webauthn/authenticate-options", handlePost)
