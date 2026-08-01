@@ -194,7 +194,10 @@ interface ReservationJoinRow {
   vehicle: { id: string; make: string; model: string; registration_number: string; category: string } | null
 }
 
-function paymentStatusFor(totalDue: number, amountPaid: number, remaining: number): PaymentStatus {
+/** Exported (roadmap phase 61) so the outstanding-balance scenario test
+ * can exercise the exact branch logic the real reservation-list/detail
+ * queries derive `payment.status` from, without needing a live DB. */
+export function paymentStatusFor(totalDue: number, amountPaid: number, remaining: number): PaymentStatus {
   if (remaining <= 0 && totalDue > 0) return "paid"
   if (amountPaid > 0) return "partial"
   return "unpaid"
