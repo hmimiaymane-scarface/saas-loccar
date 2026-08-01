@@ -1,11 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { Search, UserRound } from "lucide-react"
+import { UserRound } from "lucide-react"
 
 import type { Customer } from "@/types/rental"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { SearchInput } from "@/components/domain/search-input"
 import { cn } from "@/lib/utils"
 
 interface CustomerSearchComboboxProps {
@@ -70,20 +70,16 @@ function CustomerSearchCombobox({ selectedCustomer, onSelect, onClear, query, on
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="relative">
-        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Search by name or phone…"
-          className="pl-9"
-          role="combobox"
-          aria-expanded={results.length > 0}
-          aria-controls="customer-search-listbox"
-          aria-activedescendant={results[activeIndex] ? `customer-search-option-${results[activeIndex].id}` : undefined}
-        />
-      </div>
+      <SearchInput
+        value={query}
+        onChange={onQueryChange}
+        onKeyDown={handleKeyDown}
+        placeholder="Search by name or phone…"
+        role="combobox"
+        aria-expanded={results.length > 0}
+        aria-controls="customer-search-listbox"
+        aria-activedescendant={results[activeIndex] ? `customer-search-option-${results[activeIndex].id}` : undefined}
+      />
       {results.length > 0 && (
         <div id="customer-search-listbox" role="listbox" className="flex flex-col overflow-hidden rounded-2xl border border-border">
           {results.map((c, i) => (
@@ -96,7 +92,7 @@ function CustomerSearchCombobox({ selectedCustomer, onSelect, onClear, query, on
               onClick={() => onSelect(c)}
               onMouseEnter={() => setActiveIndex(i)}
               className={cn(
-                "flex flex-col items-start gap-0.5 border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-muted",
+                "flex flex-col items-start gap-0.5 border-b border-border px-3 py-2 text-start last:border-b-0 hover:bg-muted",
                 i === activeIndex && "bg-muted"
               )}
             >
