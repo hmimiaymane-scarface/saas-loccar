@@ -146,7 +146,7 @@ function SubscriptionActions({ companyId, subscription }: { companyId: string; s
             <div className="flex flex-col gap-2 rounded-2xl border border-border p-3">
               <p className="text-sm font-medium text-foreground">
                 {confirmingAction === "suspend"
-                  ? "Suspend access? Their team will be shown an account-paused page and locked out of the dashboard. Nothing is deleted."
+                  ? "Suspend access? Their team will be shown an account-paused page and locked out of their Overview page. Nothing is deleted."
                   : "Mark this subscription cancelled? Access is paused the same way as suspension."}
               </p>
               <div className="flex flex-col gap-1.5">

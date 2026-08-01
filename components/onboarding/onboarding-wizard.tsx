@@ -344,7 +344,7 @@ function InviteStep({ onFinish }: { onFinish: () => void }) {
       title="Invite a teammate"
       description="Optional — bring a manager or agent in now, or do this anytime from Team."
       onSkip={onFinish}
-      skipLabel="Skip — go to my dashboard"
+      skipLabel="Skip — go to my Overview page"
     >
       <form action={formAction} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">

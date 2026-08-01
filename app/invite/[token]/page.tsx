@@ -47,7 +47,7 @@ export default async function InvitePage({
                     : "This invitation has expired — ask for a new one."}
               </p>
               <Link href="/overview" className="text-sm font-medium text-foreground hover:underline">
-                Go to your dashboard
+                Go to your Overview page
               </Link>
             </CardContent>
           </Card>
