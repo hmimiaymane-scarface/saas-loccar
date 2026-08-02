@@ -6,7 +6,7 @@ import { requireSession, requireRole, ActionError, friendlyDbError } from "@/lib
 import { requiredString, optionalString, optionalNumber, requiredEnum } from "@/lib/form-input"
 import { createClient } from "@/lib/supabase/server"
 import { recordEvent } from "@/lib/activity-log"
-import { ACCEPTED_IMAGE_MIME_TYPES, validateUploadForCompany } from "@/lib/storage"
+import { STORAGE_BUCKET, ACCEPTED_IMAGE_MIME_TYPES, validateUploadForCompany } from "@/lib/storage"
 import { recomputeVehicleIntelligenceBestEffort } from "@/lib/vehicle-intelligence-store"
 import { recomputeCustomerIntelligenceBestEffort } from "@/lib/customer-intelligence-store"
 import type { DamageCategory, DamageSeverity, DamageStatus } from "@/types/rental"
@@ -250,7 +250,14 @@ export async function attachDamageMedia(
       .select("id")
       .single()
 
-    if (error) return { error: friendlyDbError(error) }
+    if (error) {
+      // Roadmap phase 70 — see the equivalent cleanup in
+      // app/(dashboard)/documents/actions.ts#createDocumentRecord: the
+      // upload already succeeded before this action runs, so a failed
+      // DB insert would otherwise orphan the Storage object.
+      await supabase.storage.from(STORAGE_BUCKET).remove([storagePath])
+      return { error: friendlyDbError(error) }
+    }
     revalidatePath(`/damages/${damageId}`)
     return { mediaId: data.id }
   } catch (err) {

@@ -102,7 +102,15 @@ export async function createDocumentRecord(
       .select("id")
       .single()
 
-    if (error) return { error: friendlyDbError(error) }
+    if (error) {
+      // Roadmap phase 70 — the upload itself already succeeded (browser
+      // -> Storage directly, before this action ever runs); if the DB
+      // row then fails, the object would otherwise sit in Storage
+      // forever with nothing referencing it. Best-effort only: a
+      // failure here shouldn't mask the original, more important error.
+      await supabase.storage.from(STORAGE_BUCKET).remove([input.storagePath])
+      return { error: friendlyDbError(error) }
+    }
 
     if (supersededId) {
       await supabase

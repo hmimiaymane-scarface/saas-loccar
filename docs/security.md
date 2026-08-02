@@ -431,11 +431,16 @@ regardless of outcome.
 **Known limitations, found but deliberately not fixed this phase** (a
 real architecture change, not proportionate to a verification pass):
 
-- **Upload is two separate steps, not one transaction.** The browser
-  uploads straight to Storage, then a second, independent call
-  (`createDocumentRecord`) records the DB row. A failure between them
-  (confirmed live) leaves a real orphaned Storage object with no DB
-  row — invisible to the UI, never cleaned up.
+- ~~**Upload is two separate steps, not one transaction.**~~ **Fixed,
+  roadmap phase 70** (see `docs/paid-customer-readiness.md`): the browser still uploads
+  straight to Storage, then a second, independent call
+  (`createDocumentRecord`/`attachInspectionMedia`/`attachDamageMedia`)
+  records the DB row — that two-step shape is unchanged, and a failure
+  between them can still happen. What changed: all three actions now
+  catch that DB-insert failure and best-effort delete the just-uploaded
+  Storage object before returning the error, so a failure no longer
+  leaves an invisible, un-cleaned-up orphan behind. Covered by
+  `lib/__tests__/document-upload-cleanup.test.ts`.
 - **No retry logic exists in the desktop upload path**
   (`new-document-form.tsx`) — a failed upload requires re-picking the
   file from scratch. The mobile offline-sync engine's `idempotencyKey`

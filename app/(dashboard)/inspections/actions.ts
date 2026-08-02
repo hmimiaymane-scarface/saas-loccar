@@ -240,7 +240,14 @@ export async function attachInspectionMedia(
       .select("id")
       .single()
 
-    if (error) return { error: friendlyDbError(error) }
+    if (error) {
+      // Roadmap phase 70 — see the equivalent cleanup in
+      // app/(dashboard)/documents/actions.ts#createDocumentRecord: the
+      // upload already succeeded before this action runs, so a failed
+      // DB insert would otherwise orphan the Storage object.
+      await supabase.storage.from(STORAGE_BUCKET).remove([storagePath])
+      return { error: friendlyDbError(error) }
+    }
 
     // Roadmap phase 34 — surfaces a still-missing handoff photo (fuel
     // level / odometer) the moment it's still missing, rather than
