@@ -72,6 +72,7 @@ import {
   isReturningCustomer,
   resolveTrailingMonths,
   resolveReportPeriod,
+  elapsedPeriodDays,
   type ReportDateRange,
 } from "@/lib/reports"
 import { utcIsoToZonedLocal } from "@/lib/timezone"
@@ -4206,7 +4207,7 @@ export async function getFinancialReport(companyId: string, range: ReportDateRan
  * date-range math per row); a clear, defensible definition, applied the
  * same way everywhere it's used. */
 export async function getFleetPerformanceReport(companyId: string, range: ReportDateRange): Promise<FleetPerformanceReport> {
-  const periodDays = Math.max(1, Math.round((new Date(range.toIso).getTime() - new Date(range.fromIso).getTime()) / 86_400_000))
+  const periodDays = elapsedPeriodDays(range)
 
   if (isMockMode()) {
     const fleetSize = mockVehicles.length

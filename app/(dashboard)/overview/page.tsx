@@ -19,7 +19,7 @@ import {
   getTrailingMonthlyRevenue,
 } from "@/lib/data"
 import { getExpiringDocuments } from "@/lib/documents"
-import { resolveReportPeriod, resolveComparableLastMonthPeriod } from "@/lib/reports"
+import { resolveReportPeriod, resolveComparableLastMonthPeriod, elapsedPeriodDays } from "@/lib/reports"
 import { getFleetHealthRollup, getCustomerHealthRollup, type ScoreRollup } from "@/lib/intelligence-rollups"
 import { getOpenOperationsFeedItems, type OperationsFeedItem } from "@/lib/operations-feed/data"
 import { computeBusinessPulse, type BusinessPulseSummary } from "@/lib/business-pulse"
@@ -156,10 +156,7 @@ async function loadIntelligenceExtras(session: SessionContext) {
     // function already fetched for other cards (fleetPerfThisMonth.rows
     // was computed but never read before this phase) plus the one new
     // trailingRevenue query above.
-    const periodDaysThisMonth = Math.max(
-      1,
-      Math.round((new Date(thisMonth.toIso).getTime() - new Date(thisMonth.fromIso).getTime()) / 86_400_000)
-    )
+    const periodDaysThisMonth = elapsedPeriodDays(thisMonth)
     const leaderboard = buildVehicleLeaderboard(fleetPerfThisMonth.rows, periodDaysThisMonth)
     const revenueRecord = computeRevenueRecord(trailingRevenue)
     const revenueStreak = computeRevenueStreak(trailingRevenue)

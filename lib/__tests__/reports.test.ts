@@ -8,6 +8,7 @@ import {
   isReturningCustomer,
   resolveReportPeriod,
   resolveComparableLastMonthPeriod,
+  elapsedPeriodDays,
   resolveTrailingMonths,
 } from "../reports"
 
@@ -127,6 +128,27 @@ describe("resolveComparableLastMonthPeriod", () => {
     const comparable = resolveComparableLastMonthPeriod(tz)
     const comparableDays = (new Date(comparable.toIso).getTime() - new Date(comparable.fromIso).getTime()) / 86_400_000
     expect(comparableDays).toBe(expectedDays)
+  })
+})
+
+describe("elapsedPeriodDays", () => {
+  it("matches the full nominal length for a range already entirely in the past", () => {
+    const range = { fromIso: "2026-01-01T00:00:00.000Z", toIso: "2026-01-31T00:00:00.000Z" }
+    expect(elapsedPeriodDays(range)).toBe(30)
+  })
+
+  it("caps at 'now' for a range extending into the future, never counting unelapsed days", () => {
+    const tz = "Africa/Casablanca"
+    const thisMonth = resolveReportPeriod("this_month", tz)
+    const nominalDays = Math.round((new Date(thisMonth.toIso).getTime() - new Date(thisMonth.fromIso).getTime()) / 86_400_000)
+    const elapsed = elapsedPeriodDays(thisMonth)
+    expect(elapsed).toBeLessThanOrEqual(nominalDays)
+    expect(elapsed).toBeGreaterThanOrEqual(1)
+  })
+
+  it("never returns less than 1, even for a range starting after now", () => {
+    const farFuture = { fromIso: "2099-01-01T00:00:00.000Z", toIso: "2099-02-01T00:00:00.000Z" }
+    expect(elapsedPeriodDays(farFuture)).toBe(1)
   })
 })
 

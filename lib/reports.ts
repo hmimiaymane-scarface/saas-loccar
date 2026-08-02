@@ -45,6 +45,26 @@ export function downtimeDays(periodDays: number, activeDays: number): number {
   return Math.max(0, periodDays - activeDays)
 }
 
+/**
+ * Found during the "final priority rules / definition of done" audit
+ * (after phase 70) — a period's *nominal* length (`toIso - fromIso`) is
+ * only the right denominator for `occupancyRate`/`downtimeDays` once the
+ * period is actually over. `resolveReportPeriod("this_month"/"this_week"/
+ * "today")` always returns the FULL nominal range regardless of "today" —
+ * a vehicle with zero reservations two days into a 31-day month
+ * previously showed "31 days unavailable" and a correspondingly deflated
+ * occupancy rate, the same "partial period read as if it already fully
+ * happened" distortion phase 69 fixed for month-over-month comparisons,
+ * here showing up in a single period's own absolute stats instead. Caps
+ * the elapsed portion at "now" — a range entirely in the past (last
+ * month, a completed custom range) is completely unaffected, since its
+ * `toIso` is already `<=` now.
+ */
+export function elapsedPeriodDays(range: ReportDateRange): number {
+  const elapsedToMs = Math.min(new Date(range.toIso).getTime(), Date.now())
+  return Math.max(1, Math.round((elapsedToMs - new Date(range.fromIso).getTime()) / 86_400_000))
+}
+
 /** "Known operating result" — revenue recorded minus expenses recorded,
  * for the same period. Explicitly not a claim of full accounting profit
  * (see the brief's "do not pretend it represents full accounting profit"
