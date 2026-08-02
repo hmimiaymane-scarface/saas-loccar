@@ -6,7 +6,7 @@ import { isSupabaseConfigured } from "@/lib/env"
 import { getMobileMissionFeedInputs } from "@/lib/mobile/mission-feed-data"
 import { buildMissionFeed } from "@/lib/mobile/mission-feed"
 import { getFinancialReport, getWeeklyPickupCounts } from "@/lib/data"
-import { resolveReportPeriod } from "@/lib/reports"
+import { resolveReportPeriod, resolveComparableLastMonthPeriod } from "@/lib/reports"
 import { utcIsoToZonedLocal } from "@/lib/timezone"
 import { computeRevenuePulseHeadline } from "@/lib/revenue-intelligence"
 import { computeBusiestPickupDayHeadline, buildMobileBusinessPulseSummary } from "@/lib/mobile/business-pulse-summary"
@@ -53,7 +53,7 @@ export default async function HomePage() {
   try {
     const tz = session.company.timezone
     const thisMonth = resolveReportPeriod("this_month", tz)
-    const lastMonth = resolveReportPeriod("last_month", tz)
+    const lastMonth = resolveComparableLastMonthPeriod(tz)
     const today = utcIsoToZonedLocal(resolveReportPeriod("today", tz).fromIso, tz).slice(0, 10)
 
     const [financialThisMonth, financialLastMonth, weeklyPickupCounts] = await Promise.all([

@@ -13,7 +13,7 @@ import {
 } from "@/lib/data"
 import { formatMad, formatDate, formatDateTime } from "@/lib/format"
 import { vehicleStatusConfig, damageStatusConfig, maintenanceRecordStatusConfig, MAINTENANCE_TYPE_LABELS } from "@/lib/status"
-import { resolveReportPeriod, type ReportPeriod } from "@/lib/reports"
+import { resolveReportPeriod, resolveComparableLastMonthPeriod, type ReportPeriod } from "@/lib/reports"
 import { isSupabaseConfigured } from "@/lib/env"
 import { createClient } from "@/lib/supabase/server"
 import { getVehicleIntelligence } from "@/lib/vehicle-intelligence-store"
@@ -116,7 +116,7 @@ export default async function VehicleDetailPage({
   // (which scopes the separate "Revenue & expenses" card further down).
   const tz = session.company.timezone
   const thisMonth = resolveReportPeriod("this_month", tz)
-  const lastMonth = resolveReportPeriod("last_month", tz)
+  const lastMonth = resolveComparableLastMonthPeriod(tz)
 
   const [vehicle, maintenanceHistory, economics, intelligence, timeline, economicsThisMonth, economicsLastMonth, fleetPerfThisMonth, vehicleTrailingRevenue] =
     await Promise.all([

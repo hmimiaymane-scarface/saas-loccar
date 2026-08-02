@@ -7,6 +7,7 @@ import {
   knownOperatingResult,
   isReturningCustomer,
   resolveReportPeriod,
+  resolveComparableLastMonthPeriod,
   resolveTrailingMonths,
 } from "../reports"
 
@@ -99,6 +100,33 @@ describe("resolveReportPeriod", () => {
     const range = resolveReportPeriod("today", tz)
     const days = (new Date(range.toIso).getTime() - new Date(range.fromIso).getTime()) / 86_400_000
     expect(days).toBe(1)
+  })
+})
+
+describe("resolveComparableLastMonthPeriod", () => {
+  const tz = "Africa/Casablanca"
+
+  it("always starts on the 1st of last month, same as the full last_month range", () => {
+    const full = resolveReportPeriod("last_month", tz)
+    const comparable = resolveComparableLastMonthPeriod(tz)
+    expect(comparable.fromIso).toBe(full.fromIso)
+  })
+
+  it("never extends past the full last_month range", () => {
+    const full = resolveReportPeriod("last_month", tz)
+    const comparable = resolveComparableLastMonthPeriod(tz)
+    expect(new Date(comparable.toIso).getTime()).toBeLessThanOrEqual(new Date(full.toIso).getTime())
+  })
+
+  it("spans the same number of days elapsed so far this month, capped at last month's own length", () => {
+    const todayDay = Number(new Intl.DateTimeFormat("en-US", { timeZone: tz, day: "2-digit" }).format(new Date()))
+    const full = resolveReportPeriod("last_month", tz)
+    const fullDays = (new Date(full.toIso).getTime() - new Date(full.fromIso).getTime()) / 86_400_000
+    const expectedDays = Math.min(todayDay, fullDays)
+
+    const comparable = resolveComparableLastMonthPeriod(tz)
+    const comparableDays = (new Date(comparable.toIso).getTime() - new Date(comparable.fromIso).getTime()) / 86_400_000
+    expect(comparableDays).toBe(expectedDays)
   })
 })
 

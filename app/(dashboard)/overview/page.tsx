@@ -19,7 +19,7 @@ import {
   getTrailingMonthlyRevenue,
 } from "@/lib/data"
 import { getExpiringDocuments } from "@/lib/documents"
-import { resolveReportPeriod } from "@/lib/reports"
+import { resolveReportPeriod, resolveComparableLastMonthPeriod } from "@/lib/reports"
 import { getFleetHealthRollup, getCustomerHealthRollup, type ScoreRollup } from "@/lib/intelligence-rollups"
 import { getOpenOperationsFeedItems, type OperationsFeedItem } from "@/lib/operations-feed/data"
 import { computeBusinessPulse, type BusinessPulseSummary } from "@/lib/business-pulse"
@@ -85,7 +85,7 @@ async function loadIntelligenceExtras(session: SessionContext) {
     const companyId = session.company.id
     const tz = session.company.timezone
     const thisMonth = resolveReportPeriod("this_month", tz)
-    const lastMonth = resolveReportPeriod("last_month", tz)
+    const lastMonth = resolveComparableLastMonthPeriod(tz)
 
     const [
       feedItems,

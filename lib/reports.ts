@@ -144,6 +144,40 @@ export function resolveReportPeriod(
   }
 }
 
+/**
+ * Roadmap phase 69 — every "this month vs last month" comparison (Overview's
+ * Business Pulse and Revenue Intelligence, mobile Home's revenue pulse
+ * headline, a vehicle detail page's cost trend) fetches `this_month` via
+ * `resolveReportPeriod`, which is *always* a partial, month-to-date range in
+ * practice — a company two days into the month can't have logged 29 more
+ * days of revenue no matter how business is going. Comparing that partial
+ * range against a genuinely full `last_month` structurally understates (or
+ * fabricates a "crash" for) every delta until close to month-end; on day 2
+ * it reads as a ~93% revenue drop even for a perfectly healthy business.
+ * This returns last month truncated to the same number of days elapsed this
+ * month (capped at last month's own length, so once this month catches up
+ * to or passes last month's day count — e.g. comparing day 31 against a
+ * 30-day month — it naturally falls back to the full month). Only for
+ * comparison call sites: `resolveReportPeriod("last_month")` itself is
+ * unchanged and still means the genuine full month, since it's also a
+ * real, user-selectable report period on its own (Reports and a vehicle's
+ * period selector), not just an automatic comparison baseline.
+ */
+export function resolveComparableLastMonthPeriod(timeZone: string): ReportDateRange {
+  const now = new Date()
+  const today = localDateParts(timeZone, now)
+
+  const lastMonth = today.month === 1 ? { year: today.year - 1, month: 12 } : { year: today.year, month: today.month - 1 }
+  const daysInLastMonth = new Date(Date.UTC(lastMonth.year, lastMonth.month, 0)).getUTCDate()
+  const elapsedDays = Math.min(today.day, daysInLastMonth)
+  const end = addDays(lastMonth.year, lastMonth.month, 1, elapsedDays)
+
+  return {
+    fromIso: localDateToUtcIso(lastMonth.year, lastMonth.month, 1, timeZone),
+    toIso: localDateToUtcIso(end.year, end.month, end.day, timeZone),
+  }
+}
+
 export interface TrailingMonth {
   /** "YYYY-MM" in the company's timezone. */
   month: string
