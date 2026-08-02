@@ -18,6 +18,8 @@ import {
 } from "@/lib/contracts/lifecycle"
 import { renderContractSections, type TemplateSection, type SectionCondition, type ContractContext } from "@/lib/contracts/template-engine"
 import { renderContractPdf } from "@/lib/contracts/pdf-render"
+import { logOperationalEvent } from "@/lib/observability/log"
+import { CONTRACT_GENERATION_SLOW_MS } from "@/lib/platform/launch-gate"
 import type { ActivityType } from "@/types/rental"
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
@@ -678,6 +680,12 @@ export async function generateContract(
     .single()
   if (contractError) return { ok: false, error: contractError.message }
 
+  // Roadmap phase 66 (Launch Performance Gate) — "contract generation"
+  // is one of the 9 named launch-readiness areas; this is the entire
+  // real cost of generating one (render + store the PDF), timed so a
+  // regression here is visible on /platform/operations, not just felt.
+  const generationStartedAt = Date.now()
+
   const pdfBytes = await renderContractPdf({
     reservationReference: data.reservationReference,
     branding: data.companyBranding,
@@ -694,6 +702,17 @@ export async function generateContract(
     .upload(pdfPath, pdfBytes, { contentType: "application/pdf", upsert: true })
   if (!uploadError) {
     await supabase.from("contracts").update({ pdf_storage_path: pdfPath }).eq("id", contract.id).eq("company_id", companyId)
+  }
+
+  const generationDurationMs = Date.now() - generationStartedAt
+  if (generationDurationMs > CONTRACT_GENERATION_SLOW_MS) {
+    void logOperationalEvent({
+      source: "contract_generation",
+      severity: "warning",
+      context: "generateContract",
+      message: `Contract ${contractNumber} took ${generationDurationMs}ms to render and store`,
+      durationMs: generationDurationMs,
+    })
   }
 
   await recordEvent(supabase, {

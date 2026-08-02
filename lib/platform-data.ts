@@ -1,6 +1,7 @@
 import { isSupabaseConfigured } from "@/lib/env"
 import { createClient } from "@/lib/supabase/server"
 import type { PaginatedResult } from "@/lib/data"
+import { evaluateLaunchGate } from "@/lib/platform/launch-gate"
 import {
   mockPlatformAuditEvents,
   mockPlatformCompanies,
@@ -340,6 +341,8 @@ export async function getOperationalSummary(windowDays = 7): Promise<Operational
       notificationFailures: 0,
       uploadFailures: 0,
       slowRoutes: 0,
+      slowContractGenerations: 0,
+      slowSearches: 0,
     }
   }
   return {
@@ -350,6 +353,8 @@ export async function getOperationalSummary(windowDays = 7): Promise<Operational
     notificationFailures: row.notification_failures,
     uploadFailures: row.upload_failures,
     slowRoutes: row.slow_routes,
+    slowContractGenerations: row.slow_contract_generations,
+    slowSearches: row.slow_searches,
   }
 }
 
@@ -389,4 +394,18 @@ export async function getAiCallSummary(windowDays = 7): Promise<AiCallSummary> {
     totalCalls: row?.total_calls ?? 0,
     failedCalls: row?.failed_calls ?? 0,
   }
+}
+
+/** Roadmap phase 66 (Launch Performance Gate) — the ranked-pass/fail
+ * view backing /platform/launch-gate. Fetches the same trailing window
+ * (7 days) across every existing summary this needs and runs them
+ * through the pure `evaluateLaunchGate` — no new query shape, just a
+ * combination of three that already exist. */
+export async function getLaunchGateResults(windowDays = 7) {
+  const [usage, operational, aiCalls] = await Promise.all([
+    getUsageAnalyticsSummary(windowDays),
+    getOperationalSummary(windowDays),
+    getAiCallSummary(windowDays),
+  ])
+  return evaluateLaunchGate(usage, operational, aiCalls)
 }

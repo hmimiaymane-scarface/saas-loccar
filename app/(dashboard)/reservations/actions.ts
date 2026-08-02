@@ -21,6 +21,8 @@ import { recomputeVehicleIntelligenceBestEffort } from "@/lib/vehicle-intelligen
 import { recomputeCustomerIntelligenceBestEffort } from "@/lib/customer-intelligence-store"
 import { notify } from "@/lib/notifications/service"
 import { getOwnerManagerRecipients } from "@/lib/notifications/recipients"
+import { logOperationalEvent } from "@/lib/observability/log"
+import { SEARCH_SLOW_MS } from "@/lib/platform/launch-gate"
 import type { BookingStatus, Customer, ReservationSource, Vehicle, VehicleCategory } from "@/types/rental"
 
 export interface ReservationActionState {
@@ -453,9 +455,26 @@ export async function checkCustomerByPhone(phone: string): Promise<Customer | nu
   return findCustomerByPhone(session.company.id, phone)
 }
 
+/** Roadmap phase 66 (Launch Performance Gate) — "search" is one of
+ * the 9 named launch-readiness areas; this is the one real server
+ * round trip the customer-search combobox (New Rental wizard,
+ * reservation form) makes per keystroke, timed so a regression here
+ * is visible on /platform/operations. */
 export async function fetchCustomers(query: string): Promise<Customer[]> {
   const session = await requireSession()
-  return searchCustomers(session.company.id, query)
+  const startedAt = Date.now()
+  const results = await searchCustomers(session.company.id, query)
+  const durationMs = Date.now() - startedAt
+  if (durationMs > SEARCH_SLOW_MS) {
+    void logOperationalEvent({
+      source: "search",
+      severity: "warning",
+      context: "fetchCustomers",
+      message: `Customer search took ${durationMs}ms`,
+      durationMs,
+    })
+  }
+  return results
 }
 
 export async function fetchAvailableVehicles(

@@ -1778,6 +1778,8 @@ export type Database = {
           notification_failures: number
           upload_failures: number
           slow_routes: number
+          slow_contract_generations: number
+          slow_searches: number
         }[]
       }
       platform_get_recent_operational_events: {

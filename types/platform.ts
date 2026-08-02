@@ -165,12 +165,16 @@ export interface OperationalSummary {
   notificationFailures: number
   uploadFailures: number
   slowRoutes: number
+  /** Roadmap phase 66 — contract generation / search exceeding the
+   * thresholds defined in lib/platform/launch-gate.ts. */
+  slowContractGenerations: number
+  slowSearches: number
 }
 
 export interface OperationalEventRow {
   id: string
   companyName: string | null
-  source: "frontend" | "api_route" | "cron_job" | "notification" | "upload" | "slow_route"
+  source: "frontend" | "api_route" | "cron_job" | "notification" | "upload" | "slow_route" | "contract_generation" | "search"
   severity: "warning" | "error"
   context: string | null
   message: string

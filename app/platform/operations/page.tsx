@@ -1,4 +1,4 @@
-import { MonitorX, ServerCrash, Clock3, BellOff, UploadCloud, Gauge, Bot } from "lucide-react"
+import { MonitorX, ServerCrash, Clock3, BellOff, UploadCloud, Gauge, Bot, FileSignature, Search } from "lucide-react"
 
 import { getOperationalSummary, getRecentOperationalEvents, getAiCallSummary } from "@/lib/platform-data"
 import { formatRelativeTime } from "@/lib/format"
@@ -39,6 +39,8 @@ const SOURCE_LABEL: Record<string, string> = {
   notification: "Notification",
   upload: "Upload",
   slow_route: "Slow route",
+  contract_generation: "Contract generation",
+  search: "Search",
 }
 
 export default async function PlatformOperationsPage() {
@@ -64,6 +66,13 @@ export default async function PlatformOperationsPage() {
         <StatCard icon={BellOff} label="Notification failures" value={String(summary.notificationFailures)} />
         <StatCard icon={UploadCloud} label="Upload failures" value={String(summary.uploadFailures)} />
         <StatCard icon={Gauge} label="Slow routes" value={String(summary.slowRoutes)} hint="over 3s" />
+        <StatCard
+          icon={FileSignature}
+          label="Slow contract generations"
+          value={String(summary.slowContractGenerations)}
+          hint="over 5s"
+        />
+        <StatCard icon={Search} label="Slow searches" value={String(summary.slowSearches)} hint="over 800ms" />
         <StatCard
           icon={Bot}
           label="AI call failures"

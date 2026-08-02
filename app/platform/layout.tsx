@@ -38,6 +38,9 @@ export default async function PlatformLayout({ children }: { children: React.Rea
               <Link href="/platform/product-signals" className="hover:text-neutral-100">
                 Product Signals
               </Link>
+              <Link href="/platform/launch-gate" className="hover:text-neutral-100">
+                Launch Gate
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3">

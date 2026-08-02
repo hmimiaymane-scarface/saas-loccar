@@ -294,6 +294,8 @@ export const mockOperationalSummary: OperationalSummary = {
   notificationFailures: 2,
   uploadFailures: 1,
   slowRoutes: 4,
+  slowContractGenerations: 0,
+  slowSearches: 0,
 }
 
 export const mockRecentOperationalEvents: OperationalEventRow[] = [

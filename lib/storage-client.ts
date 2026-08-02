@@ -15,16 +15,19 @@
 import { createClient } from "@/lib/supabase/client"
 import { STORAGE_BUCKET } from "@/lib/storage"
 import { logOperationalEvent } from "@/lib/observability/log"
+import { UPLOAD_SLOW_MS } from "@/lib/platform/launch-gate"
 
 export async function uploadFile(
   path: string,
   file: File
 ): Promise<{ path: string; error?: string }> {
   const supabase = createClient()
+  const startedAt = Date.now()
   const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
     contentType: file.type,
     upsert: false,
   })
+  const durationMs = Date.now() - startedAt
   if (error) {
     // Roadmap phase 59 — uploads go straight from the browser to
     // Storage (see this file's own top comment), so a failure here
@@ -49,6 +52,23 @@ export async function uploadFile(
       metadata: { pathPrefix, fileType: file.type, fileSizeBytes: file.size },
     })
     return { path, error: error.message }
+  }
+
+  // Roadmap phase 66 (Launch Performance Gate) — "photo upload" is one
+  // of the 9 named launch-readiness areas; a successful-but-slow
+  // upload was previously invisible (only failures were logged, phase
+  // 59). Same `pathPrefix`-only logging discipline as the failure path
+  // above — never the filename segment.
+  if (durationMs > UPLOAD_SLOW_MS) {
+    const pathPrefix = path.split("/").slice(0, -1).join("/")
+    void logOperationalEvent({
+      source: "upload",
+      severity: "warning",
+      context: "slow_upload",
+      message: `Upload took ${durationMs}ms`,
+      metadata: { pathPrefix, fileType: file.type, fileSizeBytes: file.size },
+      durationMs,
+    })
   }
   return { path }
 }

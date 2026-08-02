@@ -1,2 +1,10 @@
-export type OperationalEventSource = "frontend" | "api_route" | "cron_job" | "notification" | "upload" | "slow_route"
+export type OperationalEventSource =
+  | "frontend"
+  | "api_route"
+  | "cron_job"
+  | "notification"
+  | "upload"
+  | "slow_route"
+  | "contract_generation"
+  | "search"
 export type OperationalEventSeverity = "warning" | "error"
